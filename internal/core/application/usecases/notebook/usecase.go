@@ -1,4 +1,4 @@
-package usecases
+package notebook
 
 import (
 	"context"
@@ -37,7 +37,7 @@ func NewNotebookUseCase(notebookRepo repositories.NotebookRepository) NotebookUs
 // Create creates a new notebook
 func (uc *notebookUseCase) Create(ctx context.Context, req *dtos.CreateNotebookRequest) (*dtos.NotebookResponse, error) {
 	// Create the entity
-	notebook, err := entities.NewNotebook(req.Title, req.Description, req.Content, req.Tags)
+	notebook, err := mappers.ToEntity(req)
 	if err != nil {
 		return nil, errors.NewValidationError(fmt.Sprintf("failed to create notebook: %v", err))
 	}
@@ -90,20 +90,20 @@ func (uc *notebookUseCase) List(ctx context.Context, req *dtos.ListNotebooksRequ
 	var err error
 	var total int64
 
-	// Filter by status or tags if provided
+	// Filter by user_id first, then by status or tags if provided
 	switch {
 	case req.Status != "":
 		notebooks, err = uc.notebookRepo.FindByStatus(ctx, req.Status, req.Limit, offset)
-		total, _ = uc.notebookRepo.Count(ctx)
+		total, _ = uc.notebookRepo.CountByUserID(ctx, req.UserID)
 	case len(req.Tags) > 0:
 		notebooks, err = uc.notebookRepo.FindByTags(ctx, req.Tags, req.Limit, offset)
-		total, _ = uc.notebookRepo.Count(ctx)
+		total, _ = uc.notebookRepo.CountByUserID(ctx, req.UserID)
 	case req.Query != "":
 		notebooks, err = uc.notebookRepo.Search(ctx, req.Query, req.Limit, offset)
-		total, _ = uc.notebookRepo.Count(ctx)
+		total, _ = uc.notebookRepo.CountByUserID(ctx, req.UserID)
 	default:
-		notebooks, err = uc.notebookRepo.FindAll(ctx, req.Limit, offset)
-		total, err = uc.notebookRepo.Count(ctx)
+		notebooks, err = uc.notebookRepo.FindByUserID(ctx, req.UserID, req.Limit, offset)
+		total, err = uc.notebookRepo.CountByUserID(ctx, req.UserID)
 	}
 
 	if err != nil {

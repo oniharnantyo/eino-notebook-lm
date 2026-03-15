@@ -73,6 +73,33 @@ func (r *InMemoryNotebookRepository) FindAll(ctx context.Context, limit, offset 
 	return result, nil
 }
 
+// FindByUserID finds notebooks by user ID with pagination
+func (r *InMemoryNotebookRepository) FindByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*entities.Notebook, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make([]*entities.Notebook, 0, limit)
+	count := 0
+	skipped := 0
+
+	for _, notebook := range r.nbs {
+		if notebook.IsDeleted() || notebook.UserID != userID {
+			continue
+		}
+		if skipped < offset {
+			skipped++
+			continue
+		}
+		if count >= limit {
+			break
+		}
+		result = append(result, notebook)
+		count++
+	}
+
+	return result, nil
+}
+
 // FindByStatus finds notebooks by status
 func (r *InMemoryNotebookRepository) FindByStatus(ctx context.Context, status string, limit, offset int) ([]*entities.Notebook, error) {
 	r.mu.RLock()
@@ -189,6 +216,20 @@ func (r *InMemoryNotebookRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
 	for _, notebook := range r.nbs {
 		if !notebook.IsDeleted() {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// CountByUserID returns the total count of notebooks for a user
+func (r *InMemoryNotebookRepository) CountByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var count int64
+	for _, notebook := range r.nbs {
+		if !notebook.IsDeleted() && notebook.UserID == userID {
 			count++
 		}
 	}

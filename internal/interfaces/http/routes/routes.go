@@ -10,7 +10,7 @@ import (
 )
 
 // Setup configures all application routes
-func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, documentHandler *handlers.DocumentHandler) {
+func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler) {
 	// Apply global middleware
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recovery)
@@ -32,13 +32,14 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, docume
 	notebooks.HandleFunc("/{id}", notebookHandler.Delete).Methods(http.MethodDelete)
 	notebooks.HandleFunc("/{id}/archive", notebookHandler.Archive).Methods(http.MethodPost)
 
-	// Document routes
-	documents := api.PathPrefix("/documents").Subrouter()
-	documents.HandleFunc("", documentHandler.Create).Methods(http.MethodPost)
-	documents.HandleFunc("", documentHandler.List).Methods(http.MethodGet)
-	documents.HandleFunc("/{id}", documentHandler.GetByID).Methods(http.MethodGet)
-	documents.HandleFunc("/{id}", documentHandler.Update).Methods(http.MethodPut)
-	documents.HandleFunc("/{id}", documentHandler.Delete).Methods(http.MethodDelete)
+	// Knowledge routes
+	knowledges := api.PathPrefix("/knowledges").Subrouter()
+	knowledges.HandleFunc("", knowledgeHandler.Create).Methods(http.MethodPost)
+	knowledges.HandleFunc("", knowledgeHandler.List).Methods(http.MethodGet)
+	knowledges.HandleFunc("/search", knowledgeHandler.Search).Methods(http.MethodGet)
+	knowledges.HandleFunc("/{id}", knowledgeHandler.GetByID).Methods(http.MethodGet)
+	knowledges.HandleFunc("/{id}", knowledgeHandler.Update).Methods(http.MethodPut)
+	knowledges.HandleFunc("/{id}", knowledgeHandler.Delete).Methods(http.MethodDelete)
 }
 
 // healthCheck returns the health status

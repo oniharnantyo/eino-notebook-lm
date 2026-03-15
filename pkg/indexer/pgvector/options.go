@@ -45,3 +45,61 @@ func WithUpsert(upsert bool) indexer.Option {
 func getStoreOptions(opts ...indexer.Option) *StoreOptions {
 	return indexer.GetImplSpecificOptions(new(StoreOptions), opts...)
 }
+
+// SearchOptions are implementation-specific options for similarity search.
+type SearchOptions struct {
+	// K is the number of results to return. If 0, uses config.DefaultK.
+	K int
+
+	// EF is the HNSW search parameter. If 0, uses config.HNSWM.
+	EF int
+
+	// IncludeDistance includes the distance/score in the document metadata.
+	IncludeDistance bool
+
+	// SubIndexes filters results by sub-indexes.
+	SubIndexes []string
+
+	// WhereClause adds a custom WHERE clause for filtering.
+	WhereClause string
+}
+
+// WithK returns an option that sets the number of results to return.
+func WithK(k int) indexer.Option {
+	return indexer.WrapImplSpecificOptFn(func(opts *SearchOptions) {
+		opts.K = k
+	})
+}
+
+// WithSearchEF returns an option that sets the HNSW search parameter.
+func WithSearchEF(ef int) indexer.Option {
+	return indexer.WrapImplSpecificOptFn(func(opts *SearchOptions) {
+		opts.EF = ef
+	})
+}
+
+// WithIncludeDistance returns an option that includes distance in results.
+func WithIncludeDistance(include bool) indexer.Option {
+	return indexer.WrapImplSpecificOptFn(func(opts *SearchOptions) {
+		opts.IncludeDistance = include
+	})
+}
+
+// WithSubIndexes returns an option that filters by sub-indexes.
+func WithSubIndexes(indexes ...string) indexer.Option {
+	return indexer.WrapImplSpecificOptFn(func(opts *SearchOptions) {
+		opts.SubIndexes = indexes
+	})
+}
+
+// WithWhereClause returns an option that adds a custom WHERE clause.
+func WithWhereClause(clause string) indexer.Option {
+	return indexer.WrapImplSpecificOptFn(func(opts *SearchOptions) {
+		opts.WhereClause = clause
+	})
+}
+
+// getSearchOptions extracts the SearchOptions from the provided indexer options.
+func getSearchOptions(opts ...indexer.Option) *SearchOptions {
+	return indexer.GetImplSpecificOptions(new(SearchOptions), opts...)
+}

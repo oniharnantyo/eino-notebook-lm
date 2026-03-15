@@ -1,4 +1,4 @@
-.PHONY: help build run clean test install lint fmt vet
+.PHONY: help build run clean test install lint fmt vet migrate-install migrate-up migrate-down migrate-steps migrate-create migrate-force
 
 # Application variables
 APP_NAME=eino-notebook
@@ -6,6 +6,14 @@ VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT?=$(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildDate=$(BUILD_DATE)"
+
+# Database variables (from .env or defaults)
+DATABASE_HOST?=localhost
+DATABASE_PORT?=5432
+DATABASE_USER?=postgres
+DATABASE_PASSWORD?=password
+DATABASE_NAME?=eino_notebook
+DATABASE_URL?=postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=disable
 
 # Go variables
 GOCMD=go
@@ -95,7 +103,61 @@ dev: ## Run in development mode with air (requires air)
 	@if command -v air > /dev/null; then \
 		air; \
 	else \
-		echo "air not found. Install it: go install github.com/cosmtrek/air@latest"; \
+		echo "air not found. Install it: go install github.com/air-verse/air@latest"; \
+	fi
+
+# Migration targets
+migrate-install: ## Install go-migrate CLI
+	@echo "Installing go-migrate..."
+	@go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	@echo "migrate installed to ~/go/bin/migrate"
+
+migrate-up: ## Run all up migrations
+	@echo "Running migrations up..."
+	@if command -v migrate > /dev/null; then \
+		migrate -path migrations -database "$(DATABASE_URL)" up; \
+	else \
+		echo "migrate not found. Run 'make migrate-install' first."; \
+	fi
+
+migrate-down: ## Run all down migrations
+	@echo "Running migrations down..."
+	@if command -v migrate > /dev/null; then \
+		migrate -path migrations -database "$(DATABASE_URL)" down; \
+	else \
+		echo "migrate not found. Run 'make migrate-install' first."; \
+	fi
+
+migrate-steps: ## Run specific number of migrations (use STEPS=n)
+	@echo "Running $(STEPS) migration steps..."
+	@if command -v migrate > /dev/null; then \
+		migrate -path migrations -database "$(DATABASE_URL)" up $(STEPS); \
+	else \
+		echo "migrate not found. Run 'make migrate-install' first."; \
+	fi
+
+migrate-create: ## Create a new migration (use NAME=migration_name)
+	@echo "Creating migration: $(NAME)..."
+	@if command -v migrate > /dev/null; then \
+		migrate create -ext sql -dir migrations -seq $(NAME); \
+	else \
+		echo "migrate not found. Run 'make migrate-install' first."; \
+	fi
+
+migrate-force: ## Force migration version (use VERSION=n)
+	@echo "Forcing migration version to $(VERSION)..."
+	@if command -v migrate > /dev/null; then \
+		migrate -path migrations -database "$(DATABASE_URL)" force $(VERSION); \
+	else \
+		echo "migrate not found. Run 'make migrate-install' first."; \
+	fi
+
+migrate-version: ## Show current migration version
+	@echo "Showing migration version..."
+	@if command -v migrate > /dev/null; then \
+		migrate -path migrations -database "$(DATABASE_URL)" version; \
+	else \
+		echo "migrate not found. Run 'make migrate-install' first."; \
 	fi
 
 .DEFAULT_GOAL := help

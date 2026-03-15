@@ -5,16 +5,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-playground/validator/v10"
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
 // Config holds all configuration for the application
 type Config struct {
-	Server  ServerConfig
-	Database DatabaseConfig
-	Gemini  GeminiConfig
-	Log     LogConfig
-	Cache   CacheConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Gemini    GeminiConfig
+	Log       LogConfig
+	Cache     CacheConfig
+	Kreuzberg KreuzbergConfig
 }
 
 // ServerConfig holds server configuration
@@ -28,12 +31,12 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Driver          string
-	Host            string
-	Port            int
-	User            string
+	Driver          string `validate:"required,oneof=postgres"`
+	Host            string `validate:"required,hostname|ip"`
+	Port            int    `validate:"required,min=1,max=65535"`
+	User            string `validate:"required"`
 	Password        string
-	Database        string
+	Database        string `validate:"required"`
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
@@ -56,18 +59,33 @@ type CacheConfig struct {
 
 // GeminiConfig holds Gemini API configuration for embeddings
 type GeminiConfig struct {
-	APIKey     string
-	BaseURL    string
-	Model      string
-	Dimension  int
+	APIKey     string  `mapstructure:"api_key" validate:"required"`
+	BaseURL    string  `mapstructure:"base_url" validate:"required,url"`
+	Model      string  `mapstructure:"model" validate:"required"`
+	Dimension  int     `mapstructure:"dimension" validate:"required,min=1"`
+}
+
+// KreuzbergConfig holds Kreuzberg document extractor configuration
+type KreuzbergConfig struct {
+	ServiceURL  string `mapstructure:"service_url" validate:"required,url"`
+	OutputFormat string `mapstructure:"output_format" validate:"omitempty,oneof=markdown text html"`
+	Timeout     time.Duration `mapstructure:"timeout"`
+	OCR         *OCRConfig `mapstructure:"ocr"`
+}
+
+// OCRConfig holds OCR configuration for Kreuzberg
+type OCRConfig struct {
+	Language string
+	Model    string
 }
 
 // Load loads configuration from environment variables and .env file
 func Load() (*Config, error) {
+	// Load .env file if it exists (ignore error if file doesn't exist)
+	_ = godotenv.Load()
+
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
-	// Also support EINO_ prefixed env vars for backward compatibility
-	viper.SetEnvPrefix("EINO")
 	viper.BindEnv("server.host", "SERVER_HOST")
 	viper.BindEnv("server.port", "SERVER_PORT")
 	viper.BindEnv("log.level", "LOG_LEVEL")
@@ -81,6 +99,11 @@ func Load() (*Config, error) {
 	viper.BindEnv("gemini.base_url", "GEMINI_BASE_URL")
 	viper.BindEnv("gemini.model", "GEMINI_MODEL")
 	viper.BindEnv("gemini.dimension", "GEMINI_DIMENSION")
+	viper.BindEnv("kreuzberg.service_url", "KREUZBERG_SERVICE_URL")
+	viper.BindEnv("kreuzberg.output_format", "KREUZBERG_OUTPUT_FORMAT")
+	viper.BindEnv("kreuzberg.timeout", "KREUZBERG_TIMEOUT")
+	viper.BindEnv("kreuzberg.ocr.language", "KREUZBERG_OCR_LANGUAGE")
+	viper.BindEnv("kreuzberg.ocr.model", "KREUZBERG_OCR_MODEL")
 
 	// Set defaults
 	setDefaults()
@@ -122,14 +145,27 @@ func setDefaults() {
 	viper.SetDefault("cache.ttl", 5*time.Minute)
 
 	// Gemini defaults
+	// Note: APIKey, Model, and Dimension are required - no defaults to catch config errors
 	viper.SetDefault("gemini.base_url", "https://generativelanguage.googleapis.com")
-	viper.SetDefault("gemini.model", "text-embedding-004")
-	viper.SetDefault("gemini.dimension", 768)
+
+	// Kreuzberg defaults
+	viper.SetDefault("kreuzberg.service_url", "http://localhost:8000")
+	viper.SetDefault("kreuzberg.output_format", "markdown")
+	viper.SetDefault("kreuzberg.timeout", 30*time.Second)
 }
 
 // GetServerAddress returns the server address
 func (c *ServerConfig) GetServerAddress() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+}
+
+// Validate validates the configuration and returns an error if any required field is missing
+func (c *Config) Validate() error {
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	if err := validate.Struct(c); err != nil {
+		return fmt.Errorf("config validation failed: %w", err)
+	}
+	return nil
 }
 
 // GetDSN returns the database connection string

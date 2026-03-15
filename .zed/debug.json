@@ -1,0 +1,42 @@
+[
+  {
+    "label": "Run serve",
+    "adapter": "Delve",
+    "request": "launch",
+    "mode": "exec",
+    "program": "eino-notebook",
+    "cwd": ".",
+    "env": {
+      "DEBUG_MODE": "serve"
+    },
+  },
+  {
+    "label": "Debug Current File",
+    "adapter": "Delve",
+    "program": "$ZED_FILE",
+    "request": "launch",
+    "mode": "debug",
+  },
+  {
+    "label": "Run Current Package Tests",
+    "adapter": "Delve",
+    "request": "launch",
+    "mode": "test",
+    "program": "$ZED_FILE",
+  },
+  {
+    "label": "Run All Tests",
+    "adapter": "Delve",
+    "request": "launch",
+    "mode": "test",
+    "program": "./...",
+  },
+  {
+    "label": "Run Current Test Function",
+    "adapter": "Delve",
+    "request": "launch",
+    "mode": "test",
+    "program": "$ZED_FILE",
+    "args": ["-test.run", "$ZED_SYMBOL"],
+  },
+]

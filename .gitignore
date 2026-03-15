@@ -35,6 +35,7 @@ vendor/
 # Debug files
 debug
 __debug_bin
+eino-notebook
 
 # Config files (personal)
 .eino-notebook.yaml

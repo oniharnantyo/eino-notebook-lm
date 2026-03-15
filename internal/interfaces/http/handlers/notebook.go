@@ -8,19 +8,19 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/notebook"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
 // NotebookHandler handles notebook HTTP requests
 type NotebookHandler struct {
-	useCase usecases.NotebookUseCase
+	useCase notebook.NotebookUseCase
 	logger  *logger.Logger
 }
 
 // NewNotebookHandler creates a new notebook handler
-func NewNotebookHandler(useCase usecases.NotebookUseCase, log *logger.Logger) *NotebookHandler {
+func NewNotebookHandler(useCase notebook.NotebookUseCase, log *logger.Logger) *NotebookHandler {
 	return &NotebookHandler{
 		useCase: useCase,
 		logger:  log,

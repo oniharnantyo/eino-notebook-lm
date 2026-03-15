@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -26,6 +27,15 @@ and more. Built with Cobra and Viper for powerful CLI capabilities.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	// Debug mode workaround for IDE debuggers that don't pass arguments correctly.
+	// Load .env file early to check DEBUG_MODE before cobra executes.
+	_ = godotenv.Load()
+
+	// If DEBUG_MODE=serve is set and no args provided, default to "serve" command
+	if os.Getenv("DEBUG_MODE") == "serve" && len(os.Args) == 1 {
+		os.Args = append(os.Args, "serve")
+	}
+
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
