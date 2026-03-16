@@ -15,11 +15,8 @@ type KnowledgeRepository interface {
 	// FindByID finds a knowledge by ID
 	FindByID(ctx context.Context, id uuid.UUID) (*entities.Knowledge, error)
 
-	// FindByNotebookID finds knowledges by notebook ID with pagination
-	FindByNotebookID(ctx context.Context, notebookID uuid.UUID, limit, offset int) ([]*entities.Knowledge, error)
-
-	// FindByNotebookIDAndSourceType finds knowledges by notebook ID and source type
-	FindByNotebookIDAndSourceType(ctx context.Context, notebookID uuid.UUID, sourceType string, limit, offset int) ([]*entities.Knowledge, error)
+	// FindBySourceID retrieves all knowledge chunks for a source
+	GetBySourceID(ctx context.Context, sourceID uuid.UUID) ([]*entities.Knowledge, error)
 
 	// FindAll finds all knowledges with pagination
 	FindAll(ctx context.Context, limit, offset int) ([]*entities.Knowledge, error)
@@ -27,8 +24,8 @@ type KnowledgeRepository interface {
 	// Delete deletes a knowledge by ID
 	Delete(ctx context.Context, id uuid.UUID) error
 
-	// DeleteByNotebookID deletes all knowledges for a notebook
-	DeleteByNotebookID(ctx context.Context, notebookID uuid.UUID) error
+	// DeleteBySourceID deletes all knowledges for a source
+	DeleteBySourceID(ctx context.Context, sourceID uuid.UUID) error
 
 	// Exists checks if a knowledge exists
 	Exists(ctx context.Context, id uuid.UUID) (bool, error)
@@ -36,6 +33,6 @@ type KnowledgeRepository interface {
 	// Count returns the total count of knowledges
 	Count(ctx context.Context) (int64, error)
 
-	// CountByNotebookID returns the total count of knowledges for a notebook
-	CountByNotebookID(ctx context.Context, notebookID uuid.UUID) (int64, error)
+	// CountBySourceID returns the number of knowledge chunks for a source
+	CountBySourceID(ctx context.Context, sourceID uuid.UUID) (int, error)
 }

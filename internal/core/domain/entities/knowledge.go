@@ -20,21 +20,21 @@ const (
 // Knowledge represents a knowledge entity for indexing
 // Knowledge can come from various sources: documents, websites, APIs, etc.
 type Knowledge struct {
-	KnowledgeID uuid.UUID      `json:"knowledge_id" db:"knowledge_id"`
-	NotebookID  uuid.UUID      `json:"notebook_id" db:"notebook_id"`
-	Title       string         `json:"title" db:"title"`
-	Content     string         `json:"content" db:"content"`
-	SourceType  KnowledgeSource `json:"source_type" db:"source_type"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
-	SubIndexes  []string       `json:"sub_indexes,omitempty" db:"sub_indexes"`
-	CreatedAt   time.Time      `json:"created_at" db:"created_at"`
+	KnowledgeID uuid.UUID        `json:"knowledge_id" db:"knowledge_id"`
+	SourceID    uuid.UUID        `json:"source_id" db:"source_id"`
+	Title       string           `json:"title" db:"title"`
+	Content     string           `json:"content" db:"content"`
+	SourceType  KnowledgeSource  `json:"source_type" db:"source_type"`
+	Metadata    map[string]any   `json:"metadata,omitempty" db:"metadata"`
+	SubIndexes  []string         `json:"sub_indexes,omitempty" db:"sub_indexes"`
+	CreatedAt   time.Time        `json:"created_at" db:"created_at"`
 }
 
-// NewKnowledge creates a new knowledge entity
-func NewKnowledge(notebookID uuid.UUID, title, content string, sourceType KnowledgeSource, metadata map[string]interface{}) (*Knowledge, error) {
+// NewKnowledge creates a new knowledge entity with a source reference
+func NewKnowledge(sourceID uuid.UUID, title, content string, sourceType KnowledgeSource, metadata map[string]any) (*Knowledge, error) {
 	knowledge := &Knowledge{
 		KnowledgeID: uuid.New(),
-		NotebookID:  notebookID,
+		SourceID:    sourceID,
 		Title:       title,
 		Content:     content,
 		SourceType:  sourceType,

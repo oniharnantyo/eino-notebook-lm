@@ -16,6 +16,7 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
+	sourceUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 )
@@ -23,6 +24,7 @@ import (
 // KnowledgeHandler handles knowledge HTTP requests
 type KnowledgeHandler struct {
 	useCase                 knowledge.KnowledgeUseCase
+	sourceUseCase           sourceUseCase.SourceUseCase
 	notebookRepo            repositories.NotebookRepository
 	contentExtractorFactory extractor.ContentExtractorFactory
 	documentParserFactory   *document.DocumentParserFactory
@@ -33,6 +35,7 @@ type KnowledgeHandler struct {
 // Dependency Inversion: Depends on ContentExtractorFactory abstraction
 func NewKnowledgeHandler(
 	useCase knowledge.KnowledgeUseCase,
+	sourceUseCase sourceUseCase.SourceUseCase,
 	notebookRepo repositories.NotebookRepository,
 	contentExtractorFactory extractor.ContentExtractorFactory,
 	documentParserFactory *document.DocumentParserFactory,
@@ -40,6 +43,7 @@ func NewKnowledgeHandler(
 ) *KnowledgeHandler {
 	return &KnowledgeHandler{
 		useCase:                 useCase,
+		sourceUseCase:           sourceUseCase,
 		notebookRepo:            notebookRepo,
 		contentExtractorFactory: contentExtractorFactory,
 		documentParserFactory:   documentParserFactory,
@@ -53,7 +57,6 @@ func NewKnowledgeHandler(
 func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Limit upload size to 100MB
 	r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
-
 
 	// Extract form fields
 	notebookIDStr := r.FormValue("notebook_id")
@@ -150,9 +153,32 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		finalSourceType = string(contentType)
 	}
 
-	// Create the request
+	// First, create a source for this content
+	createSourceReq := &dtos.CreateSourceRequest{
+		NotebookID:  notebookID,
+		Title:       title,
+		URI:         url,
+		ContentType: string(contentType),
+		Metadata:    metadata,
+	}
+
+	// Create source via source use case
+	sourceResp, err := h.sourceUseCase.Create(r.Context(), createSourceReq)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create source: %v", err))
+		return
+	}
+
+	// Update source with extracted content
+	err = h.sourceUseCase.Update(r.Context(), sourceResp.ID, extractedContent, len(extractedContent))
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update source content: %v", err))
+		return
+	}
+
+	// Create knowledge with the source reference
 	req := &dtos.CreateKnowledgeRequest{
-		NotebookID: notebookID,
+		SourceID:   sourceResp.ID,
 		Title:      title,
 		Content:    extractedContent,
 		SourceType: finalSourceType,
@@ -161,13 +187,12 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call use case
-	knowledge, err := h.useCase.Create(r.Context(), req)
-	if err != nil {
+	if err := h.useCase.Create(r.Context(), req); err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create knowledge: %v", err))
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusCreated, knowledge)
+	h.respondWithJSON(w, http.StatusCreated, nil)
 }
 
 // buildContentSource builds a ContentSource from the request
@@ -237,15 +262,15 @@ func (h *KnowledgeHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	query := r.URL.Query()
 
-	notebookIDStr := query.Get("notebook_id")
-	if notebookIDStr == "" {
-		h.respondWithError(w, http.StatusBadRequest, "notebook_id is required")
+	sourceIDStr := query.Get("source_id")
+	if sourceIDStr == "" {
+		h.respondWithError(w, http.StatusBadRequest, "source_id is required")
 		return
 	}
 
-	notebookID, err := mappers.ParseID(notebookIDStr)
+	sourceID, err := mappers.ParseID(sourceIDStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "invalid notebook_id format")
+		h.respondWithError(w, http.StatusBadRequest, "invalid source_id format")
 		return
 	}
 
@@ -255,7 +280,7 @@ func (h *KnowledgeHandler) List(w http.ResponseWriter, r *http.Request) {
 	searchQuery := query.Get("q")
 
 	req := &dtos.ListKnowledgesRequest{
-		NotebookID: notebookID,
+		SourceID:   sourceID,
 		Page:       page,
 		Limit:      limit,
 		SourceType: sourceType,
@@ -321,15 +346,15 @@ func (h *KnowledgeHandler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notebookIDStr := r.URL.Query().Get("notebook_id")
-	if notebookIDStr == "" {
-		h.respondWithError(w, http.StatusBadRequest, "notebook_id is required")
+	sourceIDStr := r.URL.Query().Get("source_id")
+	if sourceIDStr == "" {
+		h.respondWithError(w, http.StatusBadRequest, "source_id is required")
 		return
 	}
 
-	notebookID, err := mappers.ParseID(notebookIDStr)
+	sourceID, err := mappers.ParseID(sourceIDStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "invalid notebook_id format")
+		h.respondWithError(w, http.StatusBadRequest, "invalid source_id format")
 		return
 	}
 
@@ -337,10 +362,10 @@ func (h *KnowledgeHandler) Search(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 
 	req := &dtos.ListKnowledgesRequest{
-		NotebookID: notebookID,
-		Query:      query,
-		Page:       page,
-		Limit:      limit,
+		SourceID: sourceID,
+		Query:    query,
+		Page:     page,
+		Limit:    limit,
 	}
 
 	result, err := h.useCase.Search(r.Context(), req)

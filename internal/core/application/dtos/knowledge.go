@@ -9,11 +9,11 @@ import (
 
 // CreateKnowledgeRequest represents a request to create knowledge
 type CreateKnowledgeRequest struct {
-	NotebookID uuid.UUID                      `json:"notebook_id" validate:"required"`
+	SourceID   uuid.UUID                      `json:"source_id" validate:"required"`
 	Title      string                         `json:"title"`
 	Content    string                         `json:"content" validate:"required"`
 	SourceType string                         `json:"source_type" validate:"omitempty,oneof=document website text api other"`
-	Metadata   map[string]interface{}         `json:"metadata,omitempty"`
+	Metadata   map[string]any                 `json:"metadata,omitempty"`
 	SubIndexes []string                       `json:"sub_indexes,omitempty"`
 }
 
@@ -51,22 +51,22 @@ type UpdateKnowledgeRequest struct {
 // KnowledgeResponse represents a knowledge response
 type KnowledgeResponse struct {
 	KnowledgeID uuid.UUID                      `json:"knowledge_id"`
-	NotebookID  uuid.UUID                      `json:"notebook_id"`
+	SourceID    uuid.UUID                      `json:"source_id"`
 	Title       string                         `json:"title"`
 	Content     string                         `json:"content"`
 	SourceType  string                         `json:"source_type"`
-	Metadata    map[string]interface{}         `json:"metadata,omitempty"`
+	Metadata    map[string]any                 `json:"metadata,omitempty"`
 	SubIndexes  []string                       `json:"sub_indexes,omitempty"`
 	CreatedAt   time.Time                      `json:"created_at"`
 }
 
 // ListKnowledgesRequest represents a request to list knowledges
 type ListKnowledgesRequest struct {
-	NotebookID  uuid.UUID `json:"notebook_id" validate:"required"`
-	Page        int       `json:"page" validate:"min=1"`
-	Limit       int       `json:"limit" validate:"min=1,max=100"`
-	SourceType  string    `json:"source_type" validate:"omitempty,oneof=document website text api other"`
-	Query       string    `json:"query" validate:"max=100"`
+	SourceID   uuid.UUID `json:"source_id" validate:"required"`
+	Page       int       `json:"page" validate:"min=1"`
+	Limit      int       `json:"limit" validate:"min=1,max=100"`
+	SourceType string    `json:"source_type" validate:"omitempty,oneof=document website text api other"`
+	Query      string    `json:"query" validate:"max=100"`
 }
 
 // ListKnowledgesResponse represents a paginated list of knowledges
@@ -86,7 +86,7 @@ func ToKnowledgeResponse(knowledge *entities.Knowledge) *KnowledgeResponse {
 
 	return &KnowledgeResponse{
 		KnowledgeID: knowledge.KnowledgeID,
-		NotebookID:  knowledge.NotebookID,
+		SourceID:    knowledge.SourceID,
 		Title:       knowledge.Title,
 		Content:     knowledge.Content,
 		SourceType:  string(knowledge.SourceType),

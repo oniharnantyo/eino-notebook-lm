@@ -73,7 +73,6 @@ func (r *PostgresNotebookRepository) FindByID(ctx context.Context, id uuid.UUID)
 
 	var notebook entities.Notebook
 	var idStr, userIDStr, statusStr string
-	var tagsJSON []byte
 	var metadataJSON []byte
 
 	err := r.pool.QueryRow(ctx, query, id.String()).Scan(
@@ -83,7 +82,7 @@ func (r *PostgresNotebookRepository) FindByID(ctx context.Context, id uuid.UUID)
 		&notebook.Description,
 		&notebook.Content,
 		&statusStr,
-		&tagsJSON,
+		&notebook.Tags,
 		&metadataJSON,
 		&notebook.CreatedAt,
 		&notebook.UpdatedAt,
@@ -100,9 +99,6 @@ func (r *PostgresNotebookRepository) FindByID(ctx context.Context, id uuid.UUID)
 	notebook.Status = parseStatus(statusStr)
 
 	// Parse JSON fields
-	if tagsJSON != nil {
-		json.Unmarshal(tagsJSON, &notebook.Tags)
-	}
 	if metadataJSON != nil {
 		json.Unmarshal(metadataJSON, &notebook.Metadata)
 	}
@@ -198,9 +194,7 @@ func (r *PostgresNotebookRepository) FindByTags(ctx context.Context, tags []stri
 		LIMIT $2 OFFSET $3
 	`
 
-	tagsJSON, _ := json.Marshal(tags)
-
-	rows, _ := r.pool.Query(ctx, query, tagsJSON, limit, offset)
+	rows, _ := r.pool.Query(ctx, query, tags, limit, offset)
 	defer rows.Close()
 
 	var notebooks []*entities.Notebook
@@ -304,7 +298,6 @@ func (r *PostgresNotebookRepository) scanNotebook(rows interface{}) (*entities.N
 
 	var notebook entities.Notebook
 	var idStr, userIDStr, statusStr string
-	var tagsJSON []byte
 	var metadataJSON []byte
 
 	err := rows.(scanner).Scan(
@@ -314,7 +307,7 @@ func (r *PostgresNotebookRepository) scanNotebook(rows interface{}) (*entities.N
 		&notebook.Description,
 		&notebook.Content,
 		&statusStr,
-		&tagsJSON,
+		&notebook.Tags,
 		&metadataJSON,
 		&notebook.CreatedAt,
 		&notebook.UpdatedAt,
@@ -331,9 +324,6 @@ func (r *PostgresNotebookRepository) scanNotebook(rows interface{}) (*entities.N
 	notebook.Status = parseStatus(statusStr)
 
 	// Parse JSON fields
-	if tagsJSON != nil {
-		json.Unmarshal(tagsJSON, &notebook.Tags)
-	}
 	if metadataJSON != nil {
 		json.Unmarshal(metadataJSON, &notebook.Metadata)
 	}

@@ -120,6 +120,14 @@ type Config struct {
 	// Default: "created_at"
 	CreatedAtColumn string
 
+	// UpdatedAtColumn is the name of the column storing update timestamp.
+	// Default: "updated_at"
+	UpdatedAtColumn string
+
+	// DocumentIDColumn is the name of the column storing the document ID from schema.Document.
+	// Default: "document_id"
+	DocumentIDColumn string
+
 	// DistanceFunction is the distance function to use for vector similarity.
 	// Default: DistanceCosine
 	DistanceFunction DistanceFunction
@@ -221,6 +229,12 @@ func (c *Config) setDefaults() {
 
 	if c.CreatedAtColumn == "" {
 		c.CreatedAtColumn = "created_at"
+	}
+	if c.UpdatedAtColumn == "" {
+		c.UpdatedAtColumn = "updated_at"
+	}
+	if c.DocumentIDColumn == "" {
+		c.DocumentIDColumn = "document_id"
 	}
 	if c.DistanceFunction == "" {
 		c.DistanceFunction = DistanceCosine

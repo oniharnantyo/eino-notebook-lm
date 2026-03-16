@@ -18,7 +18,7 @@ import (
 
 // KnowledgeUseCase defines the interface for knowledge business logic
 type KnowledgeUseCase interface {
-	Create(ctx context.Context, req *dtos.CreateKnowledgeRequest) (*dtos.KnowledgeResponse, error)
+	Create(ctx context.Context, req *dtos.CreateKnowledgeRequest) error
 	GetByID(ctx context.Context, id string) (*dtos.KnowledgeResponse, error)
 	List(ctx context.Context, req *dtos.ListKnowledgesRequest) (*dtos.ListKnowledgesResponse, error)
 	Update(ctx context.Context, req *dtos.UpdateKnowledgeRequest) (*dtos.KnowledgeResponse, error)
@@ -29,65 +29,100 @@ type KnowledgeUseCase interface {
 // knowledgeUseCase implements KnowledgeUseCase
 type knowledgeUseCase struct {
 	knowledgeRepo repositories.KnowledgeRepository
+	sourceRepo    repositories.SourceRepository
 	indexer       indexer.Indexer
 	embedder      embedding.Embedder
 	transformer   document.Transformer
 }
 
 // NewKnowledgeUseCase creates a new knowledge use case
-func NewKnowledgeUseCase(knowledgeRepo repositories.KnowledgeRepository, idxr indexer.Indexer, embdr embedding.Embedder, transformer document.Transformer) KnowledgeUseCase {
+func NewKnowledgeUseCase(
+	knowledgeRepo repositories.KnowledgeRepository,
+	sourceRepo repositories.SourceRepository,
+	idxr indexer.Indexer,
+	embdr embedding.Embedder,
+	transformer document.Transformer,
+) KnowledgeUseCase {
 	return &knowledgeUseCase{
 		knowledgeRepo: knowledgeRepo,
+		sourceRepo:    sourceRepo,
 		indexer:       idxr,
 		embedder:      embdr,
 		transformer:   transformer,
 	}
 }
 
-// Create creates a new knowledge and indexes it for search
-func (uc *knowledgeUseCase) Create(ctx context.Context, req *dtos.CreateKnowledgeRequest) (*dtos.KnowledgeResponse, error) {
-	// Create the entity
+// Create creates a new knowledge from a source and indexes it for search
+// This is the main entry point for knowledge ingestion
+// It creates knowledge entries that reference an existing source
+func (uc *knowledgeUseCase) Create(ctx context.Context, req *dtos.CreateKnowledgeRequest) error {
+	// Parse source type
 	sourceType := dtos.ParseSourceType(req.SourceType)
-	knowledge, err := entities.NewKnowledge(req.NotebookID, req.Title, req.Content, sourceType, req.Metadata)
+
+	// Get source to verify it exists
+	source, err := uc.sourceRepo.GetByID(ctx, req.SourceID)
 	if err != nil {
-		return nil, errors.NewValidationError(fmt.Sprintf("failed to create knowledge: %v", err))
+		return errors.NewInternalError("failed to find source", err)
+	}
+	if source == nil {
+		return errors.NewNotFoundError("source")
 	}
 
-	// Add sub-indexes if provided
-	for _, idx := range req.SubIndexes {
-		knowledge.AddSubIndex(idx)
-	}
-
-	// Index for vector search if embedder is available
-	// Create document for indexing
+	// Create document for chunking and indexing
 	doc := &schema.Document{
-		ID:      uuid.New().String(),
-		Content: knowledge.Content,
+		ID:      source.ID.String(),
+		Content: req.Content,
 		MetaData: map[string]any{
-			"title":        knowledge.Title,
-			"reference_id": knowledge.NotebookID.String(),
-			"source_type":  knowledge.SourceType,
-			"created_at":   knowledge.CreatedAt,
+			"reference_id": source.ID.String(),
+			"title":        req.Title,
+			"source_type":  sourceType,
+			"created_at":   source.CreatedAt,
 		},
 	}
 
-	// Add sub-indexes to metadata
-	if len(knowledge.SubIndexes) > 0 {
-		doc.MetaData["sub_indexes"] = knowledge.SubIndexes
+	// Add sub-indexes to metadata if provided
+	if len(req.SubIndexes) > 0 {
+		doc.MetaData["sub_indexes"] = req.SubIndexes
 	}
 
+	// Add source metadata if available
+	if source.Metadata != nil {
+		for k, v := range source.Metadata {
+			if _, exists := doc.MetaData[k]; !exists {
+				doc.MetaData[k] = v
+			}
+		}
+	}
+
+	// Transform document into chunks
 	splitDocs, err := uc.transformer.Transform(ctx, []*schema.Document{doc})
 	if err != nil {
-		return nil, fmt.Errorf("failed to transform document: %v", err)
+		return fmt.Errorf("failed to transform document: %v", err)
 	}
 
-	// Store with embeddings
+	// Store with embeddings for vector search
 	_, err = uc.indexer.Store(ctx, splitDocs, indexer.WithEmbedding(uc.embedder))
 	if err != nil {
-		return nil, fmt.Errorf("failed to index knowledge %s for search: %v\n", knowledge.KnowledgeID, err)
+		return fmt.Errorf("failed to index knowledge for search: %v\n", err)
 	}
 
-	return dtos.ToKnowledgeResponse(knowledge), nil
+	return nil
+}
+
+// mapContentType maps KnowledgeSource to ContentType
+func mapContentType(sourceType entities.KnowledgeSource) entities.ContentType {
+	switch entityType := sourceType; entityType {
+	case entities.SourceDocument:
+		return entities.ContentTypePDF
+	case entities.SourceWebsite:
+		return entities.ContentTypeWebsite
+	case entities.SourceText:
+		return entities.ContentTypeText
+	case entities.SourceAPI:
+		return entities.ContentTypeAPI
+	default:
+		return entities.ContentTypeOther
+	}
 }
 
 // GetByID retrieves a knowledge by ID
@@ -110,7 +145,7 @@ func (uc *knowledgeUseCase) GetByID(ctx context.Context, id string) (*dtos.Knowl
 	return dtos.ToKnowledgeResponse(knowledge), nil
 }
 
-// List retrieves a paginated list of knowledges for a notebook
+// List retrieves a paginated list of knowledges for a source
 func (uc *knowledgeUseCase) List(ctx context.Context, req *dtos.ListKnowledgesRequest) (*dtos.ListKnowledgesResponse, error) {
 	// Set defaults
 	if req.Page < 1 {
@@ -123,33 +158,41 @@ func (uc *knowledgeUseCase) List(ctx context.Context, req *dtos.ListKnowledgesRe
 		req.Limit = 100
 	}
 
-	offset := (req.Page - 1) * req.Limit
-
-	var knowledges []*entities.Knowledge
-	var err error
-	var total int64
-
-	// Filter by source type if provided
-	if req.SourceType != "" {
-		knowledges, err = uc.knowledgeRepo.FindByNotebookIDAndSourceType(ctx, req.NotebookID, req.SourceType, req.Limit, offset)
-		total, _ = uc.knowledgeRepo.CountByNotebookID(ctx, req.NotebookID)
-	} else {
-		knowledges, err = uc.knowledgeRepo.FindByNotebookID(ctx, req.NotebookID, req.Limit, offset)
-		total, err = uc.knowledgeRepo.CountByNotebookID(ctx, req.NotebookID)
-	}
-
+	// Get knowledges by source ID
+	knowledges, err := uc.knowledgeRepo.GetBySourceID(ctx, req.SourceID)
 	if err != nil {
 		return nil, errors.NewInternalError("failed to list knowledges", err)
 	}
 
-	totalPages := int(total) / req.Limit
-	if int(total)%req.Limit > 0 {
+	// Apply pagination manually since we're getting all knowledges for the source
+	total := len(knowledges)
+	start := (req.Page - 1) * req.Limit
+	end := start + req.Limit
+
+	if start >= total {
+		return &dtos.ListKnowledgesResponse{
+			Knowledges: []dtos.KnowledgeResponse{},
+			Total:      int64(total),
+			Page:       req.Page,
+			Limit:      req.Limit,
+			TotalPages: 0,
+		}, nil
+	}
+
+	if end > total {
+		end = total
+	}
+
+	paginatedKnowledges := knowledges[start:end]
+
+	totalPages := total / req.Limit
+	if total%req.Limit > 0 {
 		totalPages++
 	}
 
 	return &dtos.ListKnowledgesResponse{
-		Knowledges: dtos.ToKnowledgeResponses(knowledges),
-		Total:      total,
+		Knowledges: dtos.ToKnowledgeResponses(paginatedKnowledges),
+		Total:      int64(total),
 		Page:       req.Page,
 		Limit:      req.Limit,
 		TotalPages: totalPages,
@@ -219,31 +262,7 @@ func (uc *knowledgeUseCase) Search(ctx context.Context, req *dtos.ListKnowledges
 		req.Limit = 100
 	}
 
-	offset := (req.Page - 1) * req.Limit
-
 	// TODO: Implement vector search using the indexer
-	// For now, fall back to repository search
-	var knowledges []*entities.Knowledge
-	var err error
-	var total int64
-
-	knowledges, err = uc.knowledgeRepo.FindByNotebookID(ctx, req.NotebookID, req.Limit, offset)
-	total, _ = uc.knowledgeRepo.CountByNotebookID(ctx, req.NotebookID)
-
-	if err != nil {
-		return nil, errors.NewInternalError("failed to search knowledges", err)
-	}
-
-	totalPages := int(total) / req.Limit
-	if int(total)%req.Limit > 0 {
-		totalPages++
-	}
-
-	return &dtos.ListKnowledgesResponse{
-		Knowledges: dtos.ToKnowledgeResponses(knowledges),
-		Total:      total,
-		Page:       req.Page,
-		Limit:      req.Limit,
-		TotalPages: totalPages,
-	}, nil
+	// For now, fall back to listing by source
+	return uc.List(ctx, req)
 }

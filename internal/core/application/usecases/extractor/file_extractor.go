@@ -72,10 +72,7 @@ func (e *FileContentExtractor) Extract(ctx context.Context, source usecases.Cont
 			"knowledge_id": knowledgeID,
 		}))
 		if err != nil {
-			// Log error but don't fail completely - return fallback message
-			metadata["parse_error"] = err.Error()
-			metadata["knowledge_id"] = knowledgeID
-			return fmt.Sprintf("[File: %s, Size: %d bytes - Parse Error: %s]", filename, len(content), err.Error()), metadata, nil
+			return "", nil, fmt.Errorf("failed to parse file %s: %w", filename, err)
 		}
 
 		if len(docs) > 0 && docs[0].Content != "" {
@@ -97,7 +94,7 @@ func (e *FileContentExtractor) Extract(ctx context.Context, source usecases.Cont
 	}
 
 	// Fallback for unsupported binary files
-	return fmt.Sprintf("[File: %s, Size: %d bytes]", filename, len(content)), metadata, nil
+	return "", nil, fmt.Errorf("unsupported file type: %s", filename)
 }
 
 // isParseableFile checks if a file can be parsed by Kreuzberg

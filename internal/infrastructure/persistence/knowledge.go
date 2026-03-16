@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
@@ -27,9 +28,10 @@ func NewPostgresKnowledgeRepository(pool *pgxpool.Pool) repositories.KnowledgeRe
 // Save saves a knowledge (create or update)
 func (r *PostgresKnowledgeRepository) Save(ctx context.Context, knowledge *entities.Knowledge) error {
 	query := `
-		INSERT INTO knowledges (knowledge_id, notebook_id, title, content, source_type, metadata, sub_indexes)
+		INSERT INTO knowledges (knowledge_id, source_id, title, content, source_type, metadata, sub_indexes)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (knowledge_id) DO UPDATE SET
+			source_id = EXCLUDED.source_id,
 			title = EXCLUDED.title,
 			content = EXCLUDED.content,
 			source_type = EXCLUDED.source_type,
@@ -39,7 +41,7 @@ func (r *PostgresKnowledgeRepository) Save(ctx context.Context, knowledge *entit
 
 	_, err := r.pool.Exec(ctx, query,
 		knowledge.KnowledgeID.String(),
-		knowledge.NotebookID.String(),
+		knowledge.SourceID.String(),
 		knowledge.Title,
 		knowledge.Content,
 		string(knowledge.SourceType),
@@ -57,25 +59,24 @@ func (r *PostgresKnowledgeRepository) Save(ctx context.Context, knowledge *entit
 // FindByID finds a knowledge by ID
 func (r *PostgresKnowledgeRepository) FindByID(ctx context.Context, id uuid.UUID) (*entities.Knowledge, error) {
 	query := `
-		SELECT knowledge_id, notebook_id, title, content, source_type, metadata, sub_indexes, created_at
+		SELECT knowledge_id, source_id, title, content, source_type, metadata, sub_indexes, created_at
 		FROM knowledges
 		WHERE knowledge_id = $1
 	`
 
 	var knowledge entities.Knowledge
-	var knowledgeIDStr, notebookIDStr, sourceTypeStr string
+	var knowledgeIDStr, sourceIDStr, sourceTypeStr string
 	var metadataJSON []byte
-	var createdAtStr string
 
 	err := r.pool.QueryRow(ctx, query, id.String()).Scan(
 		&knowledgeIDStr,
-		&notebookIDStr,
+		&sourceIDStr,
 		&knowledge.Title,
 		&knowledge.Content,
 		&sourceTypeStr,
 		&metadataJSON,
 		&knowledge.SubIndexes,
-		&createdAtStr,
+		&knowledge.CreatedAt,
 	)
 
 	if err != nil {
@@ -84,7 +85,7 @@ func (r *PostgresKnowledgeRepository) FindByID(ctx context.Context, id uuid.UUID
 
 	// Parse UUIDs
 	knowledge.KnowledgeID, _ = uuid.Parse(knowledgeIDStr)
-	knowledge.NotebookID, _ = uuid.Parse(notebookIDStr)
+	knowledge.SourceID, _ = uuid.Parse(sourceIDStr)
 	knowledge.SourceType = entities.KnowledgeSource(sourceTypeStr)
 
 	// Parse metadata
@@ -95,99 +96,26 @@ func (r *PostgresKnowledgeRepository) FindByID(ctx context.Context, id uuid.UUID
 	return &knowledge, nil
 }
 
-// FindByNotebookID finds knowledges by notebook ID with pagination
-func (r *PostgresKnowledgeRepository) FindByNotebookID(ctx context.Context, notebookID uuid.UUID, limit, offset int) ([]*entities.Knowledge, error) {
+// GetBySourceID retrieves all knowledge chunks for a source
+func (r *PostgresKnowledgeRepository) GetBySourceID(ctx context.Context, sourceID uuid.UUID) ([]*entities.Knowledge, error) {
 	query := `
-		SELECT knowledge_id, notebook_id, title, content, source_type, metadata, sub_indexes, created_at
+		SELECT knowledge_id, source_id, title, content, source_type, metadata, sub_indexes, created_at
 		FROM knowledges
-		WHERE notebook_id = $1
-		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3
+		WHERE source_id = $1
+		ORDER BY created_at ASC
 	`
 
-	rows, _ := r.pool.Query(ctx, query, notebookID.String(), limit, offset)
+	rows, _ := r.pool.Query(ctx, query, sourceID.String())
 	defer rows.Close()
 
 	var knowledges []*entities.Knowledge
 
 	for rows.Next() {
-		var knowledge entities.Knowledge
-		var knowledgeIDStr, notebookIDStr, sourceTypeStr string
-		var metadataJSON []byte
-
-		err := rows.Scan(
-			&knowledgeIDStr,
-			&notebookIDStr,
-			&knowledge.Title,
-			&knowledge.Content,
-			&sourceTypeStr,
-			&metadataJSON,
-			&knowledge.SubIndexes,
-			&knowledge.CreatedAt,
-		)
-
+		knowledge, err := r.scanKnowledge(rows)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan knowledge: %w", err)
+			return nil, err
 		}
-
-		knowledge.KnowledgeID, _ = uuid.Parse(knowledgeIDStr)
-		knowledge.NotebookID, _ = uuid.Parse(notebookIDStr)
-		knowledge.SourceType = entities.KnowledgeSource(sourceTypeStr)
-
-		if metadataJSON != nil {
-			json.Unmarshal(metadataJSON, &knowledge.Metadata)
-		}
-
-		knowledges = append(knowledges, &knowledge)
-	}
-
-	return knowledges, nil
-}
-
-// FindByNotebookIDAndSourceType finds knowledges by notebook ID and source type
-func (r *PostgresKnowledgeRepository) FindByNotebookIDAndSourceType(ctx context.Context, notebookID uuid.UUID, sourceType string, limit, offset int) ([]*entities.Knowledge, error) {
-	query := `
-		SELECT knowledge_id, notebook_id, title, content, source_type, metadata, sub_indexes, created_at
-		FROM knowledges
-		WHERE notebook_id = $1 AND source_type = $2
-		ORDER BY created_at DESC
-		LIMIT $3 OFFSET $4
-	`
-
-	rows, _ := r.pool.Query(ctx, query, notebookID.String(), sourceType, limit, offset)
-	defer rows.Close()
-
-	var knowledges []*entities.Knowledge
-
-	for rows.Next() {
-		var knowledge entities.Knowledge
-		var knowledgeIDStr, notebookIDStr, sourceTypeStr string
-		var metadataJSON []byte
-
-		err := rows.Scan(
-			&knowledgeIDStr,
-			&notebookIDStr,
-			&knowledge.Title,
-			&knowledge.Content,
-			&sourceTypeStr,
-			&metadataJSON,
-			&knowledge.SubIndexes,
-			&knowledge.CreatedAt,
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan knowledge: %w", err)
-		}
-
-		knowledge.KnowledgeID, _ = uuid.Parse(knowledgeIDStr)
-		knowledge.NotebookID, _ = uuid.Parse(notebookIDStr)
-		knowledge.SourceType = entities.KnowledgeSource(sourceTypeStr)
-
-		if metadataJSON != nil {
-			json.Unmarshal(metadataJSON, &knowledge.Metadata)
-		}
-
-		knowledges = append(knowledges, &knowledge)
+		knowledges = append(knowledges, knowledge)
 	}
 
 	return knowledges, nil
@@ -196,7 +124,7 @@ func (r *PostgresKnowledgeRepository) FindByNotebookIDAndSourceType(ctx context.
 // FindAll finds all knowledges with pagination
 func (r *PostgresKnowledgeRepository) FindAll(ctx context.Context, limit, offset int) ([]*entities.Knowledge, error) {
 	query := `
-		SELECT knowledge_id, notebook_id, title, content, source_type, metadata, sub_indexes, created_at
+		SELECT knowledge_id, source_id, title, content, source_type, metadata, sub_indexes, created_at
 		FROM knowledges
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -208,34 +136,11 @@ func (r *PostgresKnowledgeRepository) FindAll(ctx context.Context, limit, offset
 	var knowledges []*entities.Knowledge
 
 	for rows.Next() {
-		var knowledge entities.Knowledge
-		var knowledgeIDStr, notebookIDStr, sourceTypeStr string
-		var metadataJSON []byte
-
-		err := rows.Scan(
-			&knowledgeIDStr,
-			&notebookIDStr,
-			&knowledge.Title,
-			&knowledge.Content,
-			&sourceTypeStr,
-			&metadataJSON,
-			&knowledge.SubIndexes,
-			&knowledge.CreatedAt,
-		)
-
+		knowledge, err := r.scanKnowledge(rows)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan knowledge: %w", err)
+			return nil, err
 		}
-
-		knowledge.KnowledgeID, _ = uuid.Parse(knowledgeIDStr)
-		knowledge.NotebookID, _ = uuid.Parse(notebookIDStr)
-		knowledge.SourceType = entities.KnowledgeSource(sourceTypeStr)
-
-		if metadataJSON != nil {
-			json.Unmarshal(metadataJSON, &knowledge.Metadata)
-		}
-
-		knowledges = append(knowledges, &knowledge)
+		knowledges = append(knowledges, knowledge)
 	}
 
 	return knowledges, nil
@@ -253,13 +158,13 @@ func (r *PostgresKnowledgeRepository) Delete(ctx context.Context, id uuid.UUID) 
 	return nil
 }
 
-// DeleteByNotebookID deletes all knowledges for a notebook
-func (r *PostgresKnowledgeRepository) DeleteByNotebookID(ctx context.Context, notebookID uuid.UUID) error {
-	query := `DELETE FROM knowledges WHERE notebook_id = $1`
+// DeleteBySourceID deletes all knowledges for a source
+func (r *PostgresKnowledgeRepository) DeleteBySourceID(ctx context.Context, sourceID uuid.UUID) error {
+	query := `DELETE FROM knowledges WHERE source_id = $1`
 
-	_, err := r.pool.Exec(ctx, query, notebookID.String())
+	_, err := r.pool.Exec(ctx, query, sourceID.String())
 	if err != nil {
-		return fmt.Errorf("failed to delete knowledges by notebook: %w", err)
+		return fmt.Errorf("failed to delete knowledges by source: %w", err)
 	}
 
 	return nil
@@ -291,21 +196,53 @@ func (r *PostgresKnowledgeRepository) Count(ctx context.Context) (int64, error) 
 	return count, nil
 }
 
-// CountByNotebookID returns the total count of knowledges for a notebook
-func (r *PostgresKnowledgeRepository) CountByNotebookID(ctx context.Context, notebookID uuid.UUID) (int64, error) {
-	query := `SELECT COUNT(*) FROM knowledges WHERE notebook_id = $1`
+// CountBySourceID returns the number of knowledge chunks for a source
+func (r *PostgresKnowledgeRepository) CountBySourceID(ctx context.Context, sourceID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM knowledges WHERE source_id = $1`
 
-	var count int64
-	err := r.pool.QueryRow(ctx, query, notebookID.String()).Scan(&count)
+	var count int
+	err := r.pool.QueryRow(ctx, query, sourceID.String()).Scan(&count)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count knowledges by notebook: %w", err)
+		return 0, fmt.Errorf("failed to count knowledges by source: %w", err)
 	}
 
 	return count, nil
 }
 
+// scanKnowledge scans a knowledge from a database row
+func (r *PostgresKnowledgeRepository) scanKnowledge(rows pgx.Rows) (*entities.Knowledge, error) {
+	var knowledge entities.Knowledge
+	var knowledgeIDStr, sourceIDStr, sourceTypeStr string
+	var metadataJSON []byte
+
+	err := rows.Scan(
+		&knowledgeIDStr,
+		&sourceIDStr,
+		&knowledge.Title,
+		&knowledge.Content,
+		&sourceTypeStr,
+		&metadataJSON,
+		&knowledge.SubIndexes,
+		&knowledge.CreatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan knowledge: %w", err)
+	}
+
+	knowledge.KnowledgeID, _ = uuid.Parse(knowledgeIDStr)
+	knowledge.SourceID, _ = uuid.Parse(sourceIDStr)
+	knowledge.SourceType = entities.KnowledgeSource(sourceTypeStr)
+
+	if metadataJSON != nil {
+		json.Unmarshal(metadataJSON, &knowledge.Metadata)
+	}
+
+	return &knowledge, nil
+}
+
 // metadataToJSON converts metadata map to JSON
-func metadataToJSON(metadata map[string]interface{}) []byte {
+func metadataToJSON(metadata map[string]any) []byte {
 	if metadata == nil {
 		return nil
 	}

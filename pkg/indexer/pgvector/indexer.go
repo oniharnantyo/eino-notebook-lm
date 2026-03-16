@@ -19,6 +19,7 @@ package pgvector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -103,7 +104,7 @@ func NewIndexer(ctx context.Context, config *Config) (*Indexer, error) {
 	return idx, nil
 }
 
-// Store stores documents and returns their assigned IDs.
+// Store stores documents and returns their assigned document IDs.
 // Implements indexer.Indexer.
 func (i *Indexer) Store(ctx context.Context, docs []*schema.Document, opts ...indexer.Option) ([]string, error) {
 	if len(docs) == 0 {
@@ -129,38 +130,38 @@ func (i *Indexer) Store(ctx context.Context, docs []*schema.Document, opts ...in
 		}
 	}
 
-	// Prepare document IDs and data
-	ids := make([]string, len(docs))
+	// Prepare document IDs - use schema.Document ID for document_id column
+	documentIDs := make([]string, len(docs))
 	for j, doc := range docs {
 		if doc.ID == "" {
-			ids[j] = uuid.New().String()
+			documentIDs[j] = uuid.New().String()
 		} else {
-			ids[j] = doc.ID
+			documentIDs[j] = doc.ID
 		}
 	}
 
 	// Build the query based on options
 	if storeOpts.Upsert {
-		return i.storeUpsert(ctx, docs, ids, embeddings, commonOpts)
+		return i.storeUpsert(ctx, docs, documentIDs, embeddings, commonOpts)
 	}
 
 	if storeOpts.SkipExisting {
-		return i.storeSkipExisting(ctx, docs, ids, embeddings, commonOpts)
+		return i.storeSkipExisting(ctx, docs, documentIDs, embeddings, commonOpts)
 	}
 
 	// Default: simple insert
-	return i.storeInsert(ctx, docs, ids, embeddings, commonOpts)
+	return i.storeInsert(ctx, docs, documentIDs, embeddings, commonOpts)
 }
 
 // storeInsert performs a simple insert operation.
-func (i *Indexer) storeInsert(ctx context.Context, docs []*schema.Document, ids []string, embeddings [][]float64, opts *indexer.Options) ([]string, error) {
+func (i *Indexer) storeInsert(ctx context.Context, docs []*schema.Document, documentIDs []string, embeddings [][]float64, opts *indexer.Options) ([]string, error) {
 	// Build columns and placeholders based on config
 	var columns []string
 	if i.config.ReferenceIDColumn != "" {
-		columns = []string{i.config.IDColumn, i.config.ReferenceIDColumn, i.config.ContentColumn,
+		columns = []string{i.config.DocumentIDColumn, i.config.ReferenceIDColumn, i.config.ContentColumn,
 			i.config.EmbeddingColumn, i.config.MetadataColumn, i.config.SubIndexesColumn}
 	} else {
-		columns = []string{i.config.IDColumn, i.config.ContentColumn,
+		columns = []string{i.config.DocumentIDColumn, i.config.ContentColumn,
 			i.config.EmbeddingColumn, i.config.MetadataColumn, i.config.SubIndexesColumn}
 	}
 
@@ -174,14 +175,25 @@ func (i *Indexer) storeInsert(ctx context.Context, docs []*schema.Document, ids 
 		VALUES (%s)
 	`, i.config.TableName, joinQuoted(columns, ", "), joinQuoted(placeholders, ", "))
 
+	// Begin transaction for atomicity
+	tx, err := i.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			// Log error but ignore if transaction was already closed (committed)
+		}
+	}()
+
+	var execErr error
 	for j, doc := range docs {
 		// Extract reference_id from metadata if configured
 		referenceID := extractReferenceID(doc.MetaData)
 
-		var err error
 		if i.config.ReferenceIDColumn != "" && referenceID != "" {
-			_, err = i.pool.Exec(ctx, query,
-				ids[j],
+			_, execErr = tx.Exec(ctx, query,
+				documentIDs[j],
 				referenceID,
 				doc.Content,
 				vectorToString(embeddings, j),
@@ -189,39 +201,44 @@ func (i *Indexer) storeInsert(ctx context.Context, docs []*schema.Document, ids 
 				subIndexesToArray(opts.SubIndexes, doc.SubIndexes()),
 			)
 		} else if i.config.ReferenceIDColumn != "" {
-			return nil, fmt.Errorf("failed to insert document %s: reference_id is required but not found in metadata", ids[j])
+			return nil, fmt.Errorf("failed to insert document %s: reference_id is required but not found in metadata", documentIDs[j])
 		} else {
-			_, err = i.pool.Exec(ctx, query,
-				ids[j],
+			_, execErr = tx.Exec(ctx, query,
+				documentIDs[j],
 				doc.Content,
 				vectorToString(embeddings, j),
 				metadataToJSONB(doc.MetaData),
 				subIndexesToArray(opts.SubIndexes, doc.SubIndexes()),
 			)
 		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to insert document %s: %w", ids[j], err)
+		if execErr != nil {
+			return nil, fmt.Errorf("failed to insert document %s: %w", documentIDs[j], execErr)
 		}
 	}
 
-	return ids, nil
+	// Commit transaction if all inserts succeed
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return documentIDs, nil
 }
 
 // storeUpsert performs an upsert operation (insert or update on conflict).
-func (i *Indexer) storeUpsert(ctx context.Context, docs []*schema.Document, ids []string, embeddings [][]float64, opts *indexer.Options) ([]string, error) {
+func (i *Indexer) storeUpsert(ctx context.Context, docs []*schema.Document, documentIDs []string, embeddings [][]float64, opts *indexer.Options) ([]string, error) {
 	// Build columns and placeholders based on config
 	var columns []string
 	var updateColumns []string
 	if i.config.ReferenceIDColumn != "" {
-		columns = []string{i.config.IDColumn, i.config.ReferenceIDColumn, i.config.ContentColumn,
+		columns = []string{i.config.DocumentIDColumn, i.config.ReferenceIDColumn, i.config.ContentColumn,
 			i.config.EmbeddingColumn, i.config.MetadataColumn, i.config.SubIndexesColumn}
-		updateColumns = []string{i.config.ContentColumn, i.config.EmbeddingColumn,
-			i.config.MetadataColumn, i.config.SubIndexesColumn}
+		updateColumns = []string{i.config.ReferenceIDColumn, i.config.ContentColumn, i.config.EmbeddingColumn,
+			i.config.MetadataColumn, i.config.SubIndexesColumn, i.config.UpdatedAtColumn}
 	} else {
-		columns = []string{i.config.IDColumn, i.config.ContentColumn,
+		columns = []string{i.config.DocumentIDColumn, i.config.ContentColumn,
 			i.config.EmbeddingColumn, i.config.MetadataColumn, i.config.SubIndexesColumn}
 		updateColumns = []string{i.config.ContentColumn, i.config.EmbeddingColumn,
-			i.config.MetadataColumn, i.config.SubIndexesColumn}
+			i.config.MetadataColumn, i.config.SubIndexesColumn, i.config.UpdatedAtColumn}
 	}
 
 	placeholders := make([]string, len(columns))
@@ -232,7 +249,11 @@ func (i *Indexer) storeUpsert(ctx context.Context, docs []*schema.Document, ids 
 	// Build SET clause for update
 	var setClauses []string
 	for _, col := range updateColumns {
-		setClauses = append(setClauses, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
+		if col == i.config.UpdatedAtColumn {
+			setClauses = append(setClauses, fmt.Sprintf("%s = NOW()", col))
+		} else {
+			setClauses = append(setClauses, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
+		}
 	}
 
 	query := fmt.Sprintf(`
@@ -243,17 +264,28 @@ func (i *Indexer) storeUpsert(ctx context.Context, docs []*schema.Document, ids 
 	`, i.config.TableName,
 		joinQuoted(columns, ", "),
 		joinQuoted(placeholders, ", "),
-		i.config.IDColumn,
+		i.config.DocumentIDColumn,
 		joinQuoted(setClauses, ",\n\t\t\t"))
 
+	// Begin transaction for atomicity
+	tx, err := i.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			// Log error but ignore if transaction was already closed (committed)
+		}
+	}()
+
+	var execErr error
 	for j, doc := range docs {
 		// Extract reference_id from metadata if configured
 		referenceID := extractReferenceID(doc.MetaData)
 
-		var err error
 		if i.config.ReferenceIDColumn != "" && referenceID != "" {
-			_, err = i.pool.Exec(ctx, query,
-				ids[j],
+			_, execErr = tx.Exec(ctx, query,
+				documentIDs[j],
 				referenceID,
 				doc.Content,
 				vectorToString(embeddings, j),
@@ -261,33 +293,38 @@ func (i *Indexer) storeUpsert(ctx context.Context, docs []*schema.Document, ids 
 				subIndexesToArray(opts.SubIndexes, doc.SubIndexes()),
 			)
 		} else if i.config.ReferenceIDColumn != "" {
-			return nil, fmt.Errorf("failed to upsert document %s: reference_id is required but not found in metadata", ids[j])
+			return nil, fmt.Errorf("failed to upsert document %s: reference_id is required but not found in metadata", documentIDs[j])
 		} else {
-			_, err = i.pool.Exec(ctx, query,
-				ids[j],
+			_, execErr = tx.Exec(ctx, query,
+				documentIDs[j],
 				doc.Content,
 				vectorToString(embeddings, j),
 				metadataToJSONB(doc.MetaData),
 				subIndexesToArray(opts.SubIndexes, doc.SubIndexes()),
 			)
 		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to upsert document %s: %w", ids[j], err)
+		if execErr != nil {
+			return nil, fmt.Errorf("failed to upsert document %s: %w", documentIDs[j], execErr)
 		}
 	}
 
-	return ids, nil
+	// Commit transaction if all upserts succeed
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return documentIDs, nil
 }
 
 // storeSkipExisting inserts only documents that don't already exist.
-func (i *Indexer) storeSkipExisting(ctx context.Context, docs []*schema.Document, ids []string, embeddings [][]float64, opts *indexer.Options) ([]string, error) {
+func (i *Indexer) storeSkipExisting(ctx context.Context, docs []*schema.Document, documentIDs []string, embeddings [][]float64, opts *indexer.Options) ([]string, error) {
 	// Build columns and placeholders based on config
 	var columns []string
 	if i.config.ReferenceIDColumn != "" {
-		columns = []string{i.config.IDColumn, i.config.ReferenceIDColumn, i.config.ContentColumn,
+		columns = []string{i.config.DocumentIDColumn, i.config.ReferenceIDColumn, i.config.ContentColumn,
 			i.config.EmbeddingColumn, i.config.MetadataColumn, i.config.SubIndexesColumn}
 	} else {
-		columns = []string{i.config.IDColumn, i.config.ContentColumn,
+		columns = []string{i.config.DocumentIDColumn, i.config.ContentColumn,
 			i.config.EmbeddingColumn, i.config.MetadataColumn, i.config.SubIndexesColumn}
 	}
 
@@ -303,51 +340,63 @@ func (i *Indexer) storeSkipExisting(ctx context.Context, docs []*schema.Document
 	`, i.config.TableName,
 		joinQuoted(columns, ", "),
 		joinQuoted(placeholders, ", "),
-		i.config.IDColumn,
+		i.config.DocumentIDColumn,
 	)
 
-	resultIds := make([]string, 0, len(ids))
+	resultIds := make([]string, 0, len(documentIDs))
+
+	// Begin transaction for atomicity
+	tx, err := i.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
 
 	for j, doc := range docs {
 		// Extract reference_id from metadata if configured
 		referenceID := extractReferenceID(doc.MetaData)
 
 		if i.config.ReferenceIDColumn != "" && referenceID != "" {
-			result, err := i.pool.Exec(ctx, query,
-				ids[j],
+			result, execErr := tx.Exec(ctx, query,
+				documentIDs[j],
 				referenceID,
 				doc.Content,
 				vectorToString(embeddings, j),
 				metadataToJSONB(doc.MetaData),
 				subIndexesToArray(opts.SubIndexes, doc.SubIndexes()),
 			)
-			if err != nil {
-				return nil, fmt.Errorf("failed to insert document %s: %w", ids[j], err)
+			if execErr != nil {
+				return nil, fmt.Errorf("failed to insert document %s: %w", documentIDs[j], execErr)
 			}
 
 			// Only add ID if the row was actually inserted
 			if result.RowsAffected() > 0 {
-				resultIds = append(resultIds, ids[j])
+				resultIds = append(resultIds, documentIDs[j])
 			}
 		} else if i.config.ReferenceIDColumn != "" {
-			return nil, fmt.Errorf("failed to insert document %s: reference_id is required but not found in metadata", ids[j])
+			return nil, fmt.Errorf("failed to insert document %s: reference_id is required but not found in metadata", documentIDs[j])
 		} else {
-			result, err := i.pool.Exec(ctx, query,
-				ids[j],
+			result, execErr := tx.Exec(ctx, query,
+				documentIDs[j],
 				doc.Content,
 				vectorToString(embeddings, j),
 				metadataToJSONB(doc.MetaData),
 				subIndexesToArray(opts.SubIndexes, doc.SubIndexes()),
 			)
-			if err != nil {
-				return nil, fmt.Errorf("failed to insert document %s: %w", ids[j], err)
+			if execErr != nil {
+				return nil, fmt.Errorf("failed to insert document %s: %w", documentIDs[j], execErr)
 			}
 
 			// Only add ID if the row was actually inserted
 			if result.RowsAffected() > 0 {
-				resultIds = append(resultIds, ids[j])
+				resultIds = append(resultIds, documentIDs[j])
 			}
 		}
+	}
+
+	// Commit transaction if all inserts succeed
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return resultIds, nil
@@ -369,7 +418,10 @@ func (i *Indexer) createTable(ctx context.Context) error {
 
 	// Build column definitions based on config
 	var columnDefs []string
-	columnDefs = append(columnDefs, fmt.Sprintf("%s TEXT PRIMARY KEY", i.config.IDColumn))
+	// UUID primary key with auto-generation
+	columnDefs = append(columnDefs, fmt.Sprintf("%s UUID PRIMARY KEY DEFAULT gen_random_uuid()", i.config.IDColumn))
+	// Document ID from schema.Document (unique constraint for conflict resolution)
+	columnDefs = append(columnDefs, fmt.Sprintf("%s VARCHAR(255) NOT NULL UNIQUE", i.config.DocumentIDColumn))
 
 	// Add ReferenceIDColumn if configured
 	if i.config.ReferenceIDColumn != "" {
@@ -382,6 +434,7 @@ func (i *Indexer) createTable(ctx context.Context) error {
 		fmt.Sprintf("%s %s", i.config.MetadataColumn, metadataType),
 		fmt.Sprintf("%s TEXT[]", i.config.SubIndexesColumn),
 		fmt.Sprintf("%s TIMESTAMP DEFAULT NOW()", i.config.CreatedAtColumn),
+		fmt.Sprintf("%s TIMESTAMP DEFAULT NOW()", i.config.UpdatedAtColumn),
 	)
 
 	query := fmt.Sprintf(`
@@ -632,9 +685,9 @@ func (i *Indexer) TableExists(ctx context.Context) (bool, error) {
 	return exists, nil
 }
 
-// DocumentExists checks if a document with the given ID exists.
+// DocumentExists checks if a document with the given document ID exists.
 func (i *Indexer) DocumentExists(ctx context.Context, id string) (bool, error) {
-	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s = $1)", i.config.TableName, i.config.IDColumn)
+	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE %s = $1)", i.config.TableName, i.config.DocumentIDColumn)
 
 	var exists bool
 	err := i.pool.QueryRow(ctx, query, id).Scan(&exists)
@@ -645,14 +698,14 @@ func (i *Indexer) DocumentExists(ctx context.Context, id string) (bool, error) {
 	return exists, nil
 }
 
-// GetDocument retrieves a document by ID.
+// GetDocument retrieves a document by document ID.
 func (i *Indexer) GetDocument(ctx context.Context, id string) (*schema.Document, error) {
 	query := fmt.Sprintf(`
 		SELECT %s, %s, %s, %s
 		FROM %s
 		WHERE %s = $1
-	`, i.config.IDColumn, i.config.ContentColumn, i.config.EmbeddingColumn, i.config.MetadataColumn,
-		i.config.TableName, i.config.IDColumn)
+	`, i.config.DocumentIDColumn, i.config.ContentColumn, i.config.EmbeddingColumn, i.config.MetadataColumn,
+		i.config.TableName, i.config.DocumentIDColumn)
 
 	var docID, content string
 	var embeddingStr []byte
@@ -682,9 +735,9 @@ func (i *Indexer) GetDocument(ctx context.Context, id string) (*schema.Document,
 	return doc, nil
 }
 
-// DeleteDocument deletes a document by ID.
+// DeleteDocument deletes a document by document ID.
 func (i *Indexer) DeleteDocument(ctx context.Context, id string) error {
-	query := fmt.Sprintf("DELETE FROM %s WHERE %s = $1", i.config.TableName, i.config.IDColumn)
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s = $1", i.config.TableName, i.config.DocumentIDColumn)
 
 	result, err := i.pool.Exec(ctx, query, id)
 	if err != nil {

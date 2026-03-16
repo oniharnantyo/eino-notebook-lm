@@ -21,6 +21,7 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/notebook"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/config"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/persistence"
 	"github.com/oniharnantyo/eino-notebook/internal/interfaces/http/handlers"
@@ -91,7 +92,7 @@ The server can be configured with custom host and port settings.`,
 		pgvectorConfig := &pgvector.Config{
 			Pool:                   dbPool,
 			Dimension:              cfg.Gemini.Dimension,
-			ReferenceIDColumn:      "notebook_id",
+			ReferenceIDColumn:      "source_id",
 			AutoCreateTable:        false,
 			DropBeforeCreate:       false,
 			AutoCreateExtension:    false,
@@ -109,6 +110,9 @@ The server can be configured with custom host and port settings.`,
 
 		knowledgeRepo := persistence.NewPostgresKnowledgeRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresKnowledgeRepository")
+
+		sourceRepo := persistence.NewPostgresSourceRepository(dbPool)
+		log.Info("initialized", "repository", "PostgresSourceRepository")
 
 		// Create Gemini embedder for embeddings
 		var geminiEmbedder *gemini.Embedder
@@ -163,8 +167,11 @@ The server can be configured with custom host and port settings.`,
 			log.Info("initialized", "transformer", "markdown-header-splitter")
 		}
 
-		knowledgeUseCase := knowledge.NewKnowledgeUseCase(knowledgeRepo, vectorIndexer, geminiEmbedder, docTransformer)
+		knowledgeUseCase := knowledge.NewKnowledgeUseCase(knowledgeRepo, sourceRepo, vectorIndexer, geminiEmbedder, docTransformer)
 		log.Info("initialized", "usecase", "KnowledgeUseCase")
+
+		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo)
+		log.Info("initialized", "usecase", "SourceUseCase")
 
 		// Initialize Kreuzberg document parser
 		kreuzbergConfig := &kreuzberg.Config{
@@ -215,7 +222,7 @@ The server can be configured with custom host and port settings.`,
 
 		// Interface Layer (HTTP Handlers)
 		notebookHandler := handlers.NewNotebookHandler(notebookUseCase, log)
-		knowledgeHandler := handlers.NewKnowledgeHandler(knowledgeUseCase, notebookRepo, contentExtractorFactory, docParserFactory, log)
+		knowledgeHandler := handlers.NewKnowledgeHandler(knowledgeUseCase, sourceUseCase, notebookRepo, contentExtractorFactory, docParserFactory, log)
 
 		// Setup routes
 		router := mux.NewRouter()
