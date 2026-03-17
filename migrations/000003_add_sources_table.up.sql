@@ -21,18 +21,15 @@ CREATE INDEX IF NOT EXISTS idx_sources_content_type ON sources(content_type);
 CREATE INDEX IF NOT EXISTS idx_sources_deleted_at ON sources(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_sources_metadata ON sources USING GIN(metadata);
 
--- Add source_id column to knowledges table
-ALTER TABLE knowledges ADD COLUMN IF NOT EXISTS source_id UUID;
+-- Add source_id column to knowledges table as TEXT
+-- Note: No foreign key constraint since knowledges.source_id is TEXT and sources.id is UUID
+ALTER TABLE knowledges ADD COLUMN IF NOT EXISTS source_id TEXT;
+
+-- Create index on source_id for query performance
+CREATE INDEX IF NOT EXISTS idx_knowledges_source_id ON knowledges(source_id);
 
 -- Drop the old foreign key constraint to notebook
 ALTER TABLE knowledges DROP CONSTRAINT IF EXISTS fk_knowledges_notebook;
-
--- Create foreign key from knowledges to sources
-ALTER TABLE knowledges ADD CONSTRAINT fk_knowledges_source
-    FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE;
-
--- Create index on source_id
-CREATE INDEX IF NOT EXISTS idx_knowledges_source_id ON knowledges(source_id);
 
 -- Drop the old notebook_id column (data migration should be done first)
 ALTER TABLE knowledges DROP COLUMN IF EXISTS notebook_id;

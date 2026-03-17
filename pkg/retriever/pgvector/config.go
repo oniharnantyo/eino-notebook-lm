@@ -57,7 +57,7 @@ type Config struct {
 	Pool *pgxpool.Pool
 
 	// TableName is the name of the table to query documents from.
-	// Default: "documents"
+	// Default: "knowledges"
 	TableName string
 
 	// Dimension is the dimension of the vector embeddings.
@@ -80,8 +80,13 @@ type Config struct {
 	// Default: "sub_indexes"
 	SubIndexesColumn string
 
+	// ReferenceIDColumn is the name of the column storing reference IDs (e.g., source_id).
+	// This matches the indexer's ReferenceIDColumn for efficient filtering.
+	// Default: "" (not used)
+	ReferenceIDColumn string
+
 	// IDColumn is the name of the column storing document IDs.
-	// Default: "id"
+	// Default: "knowledge_id"
 	IDColumn string
 
 	// DistanceFunction is the distance function to use for vector similarity.
@@ -101,7 +106,7 @@ type Config struct {
 // setDefaults sets the default values for the config.
 func (c *Config) setDefaults() {
 	if c.TableName == "" {
-		c.TableName = "documents"
+		c.TableName = "knowledges"
 	}
 	if c.EmbeddingColumn == "" {
 		c.EmbeddingColumn = "embedding"

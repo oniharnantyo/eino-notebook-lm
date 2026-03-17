@@ -57,12 +57,13 @@ type CacheConfig struct {
 	TTL     time.Duration
 }
 
-// GeminiConfig holds Gemini API configuration for embeddings
+// GeminiConfig holds Gemini API configuration for embeddings and chat
 type GeminiConfig struct {
-	APIKey     string  `mapstructure:"api_key" validate:"required"`
-	BaseURL    string  `mapstructure:"base_url" validate:"required,url"`
-	Model      string  `mapstructure:"model" validate:"required"`
-	Dimension  int     `mapstructure:"dimension" validate:"required,min=1"`
+	APIKey         string  `mapstructure:"api_key" validate:"required"`
+	BaseURL        string  `mapstructure:"base_url" validate:"required,url"`
+	EmbeddingModel string  `mapstructure:"embedding_model" validate:"required"`
+	ChatModel      string  `mapstructure:"chat_model" validate:"required"`
+	Dimension      int     `mapstructure:"dimension" validate:"required,min=1"`
 }
 
 // KreuzbergConfig holds Kreuzberg document extractor configuration
@@ -88,6 +89,9 @@ func Load() (*Config, error) {
 	viper.AutomaticEnv()
 	viper.BindEnv("server.host", "SERVER_HOST")
 	viper.BindEnv("server.port", "SERVER_PORT")
+	viper.BindEnv("server.read_timeout", "SERVER_READ_TIMEOUT")
+	viper.BindEnv("server.write_timeout", "SERVER_WRITE_TIMEOUT")
+	viper.BindEnv("server.idle_timeout", "SERVER_IDLE_TIMEOUT")
 	viper.BindEnv("log.level", "LOG_LEVEL")
 	viper.BindEnv("database.driver", "DATABASE_DRIVER")
 	viper.BindEnv("database.host", "DATABASE_HOST")
@@ -97,7 +101,8 @@ func Load() (*Config, error) {
 	viper.BindEnv("database.database", "DATABASE_NAME")
 	viper.BindEnv("gemini.api_key", "GEMINI_API_KEY")
 	viper.BindEnv("gemini.base_url", "GEMINI_BASE_URL")
-	viper.BindEnv("gemini.model", "GEMINI_MODEL")
+	viper.BindEnv("gemini.embedding_model", "GEMINI_EMBEDDING_MODEL")
+	viper.BindEnv("gemini.chat_model", "GEMINI_CHAT_MODEL")
 	viper.BindEnv("gemini.dimension", "GEMINI_DIMENSION")
 	viper.BindEnv("kreuzberg.service_url", "KREUZBERG_SERVICE_URL")
 	viper.BindEnv("kreuzberg.output_format", "KREUZBERG_OUTPUT_FORMAT")

@@ -39,7 +39,7 @@
 //	pool, _ := pgxpool.New(context.Background(), "postgres://...")
 //	retriever, _ := pgvector.NewRetriever(ctx, &pgvector.Config{
 //	    Pool:             pool,
-//	    TableName:        "documents",
+//	    TableName:        "knowledges",
 //	    EmbeddingColumn:  "embedding",
 //	    ContentColumn:    "content",
 //	    Dimension:        1536,

@@ -10,7 +10,7 @@ import (
 )
 
 // Setup configures all application routes
-func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler) {
+func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler, responseHandler *handlers.ResponseHandler) {
 	// Apply global middleware
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recovery)
@@ -40,6 +40,11 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 	knowledges.HandleFunc("/{id}", knowledgeHandler.GetByID).Methods(http.MethodGet)
 	knowledges.HandleFunc("/{id}", knowledgeHandler.Update).Methods(http.MethodPut)
 	knowledges.HandleFunc("/{id}", knowledgeHandler.Delete).Methods(http.MethodDelete)
+
+	// OpenAI Responses API (only if responseHandler is provided)
+	if responseHandler != nil {
+		router.HandleFunc("/v1/responses", responseHandler.CreateResponse).Methods(http.MethodPost)
+	}
 }
 
 // healthCheck returns the health status

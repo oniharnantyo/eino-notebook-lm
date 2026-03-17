@@ -33,6 +33,16 @@ type RetrieveOptions struct {
 	// Default: nil (no filtering)
 	FilterSubIndexes []string
 
+	// FilterReferenceIDs filters results to only include documents with matching reference IDs.
+	// Uses the dedicated reference_id column for efficient filtering.
+	// Default: nil (no filtering)
+	FilterReferenceIDs []string
+
+	// FilterSourceTypes filters results to only include documents with matching source_type in metadata.
+	// Uses parameterized queries for safe filtering: metadata->>'source_type' IN ($1, $2, ...)
+	// Default: nil (no filtering)
+	FilterSourceTypes []string
+
 	// WhereClause adds a custom WHERE clause to the query.
 	// Use this for advanced filtering.
 	// Default: "" (no additional filtering)
@@ -57,6 +67,22 @@ func WithIncludeVector(include bool) retriever.Option {
 func WithFilterSubIndexes(subIndexes []string) retriever.Option {
 	return retriever.WrapImplSpecificOptFn(func(opts *RetrieveOptions) {
 		opts.FilterSubIndexes = subIndexes
+	})
+}
+
+// WithFilterReferenceIDs returns an option that filters by reference IDs.
+// Uses the dedicated reference_id column for efficient filtering.
+func WithFilterReferenceIDs(referenceIDs []string) retriever.Option {
+	return retriever.WrapImplSpecificOptFn(func(opts *RetrieveOptions) {
+		opts.FilterReferenceIDs = referenceIDs
+	})
+}
+
+// WithFilterSourceTypes returns an option that filters by source_type metadata.
+// Uses parameterized queries for safe SQL filtering.
+func WithFilterSourceTypes(sourceTypes []string) retriever.Option {
+	return retriever.WrapImplSpecificOptFn(func(opts *RetrieveOptions) {
+		opts.FilterSourceTypes = sourceTypes
 	})
 }
 

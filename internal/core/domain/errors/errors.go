@@ -7,17 +7,18 @@ import (
 
 var (
 	// Domain errors
-	ErrNotFound       = errors.New("resource not found")
-	ErrAlreadyExists  = errors.New("resource already exists")
-	ErrInvalidInput   = errors.New("invalid input")
-	ErrValidation     = errors.New("validation failed")
-	ErrUnauthorized   = errors.New("unauthorized")
-	ErrForbidden      = errors.New("forbidden")
-	ErrInternal       = errors.New("internal server error")
-	ErrInvalidID      = errors.New("invalid id")
-	ErrEmptyTitle     = errors.New("title cannot be empty")
-	ErrTitleTooLong   = errors.New("title cannot exceed 200 characters")
-	ErrInvalidStatus  = errors.New("invalid status")
+	ErrNotFound        = errors.New("resource not found")
+	ErrAlreadyExists   = errors.New("resource already exists")
+	ErrInvalidInput    = errors.New("invalid input")
+	ErrInvalidInputType = errors.New("invalid input type")
+	ErrValidation      = errors.New("validation failed")
+	ErrUnauthorized    = errors.New("unauthorized")
+	ErrForbidden       = errors.New("forbidden")
+	ErrInternal        = errors.New("internal server error")
+	ErrInvalidID       = errors.New("invalid id")
+	ErrEmptyTitle      = errors.New("title cannot be empty")
+	ErrTitleTooLong    = errors.New("title cannot exceed 200 characters")
+	ErrInvalidStatus   = errors.New("invalid status")
 )
 
 // DomainError represents a domain error with context

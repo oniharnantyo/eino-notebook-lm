@@ -10,13 +10,16 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino-ext/components/document/transformer/splitter/markdown"
-	"github.com/cloudwego/eino-ext/components/embedding/gemini"
+	geminiembedder "github.com/cloudwego/eino-ext/components/embedding/gemini"
+	geminimodel "github.com/cloudwego/eino-ext/components/model/gemini"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/genai"
 
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
+	responseusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
@@ -27,6 +30,7 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/interfaces/http/handlers"
 	httproutes "github.com/oniharnantyo/eino-notebook/internal/interfaces/http/routes"
 	"github.com/oniharnantyo/eino-notebook/pkg/indexer/pgvector"
+	pgvectoretriever "github.com/oniharnantyo/eino-notebook/pkg/retriever/pgvector"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 	"github.com/oniharnantyo/eino-notebook/pkg/parser/kreuzberg"
 )
@@ -115,10 +119,11 @@ The server can be configured with custom host and port settings.`,
 		log.Info("initialized", "repository", "PostgresSourceRepository")
 
 		// Create Gemini embedder for embeddings
-		var geminiEmbedder *gemini.Embedder
+		var geminiEmbedder *geminiembedder.Embedder
+		var genaiClient *genai.Client
 		if cfg.Gemini.APIKey != "" {
 			// Create genai client
-			genaiClient, err := genai.NewClient(ctx, &genai.ClientConfig{
+			genaiClient, err = genai.NewClient(ctx, &genai.ClientConfig{
 				APIKey: cfg.Gemini.APIKey,
 			})
 			if err != nil {
@@ -131,15 +136,15 @@ The server can be configured with custom host and port settings.`,
 					outputDim = &dim
 				}
 
-				geminiEmbedder, err = gemini.NewEmbedder(ctx, &gemini.EmbeddingConfig{
+				geminiEmbedder, err = geminiembedder.NewEmbedder(ctx, &geminiembedder.EmbeddingConfig{
 					Client:               genaiClient,
-					Model:                cfg.Gemini.Model,
+					Model:                cfg.Gemini.EmbeddingModel,
 					OutputDimensionality: outputDim,
 				})
 				if err != nil {
 					log.Warn("failed to initialize Gemini embedder", "error", err)
 				} else {
-					log.Info("initialized", "embedder", "Gemini", "model", cfg.Gemini.Model, "dimension", cfg.Gemini.Dimension)
+					log.Info("initialized", "embedder", "Gemini", "model", cfg.Gemini.EmbeddingModel, "dimension", cfg.Gemini.Dimension)
 				}
 			}
 		}
@@ -172,6 +177,39 @@ The server can be configured with custom host and port settings.`,
 
 		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo)
 		log.Info("initialized", "usecase", "SourceUseCase")
+
+		// Create pgvector retriever for RAG
+		pgvectorRetriever, err := pgvectoretriever.NewRetriever(ctx, &pgvectoretriever.Config{
+			Pool:              dbPool,
+			Dimension:         cfg.Gemini.Dimension,
+			ReferenceIDColumn: "source_id",
+		})
+		if err != nil {
+			log.Warn("failed to create pgvector retriever", "error", err)
+		} else {
+			log.Info("initialized", "retriever", "pgvector")
+		}
+
+		// Create Gemini chat model
+		var geminiChatModel *geminimodel.ChatModel
+		if cfg.Gemini.APIKey != "" && genaiClient != nil {
+			geminiChatModel, err = geminimodel.NewChatModel(ctx, &geminimodel.Config{
+				Client: genaiClient,
+				Model:  cfg.Gemini.ChatModel,
+			})
+			if err != nil {
+				log.Warn("failed to initialize Gemini chat model", "error", err)
+			} else {
+				log.Info("initialized", "chat_model", "Gemini", "model", cfg.Gemini.ChatModel)
+			}
+		}
+
+		// Create response use case
+		var responseUseCase chat.ResponseUseCase
+		if pgvectorRetriever != nil && geminiChatModel != nil && geminiEmbedder != nil {
+			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, pgvectorRetriever, geminiEmbedder, geminiChatModel, cfg.Gemini.ChatModel)
+			log.Info("initialized", "usecase", "ResponseUseCase")
+		}
 
 		// Initialize Kreuzberg document parser
 		kreuzbergConfig := &kreuzberg.Config{
@@ -223,10 +261,15 @@ The server can be configured with custom host and port settings.`,
 		// Interface Layer (HTTP Handlers)
 		notebookHandler := handlers.NewNotebookHandler(notebookUseCase, log)
 		knowledgeHandler := handlers.NewKnowledgeHandler(knowledgeUseCase, sourceUseCase, notebookRepo, contentExtractorFactory, docParserFactory, log)
+		var responseHandler *handlers.ResponseHandler
+		if responseUseCase != nil {
+			responseHandler = handlers.NewResponseHandler(responseUseCase, log)
+			log.Info("initialized", "handler", "ResponseHandler")
+		}
 
 		// Setup routes
 		router := mux.NewRouter()
-		httproutes.Setup(router, notebookHandler, knowledgeHandler)
+		httproutes.Setup(router, notebookHandler, knowledgeHandler, responseHandler)
 		log.Info("initialized", "router", "gorilla/mux")
 
 		// Create HTTP server

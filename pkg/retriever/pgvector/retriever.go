@@ -108,23 +108,28 @@ func (r *Retriever) executeQuery(
 	var args []any
 	argPos := 1
 
-	// Add sub-index filtering
-	if commonOpts.SubIndex != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", r.config.SubIndexesColumn, argPos))
-		args = append(args, *commonOpts.SubIndex)
-		argPos++
-	}
-
-	// Add filter sub-indexes (implementation-specific option)
-	if len(retrieveOpts.FilterSubIndexes) > 0 {
-		placeholders := make([]string, len(retrieveOpts.FilterSubIndexes))
-		for i, idx := range retrieveOpts.FilterSubIndexes {
+	// Add reference ID filtering using the dedicated column
+	if r.config.ReferenceIDColumn != "" && len(retrieveOpts.FilterReferenceIDs) > 0 {
+		placeholders := make([]string, len(retrieveOpts.FilterReferenceIDs))
+		for i, id := range retrieveOpts.FilterReferenceIDs {
 			placeholders[i] = fmt.Sprintf("$%d", argPos)
-			args = append(args, idx)
+			args = append(args, id)
 			argPos++
 		}
-		whereClauses = append(whereClauses, fmt.Sprintf("%s && ARRAY[%s]",
-			r.config.SubIndexesColumn, strings.Join(placeholders, ", ")))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s IN (%s)",
+			r.config.ReferenceIDColumn, strings.Join(placeholders, ", ")))
+	}
+
+	// Add source_type filtering using parameterized query
+	if len(retrieveOpts.FilterSourceTypes) > 0 {
+		placeholders := make([]string, len(retrieveOpts.FilterSourceTypes))
+		for i, sourceType := range retrieveOpts.FilterSourceTypes {
+			placeholders[i] = fmt.Sprintf("$%d", argPos)
+			args = append(args, sourceType)
+			argPos++
+		}
+		whereClauses = append(whereClauses, fmt.Sprintf("metadata->>'source_type' IN (%s)",
+			strings.Join(placeholders, ", ")))
 	}
 
 	// Add custom WHERE clause
@@ -145,10 +150,11 @@ func (r *Retriever) executeQuery(
 		r.config.MetadataColumn,
 	}
 
+	distanceArgPos := argPos
 	if retrieveOpts.IncludeDistance {
 		selectColumns = append(selectColumns,
 			fmt.Sprintf("embedding %s $%d AS distance",
-				r.config.DistanceFunction.operator(), argPos))
+				r.config.DistanceFunction.operator(), distanceArgPos))
 		argPos++
 	}
 
@@ -173,13 +179,22 @@ func (r *Retriever) executeQuery(
 		argPos+1,
 	)
 
-	// Add query vector as argument (used in ORDER BY)
+	// Add query vector arguments (used in SELECT distance and ORDER BY)
+	vecStr := ""
 	if queryVector != nil {
-		args = append(args, vectorToString(queryVector))
+		vecStr = vectorToString(queryVector)
 	} else {
 		// If no query vector, use a zero vector
-		args = append(args, vectorToString(make([]float64, r.config.Dimension)))
+		vecStr = vectorToString(make([]float64, r.config.Dimension))
 	}
+
+	// Add vector for SELECT distance calculation if needed
+	if retrieveOpts.IncludeDistance {
+		args = append(args, vecStr)
+	}
+
+	// Add vector for ORDER BY (always needed for vector search)
+	args = append(args, vecStr)
 	argPos++
 
 	// Add limit
