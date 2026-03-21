@@ -84,6 +84,30 @@ The server can be configured with custom host and port settings.`,
 			"log_level", cfg.Log.Level,
 		)
 
+		// Initialize Langfuse callback handler for observability
+		if cfg.Langfuse.Enabled {
+			langfuseHandler, flusher := langfusecallback.NewLangfuseHandler(&langfusecallback.Config{
+				Host:             cfg.Langfuse.Host,
+				PublicKey:        cfg.Langfuse.PublicKey,
+				SecretKey:        cfg.Langfuse.SecretKey,
+				SampleRate:       cfg.Langfuse.SampleRate,
+				Release:          cfg.Langfuse.Release,
+				Threads:          2,
+				Timeout:          30 * time.Second,
+				FlushAt:          15,
+				FlushInterval:    500 * time.Millisecond,
+				MaxTaskQueueSize: 100,
+				MaxRetry:         3,
+			})
+
+			callbacks.AppendGlobalHandlers(langfuseHandler)
+			langfuseFlusher = flusher
+
+			log.Info("initialized", "langfuse", "enabled",
+				"host", cfg.Langfuse.Host,
+				"sample_rate", cfg.Langfuse.SampleRate)
+		}
+
 		// Initialize dependencies (Hexagonal Architecture - Dependency Injection)
 		// Infrastructure Layer
 
