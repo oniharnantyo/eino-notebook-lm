@@ -347,6 +347,13 @@ The server can be configured with custom host and port settings.`,
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		// Flush Langfuse events before shutdown
+		if langfuseFlusher != nil {
+			log.Info("flushing Langfuse events...")
+			langfuseFlusher()
+			log.Info("Langfuse events flushed")
+		}
+
 		if err := srv.Shutdown(ctx); err != nil {
 			log.Error("server forced to shutdown", "error", err)
 			return err
