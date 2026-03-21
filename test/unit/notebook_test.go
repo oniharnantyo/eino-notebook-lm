@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/notebook"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/persistence"
 )
 
 func TestNotebookUseCase_Create(t *testing.T) {
 	// Setup
 	repo := persistence.NewInMemoryNotebookRepository()
-	useCase := usecases.NewNotebookUseCase(repo)
+	useCase := notebook.NewNotebookUseCase(repo)
 
 	req := &dtos.CreateNotebookRequest{
 		Title:       "Test Notebook",
@@ -40,7 +40,7 @@ func TestNotebookUseCase_Create(t *testing.T) {
 func TestNotebookUseCase_GetByID(t *testing.T) {
 	// Setup
 	repo := persistence.NewInMemoryNotebookRepository()
-	useCase := usecases.NewNotebookUseCase(repo)
+	useCase := notebook.NewNotebookUseCase(repo)
 
 	createReq := &dtos.CreateNotebookRequest{
 		Title:       "Test Notebook",
@@ -72,7 +72,7 @@ func TestNotebookUseCase_GetByID(t *testing.T) {
 func TestNotebookUseCase_List(t *testing.T) {
 	// Setup
 	repo := persistence.NewInMemoryNotebookRepository()
-	useCase := usecases.NewNotebookUseCase(repo)
+	useCase := notebook.NewNotebookUseCase(repo)
 
 	// Create some notebooks
 	for i := 1; i <= 3; i++ {

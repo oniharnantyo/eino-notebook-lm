@@ -19,6 +19,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/conversation"
 	responseusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
@@ -118,6 +119,9 @@ The server can be configured with custom host and port settings.`,
 		sourceRepo := persistence.NewPostgresSourceRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresSourceRepository")
 
+		conversationRepo := persistence.NewPostgresConversationRepository(dbPool)
+		log.Info("initialized", "repository", "PostgresConversationRepository")
+
 		// Create Gemini embedder for embeddings
 		var geminiEmbedder *geminiembedder.Embedder
 		var genaiClient *genai.Client
@@ -178,6 +182,9 @@ The server can be configured with custom host and port settings.`,
 		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo)
 		log.Info("initialized", "usecase", "SourceUseCase")
 
+		conversationUseCase := conversation.NewConversationUseCase(conversationRepo)
+		log.Info("initialized", "usecase", "ConversationUseCase")
+
 		// Create pgvector retriever for RAG
 		pgvectorRetriever, err := pgvectoretriever.NewRetriever(ctx, &pgvectoretriever.Config{
 			Pool:              dbPool,
@@ -204,11 +211,19 @@ The server can be configured with custom host and port settings.`,
 			}
 		}
 
-		// Create response use case
+		// Create response use case with history management configuration
 		var responseUseCase chat.ResponseUseCase
 		if pgvectorRetriever != nil && geminiChatModel != nil && geminiEmbedder != nil {
-			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, pgvectorRetriever, geminiEmbedder, geminiChatModel, cfg.Gemini.ChatModel)
-			log.Info("initialized", "usecase", "ResponseUseCase")
+			// Configure conversation history management
+			historyConfig := &responseusecase.HistoryConfig{
+				Strategy:             responseusecase.HistoryStrategySlidingWindow,
+				MaxMessages:          10,                      // Keep last 10 messages
+				MaxTokens:            4000,                    // Max ~4000 tokens for history
+				TokenEstimationRatio: 4,                       // 1 token ≈ 4 chars
+				SummarizeThreshold:   5,                       // Summarize messages older than 5 turns
+			}
+			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, pgvectorRetriever, geminiEmbedder, geminiChatModel, cfg.Gemini.ChatModel, historyConfig)
+			log.Info("initialized", "usecase", "ResponseUseCase", "history_strategy", historyConfig.Strategy, "max_messages", historyConfig.MaxMessages)
 		}
 
 		// Initialize Kreuzberg document parser
@@ -260,6 +275,7 @@ The server can be configured with custom host and port settings.`,
 
 		// Interface Layer (HTTP Handlers)
 		notebookHandler := handlers.NewNotebookHandler(notebookUseCase, log)
+		sourceHandler := handlers.NewSourceHandler(sourceUseCase, log)
 		knowledgeHandler := handlers.NewKnowledgeHandler(knowledgeUseCase, sourceUseCase, notebookRepo, contentExtractorFactory, docParserFactory, log)
 		var responseHandler *handlers.ResponseHandler
 		if responseUseCase != nil {
@@ -267,9 +283,12 @@ The server can be configured with custom host and port settings.`,
 			log.Info("initialized", "handler", "ResponseHandler")
 		}
 
+		conversationHandler := handlers.NewConversationHandler(conversationUseCase, log)
+		log.Info("initialized", "handler", "ConversationHandler")
+
 		// Setup routes
 		router := mux.NewRouter()
-		httproutes.Setup(router, notebookHandler, knowledgeHandler, responseHandler)
+		httproutes.Setup(router, notebookHandler, knowledgeHandler, sourceHandler, responseHandler, conversationHandler)
 		log.Info("initialized", "router", "gorilla/mux")
 
 		// Create HTTP server

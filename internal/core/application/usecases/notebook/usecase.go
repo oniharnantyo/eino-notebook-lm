@@ -90,20 +90,20 @@ func (uc *notebookUseCase) List(ctx context.Context, req *dtos.ListNotebooksRequ
 	var err error
 	var total int64
 
-	// Filter by user_id first, then by status or tags if provided
+	// Filter by status, tags, or query if provided
 	switch {
 	case req.Status != "":
 		notebooks, err = uc.notebookRepo.FindByStatus(ctx, req.Status, req.Limit, offset)
-		total, _ = uc.notebookRepo.CountByUserID(ctx, req.UserID)
+		total, _ = uc.notebookRepo.Count(ctx)
 	case len(req.Tags) > 0:
 		notebooks, err = uc.notebookRepo.FindByTags(ctx, req.Tags, req.Limit, offset)
-		total, _ = uc.notebookRepo.CountByUserID(ctx, req.UserID)
+		total, _ = uc.notebookRepo.Count(ctx)
 	case req.Query != "":
 		notebooks, err = uc.notebookRepo.Search(ctx, req.Query, req.Limit, offset)
-		total, _ = uc.notebookRepo.CountByUserID(ctx, req.UserID)
+		total, _ = uc.notebookRepo.Count(ctx)
 	default:
-		notebooks, err = uc.notebookRepo.FindByUserID(ctx, req.UserID, req.Limit, offset)
-		total, err = uc.notebookRepo.CountByUserID(ctx, req.UserID)
+		notebooks, err = uc.notebookRepo.FindAll(ctx, req.Limit, offset)
+		total, err = uc.notebookRepo.Count(ctx)
 	}
 
 	if err != nil {

@@ -39,13 +39,23 @@ type ListSourcesRequest struct {
 	ContentType string    `json:"content_type" validate:"omitempty"`
 }
 
+// SourceListResponse represents a lightweight source for list responses
+type SourceListResponse struct {
+	ID          uuid.UUID `json:"id"`
+	NotebookID  uuid.UUID `json:"notebook_id"`
+	Title       string    `json:"title"`
+	ContentType string    `json:"content_type"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 // ListSourcesResponse represents a paginated list of sources
 type ListSourcesResponse struct {
-	Sources    []SourceResponse `json:"sources"`
-	Total      int64            `json:"total"`
-	Page       int              `json:"page"`
-	Limit      int              `json:"limit"`
-	TotalPages int              `json:"total_pages"`
+	Sources    []SourceListResponse `json:"sources"`
+	Total      int64                `json:"total"`
+	Page       int                  `json:"page"`
+	Limit      int                  `json:"limit"`
+	TotalPages int                  `json:"total_pages"`
 }
 
 // ToSourceResponse maps a source entity to a response DTO
@@ -75,6 +85,24 @@ func ToSourceResponses(sources []*entities.Source) []SourceResponse {
 	for _, source := range sources {
 		if source != nil {
 			responses = append(responses, *ToSourceResponse(source))
+		}
+	}
+	return responses
+}
+
+// ToSourceListResponses maps a slice of source entities to lightweight list DTOs
+func ToSourceListResponses(sources []*entities.Source) []SourceListResponse {
+	responses := make([]SourceListResponse, 0, len(sources))
+	for _, source := range sources {
+		if source != nil {
+			responses = append(responses, SourceListResponse{
+				ID:          source.ID,
+				NotebookID:  source.NotebookID,
+				Title:       source.Title,
+				ContentType: string(source.ContentType),
+				CreatedAt:   source.CreatedAt,
+				UpdatedAt:   source.UpdatedAt,
+			})
 		}
 	}
 	return responses

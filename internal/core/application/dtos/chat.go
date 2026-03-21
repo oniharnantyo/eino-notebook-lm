@@ -8,7 +8,7 @@ package dtos
 type ResponseRequest struct {
 	Model              *string             `json:"model,omitempty" validate:"omitempty,min=1"`
 	Input              interface{}         `json:"input" validate:"required"`
-	PreviousResponseID *string             `json:"previous_response_id,omitempty" validate:"omitempty,uuid"`
+	PreviousResponseID *string             `json:"previous_response_id,omitempty" validate:"omitempty,min=1"`
 	Tools              []ResponsesTool     `json:"tools,omitempty"`
 	ToolChoice         ToolChoiceParam     `json:"tool_choice,omitempty"`
 	Temperature        *float64            `json:"temperature,omitempty" validate:"omitempty,min=0,max=2"`

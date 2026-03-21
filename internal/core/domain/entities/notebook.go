@@ -10,7 +10,6 @@ import (
 // Notebook represents the core domain entity
 type Notebook struct {
 	ID          uuid.UUID
-	UserID      uuid.UUID
 	Title       string
 	Description string
 	Content     string
@@ -23,10 +22,9 @@ type Notebook struct {
 }
 
 // NewNotebook creates a new notebook entity
-func NewNotebook(userID uuid.UUID, title, description, content string, tags []string) (*Notebook, error) {
+func NewNotebook(title, description, content string, tags []string) (*Notebook, error) {
 	notebook := &Notebook{
 		ID:          uuid.New(),
-		UserID:      userID,
 		Title:       title,
 		Description: description,
 		Content:     content,

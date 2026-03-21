@@ -8,7 +8,6 @@ import (
 
 // CreateNotebookRequest represents a request to create a notebook
 type CreateNotebookRequest struct {
-	UserID      uuid.UUID `json:"user_id" validate:"required"`
 	Title       string    `json:"title" validate:"required,min=1,max=200"`
 	Description string    `json:"description" validate:"max=500"`
 	Content     string    `json:"content"`
@@ -27,7 +26,6 @@ type UpdateNotebookRequest struct {
 // NotebookResponse represents a notebook response
 type NotebookResponse struct {
 	ID          uuid.UUID              `json:"id"`
-	UserID      uuid.UUID              `json:"user_id"`
 	Title       string                 `json:"title"`
 	Description string                 `json:"description"`
 	Content     string                 `json:"content"`
@@ -40,7 +38,6 @@ type NotebookResponse struct {
 
 // ListNotebooksRequest represents a request to list notebooks
 type ListNotebooksRequest struct {
-	UserID uuid.UUID `json:"user_id" validate:"required"`
 	Page   int       `json:"page" validate:"min=1"`
 	Limit  int       `json:"limit" validate:"min=1,max=100"`
 	Status string    `json:"status" validate:"omitempty,oneof=active archived deleted"`

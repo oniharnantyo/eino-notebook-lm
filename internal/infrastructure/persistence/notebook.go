@@ -29,8 +29,8 @@ func NewPostgresNotebookRepository(pool *pgxpool.Pool) repositories.NotebookRepo
 // Save saves a notebook (create or update)
 func (r *PostgresNotebookRepository) Save(ctx context.Context, notebook *entities.Notebook) error {
 	query := `
-		INSERT INTO notebooks (id, user_id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO notebooks (id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (id) DO UPDATE SET
 			title = EXCLUDED.title,
 			description = EXCLUDED.description,
@@ -44,7 +44,6 @@ func (r *PostgresNotebookRepository) Save(ctx context.Context, notebook *entitie
 
 	_, err := r.pool.Exec(ctx, query,
 		notebook.ID.String(),
-		notebook.UserID.String(),
 		notebook.Title,
 		notebook.Description,
 		notebook.Content,
@@ -66,18 +65,17 @@ func (r *PostgresNotebookRepository) Save(ctx context.Context, notebook *entitie
 // FindByID finds a notebook by ID
 func (r *PostgresNotebookRepository) FindByID(ctx context.Context, id uuid.UUID) (*entities.Notebook, error) {
 	query := `
-		SELECT id, user_id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
+		SELECT id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
 		FROM notebooks
 		WHERE id = $1
 	`
 
 	var notebook entities.Notebook
-	var idStr, userIDStr, statusStr string
+	var idStr, statusStr string
 	var metadataJSON []byte
 
 	err := r.pool.QueryRow(ctx, query, id.String()).Scan(
 		&idStr,
-		&userIDStr,
 		&notebook.Title,
 		&notebook.Description,
 		&notebook.Content,
@@ -93,9 +91,8 @@ func (r *PostgresNotebookRepository) FindByID(ctx context.Context, id uuid.UUID)
 		return nil, fmt.Errorf("failed to find notebook: %w", err)
 	}
 
-	// Parse UUIDs
+	// Parse UUID
 	notebook.ID, _ = uuid.Parse(idStr)
-	notebook.UserID, _ = uuid.Parse(userIDStr)
 	notebook.Status = parseStatus(statusStr)
 
 	// Parse JSON fields
@@ -109,7 +106,7 @@ func (r *PostgresNotebookRepository) FindByID(ctx context.Context, id uuid.UUID)
 // FindAll finds all notebooks with pagination
 func (r *PostgresNotebookRepository) FindAll(ctx context.Context, limit, offset int) ([]*entities.Notebook, error) {
 	query := `
-		SELECT id, user_id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
+		SELECT id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
 		FROM notebooks
 		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -132,36 +129,11 @@ func (r *PostgresNotebookRepository) FindAll(ctx context.Context, limit, offset 
 	return notebooks, nil
 }
 
-// FindByUserID finds notebooks by user ID with pagination
-func (r *PostgresNotebookRepository) FindByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*entities.Notebook, error) {
-	query := `
-		SELECT id, user_id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
-		FROM notebooks
-		WHERE user_id = $1 AND deleted_at IS NULL
-		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3
-	`
-
-	rows, _ := r.pool.Query(ctx, query, userID.String(), limit, offset)
-	defer rows.Close()
-
-	var notebooks []*entities.Notebook
-
-	for rows.Next() {
-		notebook, err := r.scanNotebook(rows)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan notebook: %w", err)
-		}
-		notebooks = append(notebooks, notebook)
-	}
-
-	return notebooks, nil
-}
 
 // FindByStatus finds notebooks by status
 func (r *PostgresNotebookRepository) FindByStatus(ctx context.Context, status string, limit, offset int) ([]*entities.Notebook, error) {
 	query := `
-		SELECT id, user_id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
+		SELECT id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
 		FROM notebooks
 		WHERE status = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -187,7 +159,7 @@ func (r *PostgresNotebookRepository) FindByStatus(ctx context.Context, status st
 // FindByTags finds notebooks by tags
 func (r *PostgresNotebookRepository) FindByTags(ctx context.Context, tags []string, limit, offset int) ([]*entities.Notebook, error) {
 	query := `
-		SELECT id, user_id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
+		SELECT id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
 		FROM notebooks
 		WHERE deleted_at IS NULL AND tags @> $1
 		ORDER BY created_at DESC
@@ -215,7 +187,7 @@ func (r *PostgresNotebookRepository) Search(ctx context.Context, query string, l
 	searchQuery := fmt.Sprintf("%%%s%%", strings.ToLower(query))
 
 	sqlQuery := `
-		SELECT id, user_id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
+		SELECT id, title, description, content, status, tags, metadata, created_at, updated_at, deleted_at
 		FROM notebooks
 		WHERE deleted_at IS NULL
 		AND (LOWER(title) LIKE $1 OR LOWER(content) LIKE $1)
@@ -277,19 +249,6 @@ func (r *PostgresNotebookRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-// CountByUserID returns the total count of notebooks for a user
-func (r *PostgresNotebookRepository) CountByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	query := `SELECT COUNT(*) FROM notebooks WHERE user_id = $1 AND deleted_at IS NULL`
-
-	var count int64
-	err := r.pool.QueryRow(ctx, query, userID.String()).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("failed to count notebooks by user: %w", err)
-	}
-
-	return count, nil
-}
-
 // scanNotebook scans a row into a Notebook entity
 func (r *PostgresNotebookRepository) scanNotebook(rows interface{}) (*entities.Notebook, error) {
 	type scanner interface {
@@ -297,12 +256,11 @@ func (r *PostgresNotebookRepository) scanNotebook(rows interface{}) (*entities.N
 	}
 
 	var notebook entities.Notebook
-	var idStr, userIDStr, statusStr string
+	var idStr, statusStr string
 	var metadataJSON []byte
 
 	err := rows.(scanner).Scan(
 		&idStr,
-		&userIDStr,
 		&notebook.Title,
 		&notebook.Description,
 		&notebook.Content,
@@ -318,9 +276,8 @@ func (r *PostgresNotebookRepository) scanNotebook(rows interface{}) (*entities.N
 		return nil, err
 	}
 
-	// Parse UUIDs
+	// Parse UUID
 	notebook.ID, _ = uuid.Parse(idStr)
-	notebook.UserID, _ = uuid.Parse(userIDStr)
 	notebook.Status = parseStatus(statusStr)
 
 	// Parse JSON fields

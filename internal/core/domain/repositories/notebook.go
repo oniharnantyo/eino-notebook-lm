@@ -19,9 +19,6 @@ type NotebookRepository interface {
 	// FindAll finds all notebooks with pagination
 	FindAll(ctx context.Context, limit, offset int) ([]*entities.Notebook, error)
 
-	// FindByUserID finds notebooks by user ID with pagination
-	FindByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*entities.Notebook, error)
-
 	// FindByStatus finds notebooks by status
 	FindByStatus(ctx context.Context, status string, limit, offset int) ([]*entities.Notebook, error)
 
@@ -39,9 +36,6 @@ type NotebookRepository interface {
 
 	// Count returns the total count of notebooks
 	Count(ctx context.Context) (int64, error)
-
-	// CountByUserID returns the total count of notebooks for a user
-	CountByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 }
 
 // UserRepository defines the interface for user persistence

@@ -15,7 +15,6 @@ func ToNotebookResponse(notebook *entities.Notebook) *dtos.NotebookResponse {
 
 	return &dtos.NotebookResponse{
 		ID:          notebook.ID,
-		UserID:      notebook.UserID,
 		Title:       notebook.Title,
 		Description: notebook.Description,
 		Content:     notebook.Content,
@@ -49,5 +48,5 @@ func ParseID(id string) (uuid.UUID, error) {
 
 // ToEntity maps a create request to an entity (use case logic handles this)
 func ToEntity(req *dtos.CreateNotebookRequest) (*entities.Notebook, error) {
-	return entities.NewNotebook(req.UserID, req.Title, req.Description, req.Content, req.Tags)
+	return entities.NewNotebook(req.Title, req.Description, req.Content, req.Tags)
 }

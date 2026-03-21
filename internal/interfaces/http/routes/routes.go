@@ -10,7 +10,7 @@ import (
 )
 
 // Setup configures all application routes
-func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler, responseHandler *handlers.ResponseHandler) {
+func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler, sourceHandler *handlers.SourceHandler, responseHandler *handlers.ResponseHandler, conversationHandler *handlers.ConversationHandler) {
 	// Apply global middleware
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recovery)
@@ -31,6 +31,15 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 	notebooks.HandleFunc("/{id}", notebookHandler.Update).Methods(http.MethodPut)
 	notebooks.HandleFunc("/{id}", notebookHandler.Delete).Methods(http.MethodDelete)
 	notebooks.HandleFunc("/{id}/archive", notebookHandler.Archive).Methods(http.MethodPost)
+
+	// Source routes (nested under notebooks)
+	notebooks.HandleFunc("/{notebookId}/sources", sourceHandler.Create).Methods(http.MethodPost)
+	notebooks.HandleFunc("/{notebookId}/sources", sourceHandler.List).Methods(http.MethodGet)
+	notebooks.HandleFunc("/{notebookId}/sources/{id}", sourceHandler.GetByID).Methods(http.MethodGet)
+	notebooks.HandleFunc("/{notebookId}/sources/{id}", sourceHandler.Delete).Methods(http.MethodDelete)
+
+	// Conversation routes (nested under notebooks)
+	notebooks.HandleFunc("/{notebookId}/conversations", conversationHandler.ListByNotebook).Methods(http.MethodGet)
 
 	// Knowledge routes
 	knowledges := api.PathPrefix("/knowledges").Subrouter()

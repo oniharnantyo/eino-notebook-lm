@@ -37,6 +37,39 @@ func (uc *usecase) DoSomething() error {
 }
 ```
 
+### Control Flow - Avoid Nested Ifs
+
+**Avoid Python-like nested if blocks. Prefer early returns and helper functions.**
+
+Instead of nesting multiple conditions, use early returns and extract common logic into helpers:
+
+```go
+// WRONG - Python-like nested ifs
+func (uc *usecase) DoSomething(req *Request) error {
+    if req.OptionalField != "" {
+        if someCondition {
+            // deeply nested logic
+        }
+    }
+    // more code...
+}
+
+// CORRECT - Early returns and helper functions
+func (uc *usecase) DoSomething(req *Request) error {
+    if err := uc.validateOptional(req); err != nil {
+        return err
+    }
+    // clear, flat logic
+}
+
+func (uc *usecase) validateOptional(req *Request) error {
+    if req.OptionalField != "" {
+        // validation logic
+    }
+    return nil
+}
+```
+
 ### Error Handling
 
 - Use `internal/core/domain/errors` for domain-specific errors

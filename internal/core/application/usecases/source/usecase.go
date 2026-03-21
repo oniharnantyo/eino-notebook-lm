@@ -135,7 +135,7 @@ func (uc *sourceUseCase) List(ctx context.Context, req *dtos.ListSourcesRequest)
 	}
 
 	return &dtos.ListSourcesResponse{
-		Sources:    dtos.ToSourceResponses(sources),
+		Sources:    dtos.ToSourceListResponses(sources),
 		Total:      int64(total),
 		Page:       req.Page,
 		Limit:      req.Limit,
