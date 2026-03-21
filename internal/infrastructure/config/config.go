@@ -18,6 +18,7 @@ type Config struct {
 	Log       LogConfig
 	Cache     CacheConfig
 	Kreuzberg KreuzbergConfig
+	Langfuse  LangfuseConfig
 }
 
 // ServerConfig holds server configuration
@@ -80,6 +81,16 @@ type OCRConfig struct {
 	Model    string
 }
 
+// LangfuseConfig holds Langfuse observability configuration
+type LangfuseConfig struct {
+	Host       string  `mapstructure:"host" validate:"omitempty,url"`
+	PublicKey  string  `mapstructure:"public_key"`
+	SecretKey  string  `mapstructure:"secret_key"`
+	Enabled    bool    `mapstructure:"enabled"`
+	SampleRate float64 `mapstructure:"sample_rate" validate:"omitempty,min=0,max=1"`
+	Release    string  `mapstructure:"release"`
+}
+
 // Load loads configuration from environment variables and .env file
 func Load() (*Config, error) {
 	// Load .env file if it exists (ignore error if file doesn't exist)
@@ -109,6 +120,12 @@ func Load() (*Config, error) {
 	viper.BindEnv("kreuzberg.timeout", "KREUZBERG_TIMEOUT")
 	viper.BindEnv("kreuzberg.ocr.language", "KREUZBERG_OCR_LANGUAGE")
 	viper.BindEnv("kreuzberg.ocr.model", "KREUZBERG_OCR_MODEL")
+	viper.BindEnv("langfuse.host", "LANGFUSE_HOST")
+	viper.BindEnv("langfuse.public_key", "LANGFUSE_PUBLIC_KEY")
+	viper.BindEnv("langfuse.secret_key", "LANGFUSE_SECRET_KEY")
+	viper.BindEnv("langfuse.enabled", "LANGFUSE_ENABLED")
+	viper.BindEnv("langfuse.sample_rate", "LANGFUSE_SAMPLE_RATE")
+	viper.BindEnv("langfuse.release", "LANGFUSE_RELEASE")
 
 	// Set defaults
 	setDefaults()
@@ -157,6 +174,11 @@ func setDefaults() {
 	viper.SetDefault("kreuzberg.service_url", "http://localhost:8000")
 	viper.SetDefault("kreuzberg.output_format", "markdown")
 	viper.SetDefault("kreuzberg.timeout", 30*time.Second)
+
+	// Langfuse defaults
+	viper.SetDefault("langfuse.host", "https://cloud.langfuse.com")
+	viper.SetDefault("langfuse.enabled", false)
+	viper.SetDefault("langfuse.sample_rate", 1.0)
 }
 
 // GetServerAddress returns the server address
