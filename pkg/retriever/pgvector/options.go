@@ -47,6 +47,25 @@ type RetrieveOptions struct {
 	// Use this for advanced filtering.
 	// Default: "" (no additional filtering)
 	WhereClause string
+
+	// RRFK is the K parameter for Reciprocal Rank Fusion (RRF).
+	// Controls the weight of each ranking in the hybrid search.
+	// Higher values give more weight to lower-ranked results.
+	// Default: 60
+	RRFK int
+
+	// BM25Candidates is the number of top candidates to retrieve from BM25 search.
+	// Default: 100
+	BM25Candidates int
+
+	// VectorCandidates is the number of top candidates to retrieve from vector search.
+	// Default: 100
+	VectorCandidates int
+
+	// SkipRerank skips the reranking step when true.
+	// When true, returns results directly from RRF without reranking.
+	// Default: false
+	SkipRerank bool
 }
 
 // WithIncludeDistance returns an option that includes distance in metadata.
@@ -93,9 +112,41 @@ func WithWhereClause(where string) retriever.Option {
 	})
 }
 
+// WithRRFK returns an option that sets the K parameter for Reciprocal Rank Fusion.
+func WithRRFK(k int) retriever.Option {
+	return retriever.WrapImplSpecificOptFn(func(opts *RetrieveOptions) {
+		opts.RRFK = k
+	})
+}
+
+// WithBM25Candidates returns an option that sets the number of BM25 candidates.
+func WithBM25Candidates(candidates int) retriever.Option {
+	return retriever.WrapImplSpecificOptFn(func(opts *RetrieveOptions) {
+		opts.BM25Candidates = candidates
+	})
+}
+
+// WithVectorCandidates returns an option that sets the number of vector candidates.
+func WithVectorCandidates(candidates int) retriever.Option {
+	return retriever.WrapImplSpecificOptFn(func(opts *RetrieveOptions) {
+		opts.VectorCandidates = candidates
+	})
+}
+
+// WithSkipRerank returns an option that skips the reranking step when true.
+func WithSkipRerank(skip bool) retriever.Option {
+	return retriever.WrapImplSpecificOptFn(func(opts *RetrieveOptions) {
+		opts.SkipRerank = skip
+	})
+}
+
 // getRetrieveOptions extracts the RetrieveOptions from the provided retriever options.
 func getRetrieveOptions(opts ...retriever.Option) *RetrieveOptions {
 	return retriever.GetImplSpecificOptions(&RetrieveOptions{
-		IncludeDistance: true,
+		IncludeDistance:  true,
+		RRFK:             60,
+		BM25Candidates:   100,
+		VectorCandidates: 100,
+		SkipRerank:       false,
 	}, opts...)
 }

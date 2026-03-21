@@ -101,6 +101,36 @@ type Config struct {
 	// Documents with scores below this threshold are excluded.
 	// Default: 0.0 (no filtering)
 	DefaultScoreThreshold float64
+
+	// BM25IndexName is the name of the BM25 full-text search index.
+	// Default: "knowledges_bm25_idx"
+	BM25IndexName string
+
+	// BM25TextConfig is the text search configuration for BM25.
+	// Default: "english"
+	BM25TextConfig string
+
+	// AutoCreateBM25Extension creates the pg_textsearch extension if it doesn't exist.
+	// Default: false
+	AutoCreateBM25Extension bool
+
+	// AutoCreateBM25Index creates the BM25 index if it doesn't exist.
+	// Default: false
+	AutoCreateBM25Index bool
+
+	// DropBeforeCreate drops the BM25 index before creating if AutoCreateBM25Index is set.
+	// Use with caution as this will delete the existing index.
+	// Default: false
+	DropBeforeCreate bool
+}
+
+// Reranker is an interface for reranking retrieval results.
+// Implementations can apply additional scoring algorithms to reorder
+// results based on relevance to the query.
+type Reranker interface {
+	// Rerank reorders the provided document IDs based on their relevance
+	// to the given query. Returns the reordered document IDs.
+	Rerank(query string, docIDs []string) []string
 }
 
 // setDefaults sets the default values for the config.
@@ -128,5 +158,11 @@ func (c *Config) setDefaults() {
 	}
 	if c.DefaultTopK <= 0 {
 		c.DefaultTopK = 5
+	}
+	if c.BM25TextConfig == "" {
+		c.BM25TextConfig = "english"
+	}
+	if c.BM25IndexName == "" {
+		c.BM25IndexName = "public." + c.TableName + "_bm25_idx"
 	}
 }

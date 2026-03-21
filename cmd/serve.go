@@ -20,20 +20,20 @@ import (
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/conversation"
-	responseusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/notebook"
+	responseusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/config"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/persistence"
 	"github.com/oniharnantyo/eino-notebook/internal/interfaces/http/handlers"
 	httproutes "github.com/oniharnantyo/eino-notebook/internal/interfaces/http/routes"
 	"github.com/oniharnantyo/eino-notebook/pkg/indexer/pgvector"
-	pgvectoretriever "github.com/oniharnantyo/eino-notebook/pkg/retriever/pgvector"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 	"github.com/oniharnantyo/eino-notebook/pkg/parser/kreuzberg"
+	pgvectoretriever "github.com/oniharnantyo/eino-notebook/pkg/retriever/pgvector"
 )
 
 var (
@@ -187,9 +187,11 @@ The server can be configured with custom host and port settings.`,
 
 		// Create pgvector retriever for RAG
 		pgvectorRetriever, err := pgvectoretriever.NewRetriever(ctx, &pgvectoretriever.Config{
-			Pool:              dbPool,
-			Dimension:         cfg.Gemini.Dimension,
-			ReferenceIDColumn: "source_id",
+			Pool:                    dbPool,
+			Dimension:               cfg.Gemini.Dimension,
+			ReferenceIDColumn:       "source_id",
+			AutoCreateBM25Extension: true,
+			AutoCreateBM25Index:     true,
 		})
 		if err != nil {
 			log.Warn("failed to create pgvector retriever", "error", err)
@@ -217,10 +219,10 @@ The server can be configured with custom host and port settings.`,
 			// Configure conversation history management
 			historyConfig := &responseusecase.HistoryConfig{
 				Strategy:             responseusecase.HistoryStrategySlidingWindow,
-				MaxMessages:          10,                      // Keep last 10 messages
-				MaxTokens:            4000,                    // Max ~4000 tokens for history
-				TokenEstimationRatio: 4,                       // 1 token ≈ 4 chars
-				SummarizeThreshold:   5,                       // Summarize messages older than 5 turns
+				MaxMessages:          10,   // Keep last 10 messages
+				MaxTokens:            4000, // Max ~4000 tokens for history
+				TokenEstimationRatio: 4,    // 1 token ≈ 4 chars
+				SummarizeThreshold:   5,    // Summarize messages older than 5 turns
 			}
 			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, pgvectorRetriever, geminiEmbedder, geminiChatModel, cfg.Gemini.ChatModel, historyConfig)
 			log.Info("initialized", "usecase", "ResponseUseCase", "history_strategy", historyConfig.Strategy, "max_messages", historyConfig.MaxMessages)
