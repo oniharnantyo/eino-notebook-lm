@@ -12,6 +12,8 @@ import (
 	"github.com/cloudwego/eino-ext/components/document/transformer/splitter/markdown"
 	geminiembedder "github.com/cloudwego/eino-ext/components/embedding/gemini"
 	geminimodel "github.com/cloudwego/eino-ext/components/model/gemini"
+	"github.com/cloudwego/eino/callbacks"
+	langfusecallback "github.com/cloudwego/eino-ext/callbacks/langfuse"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
@@ -37,8 +39,9 @@ import (
 )
 
 var (
-	servePort int
-	serveHost string
+	servePort        int
+	serveHost        string
+	langfuseFlusher func()
 )
 
 // serveCmd represents the serve command
