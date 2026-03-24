@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -17,7 +19,9 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
 	sourceUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
+	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
+	sourceRepo "github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories/source"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 )
 
@@ -25,6 +29,7 @@ import (
 type KnowledgeHandler struct {
 	useCase                 knowledge.KnowledgeUseCase
 	sourceUseCase           sourceUseCase.SourceUseCase
+	sourceRepo              sourceRepo.SourceRepository
 	notebookRepo            repositories.NotebookRepository
 	contentExtractorFactory extractor.ContentExtractorFactory
 	documentParserFactory   *document.DocumentParserFactory
@@ -36,6 +41,7 @@ type KnowledgeHandler struct {
 func NewKnowledgeHandler(
 	useCase knowledge.KnowledgeUseCase,
 	sourceUseCase sourceUseCase.SourceUseCase,
+	sourceRepo sourceRepo.SourceRepository,
 	notebookRepo repositories.NotebookRepository,
 	contentExtractorFactory extractor.ContentExtractorFactory,
 	documentParserFactory *document.DocumentParserFactory,
@@ -44,6 +50,7 @@ func NewKnowledgeHandler(
 	return &KnowledgeHandler{
 		useCase:                 useCase,
 		sourceUseCase:           sourceUseCase,
+		sourceRepo:              sourceRepo,
 		notebookRepo:            notebookRepo,
 		contentExtractorFactory: contentExtractorFactory,
 		documentParserFactory:   documentParserFactory,
@@ -54,6 +61,7 @@ func NewKnowledgeHandler(
 // Create handles knowledge creation requests via multipart/form-data
 // Supports: file uploads (PDF, markdown, images), URLs, and direct text content
 // Uses Strategy Pattern via ContentExtractor for different content types
+// Supports async processing via "async" form field
 func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Limit upload size to 100MB
 	r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
@@ -64,6 +72,10 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.respondWithError(w, http.StatusBadRequest, "notebook_id is required")
 		return
 	}
+
+	// Check if async processing is requested
+	asyncStr := r.FormValue("async")
+	async := asyncStr == "true" || asyncStr == "1"
 
 	notebookID, err := mappers.ParseID(notebookIDStr)
 	if err != nil {
@@ -114,28 +126,6 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get appropriate extractor using factory
-	contentExtractor, err := h.contentExtractorFactory.GetExtractor(contentType)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Unsupported content type: %v", err))
-		return
-	}
-
-	// Extract content using strategy pattern
-	extractedContent, extractedMetadata, err := contentExtractor.Extract(r.Context(), contentSource)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to extract content: %v", err))
-		return
-	}
-
-	// Merge metadata
-	metadata := extractedMetadata
-	if baseMetadata != nil {
-		for k, v := range baseMetadata {
-			metadata[k] = v
-		}
-	}
-
 	// Set title if not provided
 	if title == "" {
 		if contentType == usecases.ContentTypeFile && contentSource.Filename != "" {
@@ -159,7 +149,7 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Title:       title,
 		URI:         url,
 		ContentType: string(contentType),
-		Metadata:    metadata,
+		Metadata:    baseMetadata,
 	}
 
 	// Create source via source use case
@@ -169,30 +159,260 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update source with extracted content
-	err = h.sourceUseCase.Update(r.Context(), sourceResp.ID, extractedContent, len(extractedContent))
-	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update source content: %v", err))
+	// Handle async processing
+	if async {
+		// Get appropriate extractor using factory
+		contentExtractor, err := h.contentExtractorFactory.GetExtractor(contentType)
+		if err != nil {
+			h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Unsupported content type: %v", err))
+			return
+		}
+
+		// Spawn goroutine to process content asynchronously
+		// Use background context to avoid cancellation when request completes
+		asyncCtx := context.Background()
+		go h.processAsync(asyncCtx, sourceResp.ID, &AsyncProcessRequest{
+			ContentSource:  contentSource,
+			ContentType:    contentType,
+			Title:          title,
+			SourceType:     finalSourceType,
+			Metadata:       baseMetadata,
+			SubIndexes:     subIndexes,
+			Extractor:      contentExtractor,
+		})
+
+		// Return 202 Accepted with async response
+		asyncResp := &dtos.AsyncKnowledgeResponse{
+			SourceID:        sourceResp.ID,
+			Status:          string(entities.SourceStatusPending),
+			StatusStreamURL: fmt.Sprintf("/api/v1/sources/%s/status", sourceResp.ID),
+		}
+		h.respondWithJSON(w, http.StatusAccepted, asyncResp)
 		return
 	}
 
-	// Create knowledge with the source reference
-	req := &dtos.CreateKnowledgeRequest{
-		SourceID:   sourceResp.ID,
-		Title:      title,
-		Content:    extractedContent,
-		SourceType: finalSourceType,
-		Metadata:   metadata,
-		SubIndexes: subIndexes,
+	// Synchronous processing (existing behavior)
+	// Get appropriate extractor using factory
+	contentExtractor, err := h.contentExtractorFactory.GetExtractor(contentType)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Unsupported content type: %v", err))
+		return
 	}
 
-	// Call use case
-	if err := h.useCase.Create(r.Context(), req); err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create knowledge: %v", err))
+	// Extract content using strategy pattern
+	extractedContent, extractedMetadata, err := contentExtractor.Extract(r.Context(), contentSource)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to extract content: %v", err))
+		return
+	}
+
+	// Merge metadata
+	metadata := extractedMetadata
+	if baseMetadata != nil {
+		for k, v := range baseMetadata {
+			metadata[k] = v
+		}
+	}
+
+	err = h.processSync(r.Context(), sourceResp.ID, extractedContent, title, finalSourceType, metadata, subIndexes)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	h.respondWithJSON(w, http.StatusCreated, nil)
+}
+
+// AsyncProcessRequest represents the request data for async processing
+type AsyncProcessRequest struct {
+	ContentSource  usecases.ContentSource
+	ContentType    usecases.ContentType
+	Title          string
+	SourceType     string
+	Metadata       map[string]interface{}
+	SubIndexes     []string
+	Extractor      extractor.ContentExtractor
+}
+
+// processAsync processes content extraction and knowledge creation asynchronously
+func (h *KnowledgeHandler) processAsync(ctx context.Context, sourceID uuid.UUID, req *AsyncProcessRequest) {
+	// Update status to processing
+	if err := h.updateSourceStatus(ctx, sourceID, entities.SourceStatusProcessing, nil); err != nil {
+		h.logger.Error("Failed to update source status to processing", "source_id", sourceID, "error", err)
+		return
+	}
+
+	// Extract content using strategy pattern
+	extractedContent, extractedMetadata, err := req.Extractor.Extract(ctx, req.ContentSource)
+	if err != nil {
+		h.logger.Error("Failed to extract content", "source_id", sourceID, "error", err)
+		h.updateSourceStatus(ctx, sourceID, entities.SourceStatusFailed, err)
+		return
+	}
+
+	// Merge metadata
+	metadata := extractedMetadata
+	if req.Metadata != nil {
+		for k, v := range req.Metadata {
+			metadata[k] = v
+		}
+	}
+
+	// Update source with extracted content
+	if err := h.sourceUseCase.Update(ctx, sourceID, extractedContent, len(extractedContent)); err != nil {
+		h.logger.Error("Failed to update source content", "source_id", sourceID, "error", err)
+		h.updateSourceStatus(ctx, sourceID, entities.SourceStatusFailed, err)
+		return
+	}
+
+	// Create knowledge with the source reference
+	knowledgeReq := &dtos.CreateKnowledgeRequest{
+		SourceID:   sourceID,
+		Title:      req.Title,
+		Content:    extractedContent,
+		SourceType: req.SourceType,
+		Metadata:   metadata,
+		SubIndexes: req.SubIndexes,
+	}
+
+	if err := h.useCase.Create(ctx, knowledgeReq); err != nil {
+		h.logger.Error("Failed to create knowledge", "source_id", sourceID, "error", err)
+		h.updateSourceStatus(ctx, sourceID, entities.SourceStatusFailed, err)
+		return
+	}
+
+	// Mark as completed
+	if err := h.updateSourceStatus(ctx, sourceID, entities.SourceStatusCompleted, nil); err != nil {
+		h.logger.Error("Failed to update source status to completed", "source_id", sourceID, "error", err)
+		return
+	}
+}
+
+// processSync processes content extraction and knowledge creation synchronously
+func (h *KnowledgeHandler) processSync(
+	ctx context.Context,
+	sourceID uuid.UUID,
+	extractedContent string,
+	title string,
+	sourceType string,
+	metadata map[string]interface{},
+	subIndexes []string,
+) error {
+	// Update source with extracted content
+	if err := h.sourceUseCase.Update(ctx, sourceID, extractedContent, len(extractedContent)); err != nil {
+		return fmt.Errorf("failed to update source content: %w", err)
+	}
+
+	// Create knowledge with the source reference
+	req := &dtos.CreateKnowledgeRequest{
+		SourceID:   sourceID,
+		Title:      title,
+		Content:    extractedContent,
+		SourceType: sourceType,
+		Metadata:   metadata,
+		SubIndexes: subIndexes,
+	}
+
+	if err := h.useCase.Create(ctx, req); err != nil {
+		return fmt.Errorf("failed to create knowledge: %w", err)
+	}
+
+	return nil
+}
+
+// updateSourceStatus updates the status of a source
+func (h *KnowledgeHandler) updateSourceStatus(ctx context.Context, sourceID uuid.UUID, status entities.SourceStatus, err error) error {
+	source, repoErr := h.sourceRepo.GetByID(ctx, sourceID)
+	if repoErr != nil {
+		return fmt.Errorf("failed to get source: %w", repoErr)
+	}
+
+	switch status {
+	case entities.SourceStatusProcessing:
+		source.MarkProcessing()
+	case entities.SourceStatusCompleted:
+		source.MarkCompleted()
+	case entities.SourceStatusFailed:
+		source.MarkFailed(err)
+	}
+
+	if repoErr := h.sourceRepo.Update(ctx, source); repoErr != nil {
+		return fmt.Errorf("failed to update source: %w", repoErr)
+	}
+
+	return nil
+}
+
+// StreamSourceStatus streams source status updates via SSE
+func (h *KnowledgeHandler) StreamSourceStatus(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	sourceIDStr := vars["id"]
+
+	sourceID, err := uuid.Parse(sourceIDStr)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "invalid source ID format")
+		return
+	}
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		h.respondWithError(w, http.StatusNotImplemented, "streaming not supported")
+		return
+	}
+
+	// Poll database every 500ms until terminal state
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	var lastStatus entities.SourceStatus
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			source, err := h.sourceRepo.GetByID(r.Context(), sourceID)
+			if err != nil {
+				h.logger.Error("Failed to get source status", "source_id", sourceID, "error", err)
+				return
+			}
+
+			// Send event only if status changed
+			if source.Status != lastStatus {
+				h.sendSSEEvent(w, flusher, source)
+				lastStatus = source.Status
+			}
+
+			// Close connection on terminal state
+			if source.Status == entities.SourceStatusCompleted || source.Status == entities.SourceStatusFailed {
+				return
+			}
+		}
+	}
+}
+
+// sendSSEEvent sends an SSE event with source status
+func (h *KnowledgeHandler) sendSSEEvent(w http.ResponseWriter, flusher http.Flusher, source *entities.Source) {
+	event := map[string]interface{}{
+		"source_id": source.ID,
+		"status":    source.Status,
+		"error":     source.Error,
+		"updated_at": source.UpdatedAt,
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		h.logger.Error("Failed to marshal SSE event", "error", err)
+		return
+	}
+
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	flusher.Flush()
 }
 
 // buildContentSource builds a ContentSource from the request

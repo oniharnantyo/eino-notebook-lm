@@ -305,7 +305,7 @@ The server can be configured with custom host and port settings.`,
 		// Interface Layer (HTTP Handlers)
 		notebookHandler := handlers.NewNotebookHandler(notebookUseCase, log)
 		sourceHandler := handlers.NewSourceHandler(sourceUseCase, log)
-		knowledgeHandler := handlers.NewKnowledgeHandler(knowledgeUseCase, sourceUseCase, notebookRepo, contentExtractorFactory, docParserFactory, log)
+		knowledgeHandler := handlers.NewKnowledgeHandler(knowledgeUseCase, sourceUseCase, sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, log)
 		var responseHandler *handlers.ResponseHandler
 		if responseUseCase != nil {
 			responseHandler = handlers.NewResponseHandler(responseUseCase, log)
