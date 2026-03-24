@@ -20,6 +20,16 @@ const (
 	ContentTypeOther    ContentType = "application/octet-stream"
 )
 
+// SourceStatus represents the processing status of a source
+type SourceStatus string
+
+const (
+	SourceStatusPending    SourceStatus = "pending"
+	SourceStatusProcessing SourceStatus = "processing"
+	SourceStatusCompleted  SourceStatus = "completed"
+	SourceStatusFailed     SourceStatus = "failed"
+)
+
 // Source represents an ingestible asset that produces knowledge chunks
 type Source struct {
 	ID          uuid.UUID              `json:"id" db:"id"`
@@ -34,6 +44,8 @@ type Source struct {
 	CreatedAt   time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time              `json:"updated_at" db:"updated_at"`
 	DeletedAt   *time.Time             `json:"deleted_at,omitempty" db:"deleted_at"`
+	Status      SourceStatus           `json:"status" db:"status"`
+	Error       *string                `json:"error,omitempty" db:"error"`
 }
 
 // NewSource creates a new source entity
@@ -46,6 +58,7 @@ func NewSource(notebookID uuid.UUID, title, uri string, contentType ContentType)
 		ContentType: contentType,
 		ChunkCount:  0,
 		Metadata:    make(map[string]interface{}),
+		Status:      SourceStatusPending,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -118,4 +131,28 @@ func (s *Source) SoftDelete() {
 	now := time.Now()
 	s.DeletedAt = &now
 	s.UpdatedAt = now
+}
+
+// MarkProcessing marks the source as being processed
+func (s *Source) MarkProcessing() {
+	s.Status = SourceStatusProcessing
+	s.Error = nil
+	s.UpdatedAt = time.Now()
+}
+
+// MarkCompleted marks the source as successfully completed
+func (s *Source) MarkCompleted() {
+	s.Status = SourceStatusCompleted
+	s.Error = nil
+	s.UpdatedAt = time.Now()
+}
+
+// MarkFailed marks the source as failed with an error message
+func (s *Source) MarkFailed(err error) {
+	s.Status = SourceStatusFailed
+	if err != nil {
+		errMsg := err.Error()
+		s.Error = &errMsg
+	}
+	s.UpdatedAt = time.Now()
 }
