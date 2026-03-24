@@ -21,7 +21,7 @@ import (
 	sourceUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
-	sourceRepo "github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories/source"
+	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 )
 
@@ -29,7 +29,7 @@ import (
 type KnowledgeHandler struct {
 	useCase                 knowledge.KnowledgeUseCase
 	sourceUseCase           sourceUseCase.SourceUseCase
-	sourceRepo              sourceRepo.SourceRepository
+	sourceRepo              repositories.SourceRepository
 	notebookRepo            repositories.NotebookRepository
 	contentExtractorFactory extractor.ContentExtractorFactory
 	documentParserFactory   *document.DocumentParserFactory
@@ -41,7 +41,7 @@ type KnowledgeHandler struct {
 func NewKnowledgeHandler(
 	useCase knowledge.KnowledgeUseCase,
 	sourceUseCase sourceUseCase.SourceUseCase,
-	sourceRepo sourceRepo.SourceRepository,
+	sourceRepo repositories.SourceRepository,
 	notebookRepo repositories.NotebookRepository,
 	contentExtractorFactory extractor.ContentExtractorFactory,
 	documentParserFactory *document.DocumentParserFactory,
