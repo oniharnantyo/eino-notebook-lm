@@ -27,6 +27,8 @@ type SourceResponse struct {
 	ChunkCount  int                            `json:"chunk_count"`
 	TotalSize   int                            `json:"total_size,omitempty"`
 	Metadata    map[string]any                 `json:"metadata,omitempty"`
+	Status      string                         `json:"status"`
+	Error       *string                        `json:"error,omitempty"`
 	CreatedAt   time.Time                      `json:"created_at"`
 	UpdatedAt   time.Time                      `json:"updated_at"`
 }
@@ -74,6 +76,8 @@ func ToSourceResponse(source *entities.Source) *SourceResponse {
 		ChunkCount:  source.ChunkCount,
 		TotalSize:   source.TotalSize,
 		Metadata:    source.Metadata,
+		Status:      source.Status,
+		Error:       source.Error,
 		CreatedAt:   source.CreatedAt,
 		UpdatedAt:   source.UpdatedAt,
 	}

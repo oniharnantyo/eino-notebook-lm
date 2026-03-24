@@ -78,6 +78,13 @@ type ListKnowledgesResponse struct {
 	TotalPages  int                `json:"total_pages"`
 }
 
+// AsyncKnowledgeResponse represents an async knowledge ingestion response
+type AsyncKnowledgeResponse struct {
+	SourceID        uuid.UUID `json:"source_id"`
+	Status          string    `json:"status"`
+	StatusStreamURL string    `json:"status_stream_url"`
+}
+
 // ToKnowledgeResponse maps a knowledge entity to a response DTO
 func ToKnowledgeResponse(knowledge *entities.Knowledge) *KnowledgeResponse {
 	if knowledge == nil {
