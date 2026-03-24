@@ -41,6 +41,10 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 	// Conversation routes (nested under notebooks)
 	notebooks.HandleFunc("/{notebookId}/conversations", conversationHandler.ListByNotebook).Methods(http.MethodGet)
 
+	// Knowledge routes (nested under notebooks)
+	notebooks.HandleFunc("/{notebookId}/knowledges", knowledgeHandler.Create).Methods(http.MethodPost)
+	notebooks.HandleFunc("/{notebookId}/knowledges/status/{sourceId}/stream", knowledgeHandler.StreamSourceStatus).Methods(http.MethodGet)
+
 	// Knowledge routes
 	knowledges := api.PathPrefix("/knowledges").Subrouter()
 	knowledges.HandleFunc("", knowledgeHandler.Create).Methods(http.MethodPost)
