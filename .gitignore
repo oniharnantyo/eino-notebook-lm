@@ -50,4 +50,8 @@ Thumbs.db
 # Build output
 build/
 
+# Git worktrees for isolated development
+.worktrees/
+worktrees/
+
 .env
