@@ -28,8 +28,8 @@ func NewPostgresSourceRepository(pool *pgxpool.Pool) repositories.SourceReposito
 // Create creates a new source
 func (r *PostgresSourceRepository) Create(ctx context.Context, source *entities.Source) error {
 	query := `
-		INSERT INTO sources (id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO sources (id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, status, error, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 
 	_, err := r.pool.Exec(ctx, query,
@@ -42,6 +42,8 @@ func (r *PostgresSourceRepository) Create(ctx context.Context, source *entities.
 		source.ChunkCount,
 		source.TotalSize,
 		metadataToJSON(source.Metadata),
+		string(source.Status),
+		source.Error,
 		source.CreatedAt,
 		source.UpdatedAt,
 	)
@@ -56,13 +58,13 @@ func (r *PostgresSourceRepository) Create(ctx context.Context, source *entities.
 // GetByID retrieves a source by ID
 func (r *PostgresSourceRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Source, error) {
 	query := `
-		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, created_at, updated_at, deleted_at
+		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, status, error, created_at, updated_at, deleted_at
 		FROM sources
 		WHERE id = $1
 	`
 
 	var source entities.Source
-	var idStr, notebookIDStr, contentTypeStr string
+	var idStr, notebookIDStr, contentTypeStr, statusStr string
 	var metadataJSON []byte
 
 	err := r.pool.QueryRow(ctx, query, id.String()).Scan(
@@ -75,6 +77,8 @@ func (r *PostgresSourceRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 		&source.ChunkCount,
 		&source.TotalSize,
 		&metadataJSON,
+		&statusStr,
+		&source.Error,
 		&source.CreatedAt,
 		&source.UpdatedAt,
 		&source.DeletedAt,
@@ -88,6 +92,7 @@ func (r *PostgresSourceRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 	source.ID, _ = uuid.Parse(idStr)
 	source.NotebookID, _ = uuid.Parse(notebookIDStr)
 	source.ContentType = entities.ContentType(contentTypeStr)
+	source.Status = entities.SourceStatus(statusStr)
 
 	// Parse metadata
 	if metadataJSON != nil {
@@ -100,7 +105,7 @@ func (r *PostgresSourceRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 // GetByNotebookID retrieves all sources for a notebook
 func (r *PostgresSourceRepository) GetByNotebookID(ctx context.Context, notebookID uuid.UUID) ([]*entities.Source, error) {
 	query := `
-		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, created_at, updated_at, deleted_at
+		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, status, error, created_at, updated_at, deleted_at
 		FROM sources
 		WHERE notebook_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -125,14 +130,14 @@ func (r *PostgresSourceRepository) GetByNotebookID(ctx context.Context, notebook
 // GetByURI retrieves a source by its URI
 func (r *PostgresSourceRepository) GetByURI(ctx context.Context, notebookID uuid.UUID, uri string) (*entities.Source, error) {
 	query := `
-		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, created_at, updated_at, deleted_at
+		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, status, error, created_at, updated_at, deleted_at
 		FROM sources
 		WHERE notebook_id = $1 AND uri = $2 AND deleted_at IS NULL
 		LIMIT 1
 	`
 
 	var source entities.Source
-	var idStr, notebookIDStr, contentTypeStr string
+	var idStr, notebookIDStr, contentTypeStr, statusStr string
 	var metadataJSON []byte
 
 	err := r.pool.QueryRow(ctx, query, notebookID.String(), uri).Scan(
@@ -145,6 +150,8 @@ func (r *PostgresSourceRepository) GetByURI(ctx context.Context, notebookID uuid
 		&source.ChunkCount,
 		&source.TotalSize,
 		&metadataJSON,
+		&statusStr,
+		&source.Error,
 		&source.CreatedAt,
 		&source.UpdatedAt,
 		&source.DeletedAt,
@@ -158,6 +165,7 @@ func (r *PostgresSourceRepository) GetByURI(ctx context.Context, notebookID uuid
 	source.ID, _ = uuid.Parse(idStr)
 	source.NotebookID, _ = uuid.Parse(notebookIDStr)
 	source.ContentType = entities.ContentType(contentTypeStr)
+	source.Status = entities.SourceStatus(statusStr)
 
 	// Parse metadata
 	if metadataJSON != nil {
@@ -171,7 +179,7 @@ func (r *PostgresSourceRepository) GetByURI(ctx context.Context, notebookID uuid
 func (r *PostgresSourceRepository) Update(ctx context.Context, source *entities.Source) error {
 	query := `
 		UPDATE sources
-		SET title = $2, uri = $3, content_type = $4, content = $5, chunk_count = $6, total_size = $7, metadata = $8, updated_at = $9
+		SET title = $2, uri = $3, content_type = $4, content = $5, chunk_count = $6, total_size = $7, metadata = $8, status = $9, error = $10, updated_at = $11
 		WHERE id = $1
 	`
 
@@ -184,6 +192,8 @@ func (r *PostgresSourceRepository) Update(ctx context.Context, source *entities.
 		source.ChunkCount,
 		source.TotalSize,
 		metadataToJSON(source.Metadata),
+		string(source.Status),
+		source.Error,
 		source.UpdatedAt,
 	)
 
@@ -246,7 +256,7 @@ func (r *PostgresSourceRepository) List(ctx context.Context, filter repositories
 
 	// Get sources
 	query := `
-		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, created_at, updated_at, deleted_at
+		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, status, error, created_at, updated_at, deleted_at
 		FROM sources
 		` + whereClause + `
 		ORDER BY ` + orderBy + `
@@ -284,7 +294,7 @@ func (r *PostgresSourceRepository) IncrementChunkCount(ctx context.Context, id u
 // scanSource scans a source from a database row
 func (r *PostgresSourceRepository) scanSource(rows pgx.Rows) (*entities.Source, error) {
 	var source entities.Source
-	var idStr, notebookIDStr, contentTypeStr string
+	var idStr, notebookIDStr, contentTypeStr, statusStr string
 	var metadataJSON []byte
 
 	err := rows.Scan(
@@ -297,6 +307,8 @@ func (r *PostgresSourceRepository) scanSource(rows pgx.Rows) (*entities.Source, 
 		&source.ChunkCount,
 		&source.TotalSize,
 		&metadataJSON,
+		&statusStr,
+		&source.Error,
 		&source.CreatedAt,
 		&source.UpdatedAt,
 		&source.DeletedAt,
@@ -310,6 +322,7 @@ func (r *PostgresSourceRepository) scanSource(rows pgx.Rows) (*entities.Source, 
 	source.ID, _ = uuid.Parse(idStr)
 	source.NotebookID, _ = uuid.Parse(notebookIDStr)
 	source.ContentType = entities.ContentType(contentTypeStr)
+	source.Status = entities.SourceStatus(statusStr)
 
 	// Parse metadata
 	if metadataJSON != nil {
@@ -317,4 +330,16 @@ func (r *PostgresSourceRepository) scanSource(rows pgx.Rows) (*entities.Source, 
 	}
 
 	return &source, nil
+}
+
+// UpdateStatus updates the status and error message of a source
+func (r *PostgresSourceRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status entities.SourceStatus, errMsg *string) error {
+	query := `UPDATE sources SET status = $2, error = $3, updated_at = NOW() WHERE id = $1`
+
+	_, err := r.pool.Exec(ctx, query, id.String(), string(status), errMsg)
+	if err != nil {
+		return fmt.Errorf("failed to update source status: %w", err)
+	}
+
+	return nil
 }
