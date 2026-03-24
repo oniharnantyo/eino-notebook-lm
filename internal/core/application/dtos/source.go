@@ -76,7 +76,7 @@ func ToSourceResponse(source *entities.Source) *SourceResponse {
 		ChunkCount:  source.ChunkCount,
 		TotalSize:   source.TotalSize,
 		Metadata:    source.Metadata,
-		Status:      source.Status,
+		Status:      string(source.Status),
 		Error:       source.Error,
 		CreatedAt:   source.CreatedAt,
 		UpdatedAt:   source.UpdatedAt,
