@@ -169,17 +169,26 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Spawn goroutine to process content asynchronously
-		// Use background context to avoid cancellation when request completes
-		asyncCtx := context.Background()
-		go h.processAsync(asyncCtx, sourceResp.ID, &AsyncProcessRequest{
-			ContentSource:  contentSource,
-			ContentType:    contentType,
-			Title:          title,
-			SourceType:     finalSourceType,
-			Metadata:       baseMetadata,
-			SubIndexes:     subIndexes,
-			Extractor:      contentExtractor,
-		})
+		// Use WithoutCancel to preserve trace ID and telemetry while preventing request cancellation
+		asyncCtx := context.WithoutCancel(r.Context())
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					h.logger.Error("Panic in async processing", "source_id", sourceResp.ID, "panic", r)
+					// Update source status to failed on panic
+					h.updateSourceStatus(asyncCtx, sourceResp.ID, entities.SourceStatusFailed, fmt.Errorf("panic: %v", r))
+				}
+			}()
+			h.processAsync(asyncCtx, sourceResp.ID, &AsyncProcessRequest{
+				ContentSource:  contentSource,
+				ContentType:    contentType,
+				Title:          title,
+				SourceType:     finalSourceType,
+				Metadata:       baseMetadata,
+				SubIndexes:     subIndexes,
+				Extractor:      contentExtractor,
+			})
+		}()
 
 		// Return 202 Accepted with async response
 		asyncResp := &dtos.AsyncKnowledgeResponse{
