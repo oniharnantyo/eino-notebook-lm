@@ -82,7 +82,16 @@ type ListKnowledgesResponse struct {
 type AsyncKnowledgeResponse struct {
 	SourceID        uuid.UUID `json:"source_id"`
 	Status          string    `json:"status"`
+	StatusURL       string    `json:"status_url"`
 	StatusStreamURL string    `json:"status_stream_url"`
+}
+
+// KnowledgeIngestionStatusResponse represents the status of a knowledge ingestion source
+type KnowledgeIngestionStatusResponse struct {
+	SourceID  uuid.UUID `json:"source_id"`
+	Status    string    `json:"status"`
+	Error     *string   `json:"error,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // ToKnowledgeResponse maps a knowledge entity to a response DTO

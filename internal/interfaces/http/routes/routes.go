@@ -43,6 +43,7 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 
 	// Knowledge routes (nested under notebooks)
 	notebooks.HandleFunc("/{notebookId}/knowledges", knowledgeHandler.Create).Methods(http.MethodPost)
+	notebooks.HandleFunc("/{notebookId}/knowledges/status/{sourceId}", knowledgeHandler.GetSourceStatus).Methods(http.MethodGet)
 	notebooks.HandleFunc("/{notebookId}/knowledges/status/{sourceId}/stream", knowledgeHandler.StreamSourceStatus).Methods(http.MethodGet)
 
 	// Knowledge routes

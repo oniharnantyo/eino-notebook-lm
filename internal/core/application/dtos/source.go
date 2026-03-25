@@ -47,6 +47,7 @@ type SourceListResponse struct {
 	NotebookID  uuid.UUID `json:"notebook_id"`
 	Title       string    `json:"title"`
 	ContentType string    `json:"content_type"`
+	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -104,6 +105,7 @@ func ToSourceListResponses(sources []*entities.Source) []SourceListResponse {
 				NotebookID:  source.NotebookID,
 				Title:       source.Title,
 				ContentType: string(source.ContentType),
+				Status:      string(source.Status),
 				CreatedAt:   source.CreatedAt,
 				UpdatedAt:   source.UpdatedAt,
 			})

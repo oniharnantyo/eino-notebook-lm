@@ -264,7 +264,10 @@ func (r *PostgresSourceRepository) List(ctx context.Context, filter repositories
 
 	args = append(args, filter.Limit, filter.Offset)
 
-	rows, _ := r.pool.Query(ctx, query, args...)
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query sources: %w", err)
+	}
 	defer rows.Close()
 
 	var sources []*entities.Source

@@ -194,7 +194,8 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		asyncResp := &dtos.AsyncKnowledgeResponse{
 			SourceID:        sourceResp.ID,
 			Status:          string(entities.SourceStatusPending),
-			StatusStreamURL: fmt.Sprintf("/api/v1/sources/%s/status", sourceResp.ID),
+			StatusURL:       fmt.Sprintf("/api/v1/notebooks/%s/knowledges/status/%s", notebookID, sourceResp.ID),
+			StatusStreamURL: fmt.Sprintf("/api/v1/notebooks/%s/knowledges/status/%s/stream", notebookID, sourceResp.ID),
 		}
 		h.respondWithJSON(w, http.StatusAccepted, asyncResp)
 		return
@@ -352,10 +353,37 @@ func (h *KnowledgeHandler) updateSourceStatus(ctx context.Context, sourceID uuid
 	return nil
 }
 
-// StreamSourceStatus streams source status updates via SSE
+// GetSourceStatus handles requests to check the status of a knowledge source
+func (h *KnowledgeHandler) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	sourceIDStr := vars["sourceId"]
+
+	sourceID, err := uuid.Parse(sourceIDStr)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "invalid source ID format")
+		return
+	}
+
+	source, err := h.sourceRepo.GetByID(r.Context(), sourceID)
+	if err != nil {
+		h.logger.Error("Failed to get source status", "source_id", sourceID, "error", err)
+		h.respondWithError(w, http.StatusNotFound, "Source not found")
+		return
+	}
+
+	response := dtos.KnowledgeIngestionStatusResponse{
+		SourceID:  source.ID,
+		Status:    string(source.Status),
+		Error:     source.Error,
+		UpdatedAt: source.UpdatedAt,
+	}
+
+	h.respondWithJSON(w, http.StatusOK, response)
+}
+
 func (h *KnowledgeHandler) StreamSourceStatus(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	sourceIDStr := vars["id"]
+	sourceIDStr := vars["sourceId"]
 
 	sourceID, err := uuid.Parse(sourceIDStr)
 	if err != nil {
