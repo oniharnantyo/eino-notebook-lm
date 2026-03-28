@@ -1,11 +1,8 @@
 package handlers
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,67 +12,47 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/mappers"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
 	sourceUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
-	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 )
 
 // KnowledgeHandler handles knowledge HTTP requests
 type KnowledgeHandler struct {
-	useCase                 knowledge.KnowledgeUseCase
-	sourceUseCase           sourceUseCase.SourceUseCase
-	sourceRepo              repositories.SourceRepository
-	notebookRepo            repositories.NotebookRepository
-	contentExtractorFactory extractor.ContentExtractorFactory
-	documentParserFactory   *document.DocumentParserFactory
-	logger                  *logger.Logger
+	useCase       knowledge.KnowledgeUseCase
+	sourceUseCase sourceUseCase.SourceUseCase
+	logger        *logger.Logger
 }
 
 // NewKnowledgeHandler creates a new knowledge handler
-// Dependency Inversion: Depends on ContentExtractorFactory abstraction
 func NewKnowledgeHandler(
 	useCase knowledge.KnowledgeUseCase,
 	sourceUseCase sourceUseCase.SourceUseCase,
-	sourceRepo repositories.SourceRepository,
-	notebookRepo repositories.NotebookRepository,
-	contentExtractorFactory extractor.ContentExtractorFactory,
-	documentParserFactory *document.DocumentParserFactory,
 	log *logger.Logger,
 ) *KnowledgeHandler {
 	return &KnowledgeHandler{
-		useCase:                 useCase,
-		sourceUseCase:           sourceUseCase,
-		sourceRepo:              sourceRepo,
-		notebookRepo:            notebookRepo,
-		contentExtractorFactory: contentExtractorFactory,
-		documentParserFactory:   documentParserFactory,
-		logger:                  log,
+		useCase:       useCase,
+		sourceUseCase: sourceUseCase,
+		logger:        log,
 	}
 }
 
 // Create handles knowledge creation requests via multipart/form-data
 // Supports: file uploads (PDF, markdown, images), URLs, and direct text content
-// Uses Strategy Pattern via ContentExtractor for different content types
 // Supports async processing via "async" form field
 func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Limit upload size to 100MB
 	r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
 
-	// Extract form fields
-	notebookIDStr := r.FormValue("notebook_id")
+	// Extract notebookId from URL path
+	vars := mux.Vars(r)
+	notebookIDStr := vars["notebookId"]
 	if notebookIDStr == "" {
-		h.respondWithError(w, http.StatusBadRequest, "notebook_id is required")
+		h.respondWithError(w, http.StatusBadRequest, "notebookId is required in URL path")
 		return
 	}
-
-	// Check if async processing is requested
-	asyncStr := r.FormValue("async")
-	async := asyncStr == "true" || asyncStr == "1"
 
 	notebookID, err := mappers.ParseID(notebookIDStr)
 	if err != nil {
@@ -83,28 +60,28 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate notebook exists before proceeding
-	exists, err := h.notebookRepo.Exists(r.Context(), notebookID)
-	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to validate notebook: %v", err))
-		return
-	}
-	if !exists {
-		h.respondWithError(w, http.StatusNotFound, fmt.Sprintf("Notebook with ID %s not found", notebookIDStr))
+	// CRITICAL: Parse multipart form ONCE before accessing any form data
+	// This ensures both files and form values are accessible
+	// Using 32MB max memory for in-memory storage, rest spills to disk
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse multipart form: %v", err))
 		return
 	}
 
+	// Parse form values
 	title := r.FormValue("title")
 	contentText := r.FormValue("content")
 	url := r.FormValue("url")
 	sourceType := r.FormValue("source_type")
 	metadataStr := r.FormValue("metadata")
 	subIndexesStr := r.FormValue("sub_indexes")
+	asyncStr := r.FormValue("async")
+	async := asyncStr == "true" || asyncStr == "1"
 
 	// Parse metadata if provided
-	var baseMetadata map[string]interface{}
+	var metadata map[string]interface{}
 	if metadataStr != "" {
-		if err := json.Unmarshal([]byte(metadataStr), &baseMetadata); err != nil {
+		if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
 			h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Invalid metadata JSON: %v", err))
 			return
 		}
@@ -119,238 +96,27 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Determine content type and create content source
-	contentType, contentSource, err := h.buildContentSource(r, contentText, url, baseMetadata)
+	// Determine content type and build request
+	ingestReq, err := h.buildIngestRequest(r, notebookID, title, contentText, url, sourceType, metadata, subIndexes, async)
 	if err != nil {
 		h.respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set title if not provided
-	if title == "" {
-		if contentType == usecases.ContentTypeFile && contentSource.Filename != "" {
-			title = contentSource.Filename
-		} else if contentType == usecases.ContentTypeURL && url != "" {
-			title = url
-		} else {
-			title = "Untitled"
-		}
-	}
-
-	// Determine source type
-	finalSourceType := sourceType
-	if finalSourceType == "" {
-		finalSourceType = string(contentType)
-	}
-
-	// First, create a source for this content
-	createSourceReq := &dtos.CreateSourceRequest{
-		NotebookID:  notebookID,
-		Title:       title,
-		URI:         url,
-		ContentType: string(contentType),
-		Metadata:    baseMetadata,
-	}
-
-	// Create source via source use case
-	sourceResp, err := h.sourceUseCase.Create(r.Context(), createSourceReq)
-	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create source: %v", err))
-		return
-	}
-
-	// Handle async processing
-	if async {
-		// Get appropriate extractor using factory
-		contentExtractor, err := h.contentExtractorFactory.GetExtractor(contentType)
-		if err != nil {
-			h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Unsupported content type: %v", err))
-			return
-		}
-
-		// Spawn goroutine to process content asynchronously
-		// Use WithoutCancel to preserve trace ID and telemetry while preventing request cancellation
-		asyncCtx := context.WithoutCancel(r.Context())
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					h.logger.Error("Panic in async processing", "source_id", sourceResp.ID, "panic", r)
-					// Update source status to failed on panic
-					h.updateSourceStatus(asyncCtx, sourceResp.ID, entities.SourceStatusFailed, fmt.Errorf("panic: %v", r))
-				}
-			}()
-			h.processAsync(asyncCtx, sourceResp.ID, &AsyncProcessRequest{
-				ContentSource:  contentSource,
-				ContentType:    contentType,
-				Title:          title,
-				SourceType:     finalSourceType,
-				Metadata:       baseMetadata,
-				SubIndexes:     subIndexes,
-				Extractor:      contentExtractor,
-			})
-		}()
-
-		// Return 202 Accepted with async response
-		asyncResp := &dtos.AsyncKnowledgeResponse{
-			SourceID:        sourceResp.ID,
-			Status:          string(entities.SourceStatusPending),
-			StatusURL:       fmt.Sprintf("/api/v1/notebooks/%s/knowledges/status/%s", notebookID, sourceResp.ID),
-			StatusStreamURL: fmt.Sprintf("/api/v1/notebooks/%s/knowledges/status/%s/stream", notebookID, sourceResp.ID),
-		}
-		h.respondWithJSON(w, http.StatusAccepted, asyncResp)
-		return
-	}
-
-	// Synchronous processing (existing behavior)
-	// Get appropriate extractor using factory
-	contentExtractor, err := h.contentExtractorFactory.GetExtractor(contentType)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Unsupported content type: %v", err))
-		return
-	}
-
-	// Extract content using strategy pattern
-	extractedContent, extractedMetadata, err := contentExtractor.Extract(r.Context(), contentSource)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, fmt.Sprintf("Failed to extract content: %v", err))
-		return
-	}
-
-	// Merge metadata
-	metadata := extractedMetadata
-	if baseMetadata != nil {
-		for k, v := range baseMetadata {
-			metadata[k] = v
-		}
-	}
-
-	err = h.processSync(r.Context(), sourceResp.ID, extractedContent, title, finalSourceType, metadata, subIndexes)
+	// Call usecase to handle ingestion
+	response, err := h.sourceUseCase.IngestContent(r.Context(), ingestReq)
 	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusCreated, nil)
-}
-
-// AsyncProcessRequest represents the request data for async processing
-type AsyncProcessRequest struct {
-	ContentSource  usecases.ContentSource
-	ContentType    usecases.ContentType
-	Title          string
-	SourceType     string
-	Metadata       map[string]interface{}
-	SubIndexes     []string
-	Extractor      extractor.ContentExtractor
-}
-
-// processAsync processes content extraction and knowledge creation asynchronously
-func (h *KnowledgeHandler) processAsync(ctx context.Context, sourceID uuid.UUID, req *AsyncProcessRequest) {
-	// Update status to processing
-	if err := h.updateSourceStatus(ctx, sourceID, entities.SourceStatusProcessing, nil); err != nil {
-		h.logger.Error("Failed to update source status to processing", "source_id", sourceID, "error", err)
+	// Return appropriate response based on async/sync
+	if response.IsAsync {
+		h.respondWithJSON(w, http.StatusAccepted, response)
 		return
 	}
 
-	// Extract content using strategy pattern
-	extractedContent, extractedMetadata, err := req.Extractor.Extract(ctx, req.ContentSource)
-	if err != nil {
-		h.logger.Error("Failed to extract content", "source_id", sourceID, "error", err)
-		h.updateSourceStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return
-	}
-
-	// Merge metadata
-	metadata := extractedMetadata
-	if req.Metadata != nil {
-		for k, v := range req.Metadata {
-			metadata[k] = v
-		}
-	}
-
-	// Update source with extracted content
-	if err := h.sourceUseCase.Update(ctx, sourceID, extractedContent, len(extractedContent)); err != nil {
-		h.logger.Error("Failed to update source content", "source_id", sourceID, "error", err)
-		h.updateSourceStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return
-	}
-
-	// Create knowledge with the source reference
-	knowledgeReq := &dtos.CreateKnowledgeRequest{
-		SourceID:   sourceID,
-		Title:      req.Title,
-		Content:    extractedContent,
-		SourceType: req.SourceType,
-		Metadata:   metadata,
-		SubIndexes: req.SubIndexes,
-	}
-
-	if err := h.useCase.Create(ctx, knowledgeReq); err != nil {
-		h.logger.Error("Failed to create knowledge", "source_id", sourceID, "error", err)
-		h.updateSourceStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return
-	}
-
-	// Mark as completed
-	if err := h.updateSourceStatus(ctx, sourceID, entities.SourceStatusCompleted, nil); err != nil {
-		h.logger.Error("Failed to update source status to completed", "source_id", sourceID, "error", err)
-		return
-	}
-}
-
-// processSync processes content extraction and knowledge creation synchronously
-func (h *KnowledgeHandler) processSync(
-	ctx context.Context,
-	sourceID uuid.UUID,
-	extractedContent string,
-	title string,
-	sourceType string,
-	metadata map[string]interface{},
-	subIndexes []string,
-) error {
-	// Update source with extracted content
-	if err := h.sourceUseCase.Update(ctx, sourceID, extractedContent, len(extractedContent)); err != nil {
-		return fmt.Errorf("failed to update source content: %w", err)
-	}
-
-	// Create knowledge with the source reference
-	req := &dtos.CreateKnowledgeRequest{
-		SourceID:   sourceID,
-		Title:      title,
-		Content:    extractedContent,
-		SourceType: sourceType,
-		Metadata:   metadata,
-		SubIndexes: subIndexes,
-	}
-
-	if err := h.useCase.Create(ctx, req); err != nil {
-		return fmt.Errorf("failed to create knowledge: %w", err)
-	}
-
-	return nil
-}
-
-// updateSourceStatus updates the status of a source
-func (h *KnowledgeHandler) updateSourceStatus(ctx context.Context, sourceID uuid.UUID, status entities.SourceStatus, err error) error {
-	source, repoErr := h.sourceRepo.GetByID(ctx, sourceID)
-	if repoErr != nil {
-		return fmt.Errorf("failed to get source: %w", repoErr)
-	}
-
-	switch status {
-	case entities.SourceStatusProcessing:
-		source.MarkProcessing()
-	case entities.SourceStatusCompleted:
-		source.MarkCompleted()
-	case entities.SourceStatusFailed:
-		source.MarkFailed(err)
-	}
-
-	if repoErr := h.sourceRepo.Update(ctx, source); repoErr != nil {
-		return fmt.Errorf("failed to update source: %w", repoErr)
-	}
-
-	return nil
+	h.respondWithJSON(w, http.StatusCreated, response)
 }
 
 // GetSourceStatus handles requests to check the status of a knowledge source
@@ -358,24 +124,11 @@ func (h *KnowledgeHandler) GetSourceStatus(w http.ResponseWriter, r *http.Reques
 	vars := mux.Vars(r)
 	sourceIDStr := vars["sourceId"]
 
-	sourceID, err := uuid.Parse(sourceIDStr)
+	response, err := h.sourceUseCase.GetStatus(r.Context(), sourceIDStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "invalid source ID format")
-		return
-	}
-
-	source, err := h.sourceRepo.GetByID(r.Context(), sourceID)
-	if err != nil {
-		h.logger.Error("Failed to get source status", "source_id", sourceID, "error", err)
+		h.logger.Error("Failed to get source status", "source_id", sourceIDStr, "error", err)
 		h.respondWithError(w, http.StatusNotFound, "Source not found")
 		return
-	}
-
-	response := dtos.KnowledgeIngestionStatusResponse{
-		SourceID:  source.ID,
-		Status:    string(source.Status),
-		Error:     source.Error,
-		UpdatedAt: source.UpdatedAt,
 	}
 
 	h.respondWithJSON(w, http.StatusOK, response)
@@ -384,12 +137,6 @@ func (h *KnowledgeHandler) GetSourceStatus(w http.ResponseWriter, r *http.Reques
 func (h *KnowledgeHandler) StreamSourceStatus(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	sourceIDStr := vars["sourceId"]
-
-	sourceID, err := uuid.Parse(sourceIDStr)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "invalid source ID format")
-		return
-	}
 
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -413,20 +160,22 @@ func (h *KnowledgeHandler) StreamSourceStatus(w http.ResponseWriter, r *http.Req
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			source, err := h.sourceRepo.GetByID(r.Context(), sourceID)
+			statusResp, err := h.sourceUseCase.GetStatus(r.Context(), sourceIDStr)
 			if err != nil {
-				h.logger.Error("Failed to get source status", "source_id", sourceID, "error", err)
+				h.logger.Error("Failed to get source status", "source_id", sourceIDStr, "error", err)
 				return
 			}
 
+			currentStatus := entities.SourceStatus(statusResp.Status)
+
 			// Send event only if status changed
-			if source.Status != lastStatus {
-				h.sendSSEEvent(w, flusher, source)
-				lastStatus = source.Status
+			if currentStatus != lastStatus {
+				h.sendSSEEvent(w, flusher, statusResp)
+				lastStatus = currentStatus
 			}
 
 			// Close connection on terminal state
-			if source.Status == entities.SourceStatusCompleted || source.Status == entities.SourceStatusFailed {
+			if currentStatus == entities.SourceStatusCompleted || currentStatus == entities.SourceStatusFailed {
 				return
 			}
 		}
@@ -434,12 +183,12 @@ func (h *KnowledgeHandler) StreamSourceStatus(w http.ResponseWriter, r *http.Req
 }
 
 // sendSSEEvent sends an SSE event with source status
-func (h *KnowledgeHandler) sendSSEEvent(w http.ResponseWriter, flusher http.Flusher, source *entities.Source) {
+func (h *KnowledgeHandler) sendSSEEvent(w http.ResponseWriter, flusher http.Flusher, statusResp *dtos.KnowledgeIngestionStatusResponse) {
 	event := map[string]interface{}{
-		"source_id": source.ID,
-		"status":    source.Status,
-		"error":     source.Error,
-		"updated_at": source.UpdatedAt,
+		"source_id":  statusResp.SourceID,
+		"status":     statusResp.Status,
+		"error":      statusResp.Error,
+		"updated_at": statusResp.UpdatedAt,
 	}
 
 	data, err := json.Marshal(event)
@@ -452,52 +201,107 @@ func (h *KnowledgeHandler) sendSSEEvent(w http.ResponseWriter, flusher http.Flus
 	flusher.Flush()
 }
 
-// buildContentSource builds a ContentSource from the request
-// Open/Closed Principle: Easy to extend for new content types
-func (h *KnowledgeHandler) buildContentSource(
+// buildIngestRequest builds an IngestContentRequest from the HTTP request
+func (h *KnowledgeHandler) buildIngestRequest(
 	r *http.Request,
-	contentText string,
-	url string,
+	notebookID uuid.UUID,
+	title, contentText, url, sourceType string,
 	metadata map[string]interface{},
-) (usecases.ContentType, usecases.ContentSource, error) {
+	subIndexes []string,
+	async bool,
+) (*dtos.IngestContentRequest, error) {
 	// Check for file upload
 	file, header, err := r.FormFile("file")
 	if err == nil && header != nil {
-		// Read file content into memory to avoid "file already closed" error
-		content, err := io.ReadAll(file)
-		file.Close() // Close immediately after reading
-		if err != nil {
-			return "", usecases.ContentSource{}, fmt.Errorf("failed to read file: %w", err)
+		// Determine MIME type from file extension
+		mimeType := h.detectMimeType(header.Filename)
+
+		// Set title if not provided
+		if title == "" {
+			title = header.Filename
 		}
 
-		// Return ContentSource with bytes.Reader instead of the multipart file
-		return usecases.ContentTypeFile, usecases.ContentSource{
-			Type:     usecases.ContentTypeFile,
-			Reader:   bytes.NewReader(content),
-			Filename: header.Filename,
-			Metadata: metadata,
+		return &dtos.IngestContentRequest{
+			NotebookID:  notebookID,
+			Title:       title,
+			URI:         url,
+			ContentType: usecases.ContentTypeFile,
+			MIMEType:    mimeType,
+			SourceType:  sourceType,
+			Metadata:    metadata,
+			SubIndexes:  subIndexes,
+			FileContent: file,
+			Filename:    header.Filename,
+			Async:       async,
 		}, nil
 	}
 
 	// Check for URL
 	if url != "" {
-		return usecases.ContentTypeURL, usecases.ContentSource{
-			Type:     usecases.ContentTypeURL,
-			URL:      url,
-			Metadata: metadata,
+		// Set title if not provided
+		if title == "" {
+			title = url
+		}
+
+		return &dtos.IngestContentRequest{
+			NotebookID:  notebookID,
+			Title:       title,
+			URI:         url,
+			ContentType: usecases.ContentTypeURL,
+			MIMEType:    entities.ContentTypeWebsite,
+			SourceType:  sourceType,
+			Metadata:    metadata,
+			SubIndexes:  subIndexes,
+			Async:       async,
 		}, nil
 	}
 
 	// Check for direct text content
 	if contentText != "" {
-		return usecases.ContentTypeText, usecases.ContentSource{
-			Type:     usecases.ContentTypeText,
-			Text:     contentText,
-			Metadata: metadata,
+		// Set title if not provided
+		if title == "" {
+			title = "Untitled"
+		}
+
+		return &dtos.IngestContentRequest{
+			NotebookID:  notebookID,
+			Title:       title,
+			ContentType: usecases.ContentTypeText,
+			MIMEType:    entities.ContentTypeText,
+			SourceType:  sourceType,
+			Metadata:    metadata,
+			SubIndexes:  subIndexes,
+			TextContent: contentText,
+			Async:       async,
 		}, nil
 	}
 
-	return "", usecases.ContentSource{}, fmt.Errorf("either file, url, or content must be provided")
+	return nil, fmt.Errorf("either file, url, or content must be provided")
+}
+
+// detectMimeType detects MIME type from filename extension
+func (h *KnowledgeHandler) detectMimeType(filename string) entities.ContentType {
+	// Simple extension-based detection
+	// In production, use http.DetectContentType or a more sophisticated library
+	switch {
+	case endsWith(filename, ".pdf"):
+		return entities.ContentTypePDF
+	case endsWith(filename, ".docx"):
+		return entities.ContentTypeDocx
+	case endsWith(filename, ".md"):
+		return entities.ContentTypeMarkdown
+	case endsWith(filename, ".txt"):
+		return entities.ContentTypeText
+	case endsWith(filename, ".html") || endsWith(filename, ".htm"):
+		return entities.ContentTypeWebsite
+	default:
+		return entities.ContentTypeOther
+	}
+}
+
+// endsWith checks if a string ends with a suffix (case-insensitive)
+func endsWith(s, suffix string) bool {
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
 
 // GetByID handles get knowledge by ID requests

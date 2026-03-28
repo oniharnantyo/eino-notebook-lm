@@ -121,4 +121,6 @@ func Error(msg string, args ...any) {
 // SetDefault sets the default logger
 func SetDefault(l *Logger) {
 	std = l
+	// Also set the default slog logger for packages using slog directly
+	slog.SetDefault(l.Logger)
 }

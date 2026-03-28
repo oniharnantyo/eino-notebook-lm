@@ -9,11 +9,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cloudwego/eino-ext/components/document/transformer/splitter/markdown"
-	geminiembedder "github.com/cloudwego/eino-ext/components/embedding/gemini"
-	geminimodel "github.com/cloudwego/eino-ext/components/model/gemini"
-	"github.com/cloudwego/eino/callbacks"
 	langfusecallback "github.com/cloudwego/eino-ext/callbacks/langfuse"
+	"github.com/cloudwego/eino-ext/components/document/transformer/splitter/recursive"
+	"github.com/cloudwego/eino/callbacks"
+	einodoc "github.com/cloudwego/eino/components/document"
+	"github.com/cloudwego/eino/components/embedding"
+	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
@@ -34,13 +35,14 @@ import (
 	httproutes "github.com/oniharnantyo/eino-notebook/internal/interfaces/http/routes"
 	"github.com/oniharnantyo/eino-notebook/pkg/indexer/pgvector"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
+	"github.com/oniharnantyo/eino-notebook/pkg/model"
 	"github.com/oniharnantyo/eino-notebook/pkg/parser/kreuzberg"
 	pgvectoretriever "github.com/oniharnantyo/eino-notebook/pkg/retriever/pgvector"
 )
 
 var (
-	servePort        int
-	serveHost        string
+	servePort       int
+	serveHost       string
 	langfuseFlusher func()
 )
 
@@ -79,6 +81,7 @@ The server can be configured with custom host and port settings.`,
 
 		// Initialize logger
 		log := logger.New(logger.LogLevel(cfg.Log.Level), cfg.Log.Format)
+		logger.SetDefault(log) // Set default slog logger for packages using slog directly
 		log.Info("Starting Eino Notebook server...",
 			"address", addr,
 			"log_level", cfg.Log.Level,
@@ -123,7 +126,7 @@ The server can be configured with custom host and port settings.`,
 		// The pgvector package has built-in defaults for all fields
 		pgvectorConfig := &pgvector.Config{
 			Pool:                   dbPool,
-			Dimension:              cfg.Gemini.Dimension,
+			Dimension:              cfg.Model.EmbeddingDimension,
 			ReferenceIDColumn:      "source_id",
 			AutoCreateTable:        false,
 			DropBeforeCreate:       false,
@@ -135,7 +138,7 @@ The server can be configured with custom host and port settings.`,
 			return fmt.Errorf("failed to create pgvector indexer: %w", err)
 		}
 		log.Info("initialized", "indexer", "pgvector",
-			"dimension", cfg.Gemini.Dimension)
+			"dimension", cfg.Model.EmbeddingDimension)
 
 		notebookRepo := persistence.NewPostgresNotebookRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresNotebookRepository")
@@ -149,65 +152,83 @@ The server can be configured with custom host and port settings.`,
 		conversationRepo := persistence.NewPostgresConversationRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresConversationRepository")
 
-		// Create Gemini embedder for embeddings
-		var geminiEmbedder *geminiembedder.Embedder
-		var genaiClient *genai.Client
-		if cfg.Gemini.APIKey != "" {
-			// Create genai client
-			genaiClient, err = genai.NewClient(ctx, &genai.ClientConfig{
-				APIKey: cfg.Gemini.APIKey,
-			})
+		// Create embedder based on provider from model config
+		chatProvider := model.InferProvider(cfg.Model.ChatModel)
+		embeddingProvider := model.InferProvider(cfg.Model.EmbeddingModel)
+
+		var embedder embedding.Embedder
+		var geminiClient *genai.Client
+
+		// Initialize Gemini client if needed
+		if (chatProvider == model.ProviderGemini || embeddingProvider == model.ProviderGemini) &&
+			cfg.Gemini.APIKey != "" {
+			client, err := model.NewGeminiClient(ctx, cfg.Gemini.APIKey)
 			if err != nil {
 				log.Warn("failed to create Gemini client", "error", err)
 			} else {
-				// Convert dimension to int32 for OutputDimensionality
-				var outputDim *int32
-				if cfg.Gemini.Dimension > 0 {
-					dim := int32(cfg.Gemini.Dimension)
-					outputDim = &dim
-				}
-
-				geminiEmbedder, err = geminiembedder.NewEmbedder(ctx, &geminiembedder.EmbeddingConfig{
-					Client:               genaiClient,
-					Model:                cfg.Gemini.EmbeddingModel,
-					OutputDimensionality: outputDim,
-				})
-				if err != nil {
-					log.Warn("failed to initialize Gemini embedder", "error", err)
-				} else {
-					log.Info("initialized", "embedder", "Gemini", "model", cfg.Gemini.EmbeddingModel, "dimension", cfg.Gemini.Dimension)
+				geminiClient = client
+				// Create Gemini embedder if needed
+				if embeddingProvider == model.ProviderGemini {
+					modelName := model.ExtractModelName(cfg.Model.EmbeddingModel)
+					embedder, err = model.CreateGeminiEmbedder(ctx, client, modelName, cfg.Model.EmbeddingDimension)
+					if err != nil {
+						log.Warn("failed to initialize Gemini embedder", "error", err)
+					} else {
+						log.Info("initialized", "embedder", "Gemini", "model", modelName, "dimension", cfg.Model.EmbeddingDimension)
+					}
 				}
 			}
+		}
+
+		// TODO: Add OpenAI support when needed
+		if embeddingProvider == model.ProviderOpenAI {
+			log.Warn("OpenAI provider not yet implemented", "provider", "openai")
 		}
 
 		// Application Layer (Use Cases)
 		notebookUseCase := notebook.NewNotebookUseCase(notebookRepo)
 		log.Info("initialized", "usecase", "NotebookUseCase")
 
-		// Create markdown document transformer
-		docTransformer, err := markdown.NewHeaderSplitter(ctx, &markdown.HeaderConfig{
-			Headers: map[string]string{
-				"#":   "h1",
-				"##":  "h2",
-				"###": "h3",
-			},
-			TrimHeaders: false,
-			IDGenerator: func(ctx context.Context, originalID string, splitIndex int) string {
-				return fmt.Sprintf("%s-chunk-%d", originalID, splitIndex)
-			},
-		})
-		if err != nil {
-			log.Warn("failed to create markdown transformer", "error", err)
-			docTransformer = nil
-		} else {
-			log.Info("initialized", "transformer", "markdown-header-splitter")
+		// Create document transformer based on configuration
+		var docTransformer einodoc.Transformer
+		switch cfg.Transformer.Type {
+		case "recursive":
+			// Use recursive character splitter with overlap
+			docTransformer, err = recursive.NewSplitter(ctx, &recursive.Config{
+				ChunkSize:   cfg.Transformer.RecursiveSplitterConfig.ChunkSize,
+				OverlapSize: cfg.Transformer.RecursiveSplitterConfig.OverlapSize,
+				Separators:  []string{"\n\n", "\n", ". ", " ", ""},
+				IDGenerator: func(ctx context.Context, originalID string, splitIndex int) string {
+					return fmt.Sprintf("%s-%d", originalID, splitIndex)
+				},
+			})
+			if err != nil {
+				log.Warn("failed to create recursive splitter", "error", err)
+				docTransformer = nil
+			} else {
+				log.Info("initialized", "transformer", "recursive-splitter",
+					"chunk_size", cfg.Transformer.RecursiveSplitterConfig.ChunkSize,
+					"overlap_size", cfg.Transformer.RecursiveSplitterConfig.OverlapSize)
+			}
+		default:
+			log.Warn("unknown transformer type", "type", cfg.Transformer.Type, "error", "falling back to recursive splitter")
+			docTransformer, err = recursive.NewSplitter(ctx, &recursive.Config{
+				ChunkSize:   cfg.Transformer.RecursiveSplitterConfig.ChunkSize,
+				OverlapSize: cfg.Transformer.RecursiveSplitterConfig.OverlapSize,
+				Separators:  []string{"\n\n", "\n", ". ", " ", ""},
+			})
+			if err != nil {
+				log.Warn("failed to create fallback recursive splitter", "error", err)
+				docTransformer = nil
+			} else {
+				log.Info("initialized", "transformer", "recursive-splitter", "note", "fallback",
+					"chunk_size", cfg.Transformer.RecursiveSplitterConfig.ChunkSize,
+					"overlap_size", cfg.Transformer.RecursiveSplitterConfig.OverlapSize)
+			}
 		}
 
-		knowledgeUseCase := knowledge.NewKnowledgeUseCase(knowledgeRepo, sourceRepo, vectorIndexer, geminiEmbedder, docTransformer)
+		knowledgeUseCase := knowledge.NewKnowledgeUseCase(knowledgeRepo, sourceRepo, vectorIndexer, embedder, docTransformer)
 		log.Info("initialized", "usecase", "KnowledgeUseCase")
-
-		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo)
-		log.Info("initialized", "usecase", "SourceUseCase")
 
 		conversationUseCase := conversation.NewConversationUseCase(conversationRepo)
 		log.Info("initialized", "usecase", "ConversationUseCase")
@@ -215,7 +236,7 @@ The server can be configured with custom host and port settings.`,
 		// Create pgvector retriever for RAG
 		pgvectorRetriever, err := pgvectoretriever.NewRetriever(ctx, &pgvectoretriever.Config{
 			Pool:                    dbPool,
-			Dimension:               cfg.Gemini.Dimension,
+			Dimension:               cfg.Model.EmbeddingDimension,
 			ReferenceIDColumn:       "source_id",
 			AutoCreateBM25Extension: true,
 			AutoCreateBM25Index:     true,
@@ -226,23 +247,26 @@ The server can be configured with custom host and port settings.`,
 			log.Info("initialized", "retriever", "pgvector")
 		}
 
-		// Create Gemini chat model
-		var geminiChatModel *geminimodel.ChatModel
-		if cfg.Gemini.APIKey != "" && genaiClient != nil {
-			geminiChatModel, err = geminimodel.NewChatModel(ctx, &geminimodel.Config{
-				Client: genaiClient,
-				Model:  cfg.Gemini.ChatModel,
-			})
+		// Create chat model based on provider from model config
+		var chatModel einomodel.BaseChatModel
+		if chatProvider == model.ProviderGemini && geminiClient != nil {
+			modelName := model.ExtractModelName(cfg.Model.ChatModel)
+			chatModel, err = model.CreateGeminiChatModel(ctx, geminiClient, modelName)
 			if err != nil {
 				log.Warn("failed to initialize Gemini chat model", "error", err)
 			} else {
-				log.Info("initialized", "chat_model", "Gemini", "model", cfg.Gemini.ChatModel)
+				log.Info("initialized", "chat_model", "Gemini", "model", modelName)
 			}
+		}
+
+		// TODO: Add OpenAI support when needed
+		if chatProvider == model.ProviderOpenAI {
+			log.Warn("OpenAI provider not yet implemented", "provider", "openai")
 		}
 
 		// Create response use case with history management configuration
 		var responseUseCase chat.ResponseUseCase
-		if pgvectorRetriever != nil && geminiChatModel != nil && geminiEmbedder != nil {
+		if pgvectorRetriever != nil && chatModel != nil && embedder != nil {
 			// Configure conversation history management
 			historyConfig := &responseusecase.HistoryConfig{
 				Strategy:             responseusecase.HistoryStrategySlidingWindow,
@@ -251,27 +275,58 @@ The server can be configured with custom host and port settings.`,
 				TokenEstimationRatio: 4,    // 1 token ≈ 4 chars
 				SummarizeThreshold:   5,    // Summarize messages older than 5 turns
 			}
-			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, pgvectorRetriever, geminiEmbedder, geminiChatModel, cfg.Gemini.ChatModel, historyConfig)
+			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, pgvectorRetriever, embedder, chatModel, cfg.Model.ChatModel, historyConfig)
 			log.Info("initialized", "usecase", "ResponseUseCase", "history_strategy", historyConfig.Strategy, "max_messages", historyConfig.MaxMessages)
 		}
 
-		// Initialize Kreuzberg document parser
+		// Initialize Kreuzberg document parser with hardcoded extract config
 		kreuzbergConfig := &kreuzberg.Config{
 			ServiceURL:   cfg.Kreuzberg.ServiceURL,
 			OutputFormat: cfg.Kreuzberg.OutputFormat,
 			Timeout:      cfg.Kreuzberg.Timeout,
-		}
-		if cfg.Kreuzberg.OCR != nil {
-			kreuzbergConfig.ExtractConfig = &kreuzberg.ExtractConfig{
+			ExtractConfig: &kreuzberg.ExtractConfig{
+				EnableQualityProcessing:  true,
+				ForceOCR:                 true,
+				ResultFormat:             "element_based",
+				OutputFormat:             "markdown",
+				IncludeDocumentStructure: true,
+				TableExtractionMode:      "",
 				OCR: &kreuzberg.OCRConfig{
-					Language: cfg.Kreuzberg.OCR.Language,
-					Model:    cfg.Kreuzberg.OCR.Model,
+					Backend:  "paddleocr",
+					Language: "eng",
+					PaddleOCRConfig: &kreuzberg.PaddleOCRConfig{
+						ModelTier: "mobile",
+						Padding:   10,
+					},
 				},
-			}
+				PDFOptions: &kreuzberg.PDFOptions{
+					ExtractImages:   false,
+					ExtractMetadata: true,
+					Hierarchy: &kreuzberg.HierarchyConfig{
+						Enabled:              false,
+						KClusters:            6,
+						IncludeBBox:          false,
+						OCRCoverageThreshold: 0.5,
+					},
+				},
+				Images: &kreuzberg.ImagesConfig{
+					ExtractImages:      false,
+					InjectPlaceholders: true,
+				},
+				Pages: &kreuzberg.PagesConfig{
+					ExtractPages:      true,
+					InsertPageMarkers: true,
+					MarkerFormat:      "\n\n\n\n",
+				},
+				Layout: &kreuzberg.LayoutConfig{
+					Preset:          "accurate",
+					ApplyHeuristics: true,
+				},
+			},
 		}
 
 		// Create raw Kreuzberg parser for file extractor
-		rawKreuzbergParser, err := kreuzberg.NewKreuzbergParser(context.Background(), kreuzbergConfig)
+		rawKreuzbergParser, err := kreuzberg.NewKreuzbergParser(kreuzbergConfig)
 		if err != nil {
 			log.Error("failed to initialize raw Kreuzberg parser", "error", err)
 			panic("failed to initialize raw Kreuzberg parser: " + err.Error())
@@ -302,10 +357,14 @@ The server can be configured with custom host and port settings.`,
 		)
 		log.Info("initialized", "factory", "ContentExtractorFactory")
 
+		// Create source usecase with content extraction dependencies
+		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, knowledgeUseCase, log)
+		log.Info("initialized", "usecase", "SourceUseCase")
+
 		// Interface Layer (HTTP Handlers)
 		notebookHandler := handlers.NewNotebookHandler(notebookUseCase, log)
 		sourceHandler := handlers.NewSourceHandler(sourceUseCase, log)
-		knowledgeHandler := handlers.NewKnowledgeHandler(knowledgeUseCase, sourceUseCase, sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, log)
+		knowledgeHandler := handlers.NewKnowledgeHandler(knowledgeUseCase, sourceUseCase, log)
 		var responseHandler *handlers.ResponseHandler
 		if responseUseCase != nil {
 			responseHandler = handlers.NewResponseHandler(responseUseCase, log)

@@ -2,9 +2,12 @@ package middleware
 
 import (
 	"bytes"
+	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -12,6 +15,28 @@ import (
 func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+
+		// Check if this is a multipart/form-data request (file upload)
+		isMultipart := strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data")
+
+		// Read and buffer request body (limit to 4KB)
+		// Skip reading for multipart requests to avoid logging binary file content
+		var requestBody string
+		var uploadedFile string
+		if r.Body != nil && r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if isMultipart {
+				// For multipart requests, just extract metadata without buffering body
+			uploadedFile = extractFileMetadata(r)
+			} else {
+				// For other requests, buffer body for logging
+				bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+				if err == nil && len(bodyBytes) > 0 {
+					requestBody = string(bodyBytes)
+					// Restore body for downstream handlers
+					r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+				}
+			}
+		}
 
 		// Wrap the response writer to capture status code and body
 		wrapped := &responseWrapper{
@@ -23,36 +48,108 @@ func Logger(next http.Handler) http.Handler {
 		next.ServeHTTP(wrapped, r)
 
 		duration := time.Since(start).Milliseconds()
+		responseBody := wrapped.bodyBuffer.String()
+
+		// Build common log attributes
+		baseAttrs := []any{
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", wrapped.status,
+			"duration", duration,
+		}
+
+		// Add uploaded file info if present
+		if uploadedFile != "" {
+			baseAttrs = append(baseAttrs, "file", uploadedFile)
+		}
+
+		// Add request body if present (skip for multipart)
+		if requestBody != "" {
+			baseAttrs = append(baseAttrs, "request", requestBody)
+		}
+
+		// Add response body if present
+		if responseBody != "" {
+			baseAttrs = append(baseAttrs, "response", responseBody)
+		}
 
 		// Log based on status code level
 		if wrapped.status >= 500 {
-			// Server errors - log with error level and include response body
-			slog.Error("request",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", wrapped.status,
-				"duration", duration,
-				"error", wrapped.bodyBuffer.String(),
-			)
+			slog.Error("request", baseAttrs...)
 		} else if wrapped.status >= 400 {
-			// Client errors - log with warn level and include response body
-			slog.Warn("request",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", wrapped.status,
-				"duration", duration,
-				"error", wrapped.bodyBuffer.String(),
-			)
+			slog.Warn("request", baseAttrs...)
 		} else {
-			// Successful responses - info level without body
-			slog.Info("request",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", wrapped.status,
-				"duration", duration,
-			)
+			slog.Info("request", baseAttrs...)
 		}
 	})
+}
+
+// extractFileMetadata extracts file metadata from multipart request without buffering body
+func extractFileMetadata(r *http.Request) string {
+	// Parse multipart form data to get file info
+	// We use a small limit to avoid reading large files
+	err := r.ParseMultipartForm(32 << 20) // 32MB max memory
+	if err != nil {
+		return ""
+	}
+
+	// Look for file in form
+	if r.MultipartForm != nil {
+		for _, files := range r.MultipartForm.File {
+			for _, file := range files {
+				// Return first file metadata found
+				return file.Filename
+			}
+		}
+	}
+
+	return ""
+}
+
+// cleanMultipartReader wraps multipart.Reader to skip file content
+type cleanMultipartReader struct {
+	*multipart.Reader
+}
+
+func (cr *cleanMultipartReader) ReadForm(maxMemory int64) (*multipart.Form, error) {
+	form := &multipart.Form{
+		Value: make(map[string][]string),
+		File:  make(map[string][]*multipart.FileHeader),
+	}
+
+	for {
+		part, err := cr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		name := part.FormName()
+		if name == "" {
+			continue
+		}
+
+		// Check if this part is a file upload
+		filename := part.FileName()
+		if filename != "" {
+			// For file uploads, create header without reading content
+			header := part.Header
+			form.File[name] = append(form.File[name], &multipart.FileHeader{
+				Filename: filename,
+				Header:   header,
+			})
+			continue
+		}
+
+		// For regular form fields, read value
+		var value bytes.Buffer
+		io.Copy(&value, part)
+		form.Value[name] = append(form.Value[name], value.String())
+	}
+
+	return form, nil
 }
 
 // CORS is a middleware that handles CORS
@@ -146,7 +243,7 @@ func (rw *responseWrapper) Flush() {
 }
 
 // Hijack implements http.Hijacker
-func (rw *responseWrapper) Hijack() (c interface{}, rw2 interface{}, err error) {
+func (rw *responseWrapper) Hijack() (c any, rw2 any, err error) {
 	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}

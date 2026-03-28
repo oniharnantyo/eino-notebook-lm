@@ -1,0 +1,36 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Go 1.22+, CloudWeGo Eino framework (LLM orchestration)
+  Architecture: Clean Architecture with DDD - core domain, application usecases, infrastructure, HTTP interfaces
+  Database: PostgreSQL with pgvector extension for vector storage, pg_textsearch for BM25
+  Document extraction: Kreuzberg service (HTTP API for PDF/Office/image parsing)
+  Embeddings/Chat: Gemini (primary), OpenAI (planned) via provider/model format (e.g., "gemini/gemini-2.0-flash-exp")
+  Observability: Langfuse for LLM tracing
+  Config: Viper + godotenv + go-playground/validator
+  Logging: Custom pkg/logger (not raw slog)
+  Routing: net/http standard library with chi router
+  Commit style: Conventional commits (feat:, fix:, etc.)
+  Domain: AI notebook application with knowledge ingestion, document parsing, vector search, and RAG-based responses
+  Key packages: pkg/indexer/pgvector, pkg/retriever/pgvector, pkg/parser/kreuzberg, pkg/transformer/element
+
+  Conventions:
+  - All dependencies injected via constructors, never nil-checked
+  - Early returns over nested ifs (no Python-style nesting)
+  - Entity <-> DTO mapping via mappers, entities stay pure
+  - Errors wrapped with fmt.Errorf, domain errors in core/domain
+  - Build/test: make build, make test, make lint
+
+rules:
+  proposal:
+    - Keep proposals under 300 words
+    - Always include an "Impact" section listing affected files
+  specs:
+    - Use WHEN/THEN/AND scenario format
+    - Each requirement should be independently testable
+  design:
+    - Reference existing patterns in the codebase
+    - State tradeoffs for non-obvious decisions
+  tasks:
+    - Order tasks by dependency (earlier tasks unblock later ones)
+    - Each checkbox should be completable in under 30 minutes

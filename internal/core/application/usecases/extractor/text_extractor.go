@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/cloudwego/eino/schema"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
 )
 
@@ -20,15 +21,15 @@ func NewTextContentExtractor(maxLength int) *TextContentExtractor {
 	}
 }
 
-// Extract returns the text content as-is
-func (e *TextContentExtractor) Extract(ctx context.Context, source usecases.ContentSource) (string, map[string]interface{}, error) {
+// Extract returns the text content as a document
+func (e *TextContentExtractor) Extract(ctx context.Context, source usecases.ContentSource) ([]*schema.Document, error) {
 	if source.Text == "" {
-		return "", nil, fmt.Errorf("no text provided for text extraction")
+		return nil, fmt.Errorf("no text provided for text extraction")
 	}
 
 	// Check length
 	if len(source.Text) > e.maxLength {
-		return "", nil, fmt.Errorf("text length exceeds maximum allowed length of %d characters", e.maxLength)
+		return nil, fmt.Errorf("text length exceeds maximum allowed length of %d characters", e.maxLength)
 	}
 
 	// Create metadata
@@ -43,5 +44,13 @@ func (e *TextContentExtractor) Extract(ctx context.Context, source usecases.Cont
 		}
 	}
 
-	return source.Text, metadata, nil
+	// Return as single document
+	docs := []*schema.Document{
+		{
+			Content:  source.Text,
+			MetaData: metadata,
+		},
+	}
+
+	return docs, nil
 }

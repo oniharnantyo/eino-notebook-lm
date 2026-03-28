@@ -43,8 +43,7 @@ type KreuzbergDocumentParser struct {
 
 // NewKreuzbergDocumentParser creates a new Kreuzberg document parser
 func NewKreuzbergDocumentParser(cfg *kreuzberg.Config) (DocumentParser, error) {
-	ctx := context.Background()
-	p, err := kreuzberg.NewKreuzbergParser(ctx, cfg)
+	p, err := kreuzberg.NewKreuzbergParser(cfg)
 	if err != nil {
 		return nil, err
 	}

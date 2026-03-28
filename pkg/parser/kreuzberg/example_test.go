@@ -30,7 +30,7 @@ func ExampleKreuzbergParser_basic() {
 	ctx := context.Background()
 
 	// Create a new Kreuzberg parser
-	parser, err := kreuzberg.NewKreuzbergParser(ctx, &kreuzberg.Config{
+	parser, err := kreuzberg.NewKreuzbergParser(&kreuzberg.Config{
 		ServiceURL:   "http://localhost:8000",
 		OutputFormat: "markdown",
 		Timeout:      30 * time.Second,
@@ -64,7 +64,7 @@ func ExampleKreuzbergParser_withOCR() {
 	ctx := context.Background()
 
 	// Create parser with OCR configuration for scanned documents
-	parser, err := kreuzberg.NewKreuzbergParser(ctx, &kreuzberg.Config{
+	parser, err := kreuzberg.NewKreuzbergParser(&kreuzberg.Config{
 		ServiceURL:   "http://localhost:8000",
 		OutputFormat: "plain",
 		ExtractConfig: &kreuzberg.ExtractConfig{
@@ -92,7 +92,7 @@ func ExampleKreuzbergParser_defaultConfig() {
 	ctx := context.Background()
 
 	// Create parser with default configuration (localhost:8000, plain text)
-	parser, err := kreuzberg.NewKreuzbergParser(ctx, nil)
+	parser, err := kreuzberg.NewKreuzbergParser(nil)
 	if err != nil {
 		log.Fatal(err)
 	}

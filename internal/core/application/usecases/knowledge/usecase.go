@@ -3,6 +3,7 @@ package knowledge
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cloudwego/eino/components/document"
 	"github.com/cloudwego/eino/components/embedding"
@@ -13,6 +14,7 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/errors"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
+	"github.com/oniharnantyo/eino-notebook/pkg/indexer/pgvector"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
@@ -56,9 +58,6 @@ func NewKnowledgeUseCase(
 // This is the main entry point for knowledge ingestion
 // It creates knowledge entries that reference an existing source
 func (uc *knowledgeUseCase) Create(ctx context.Context, req *dtos.CreateKnowledgeRequest) error {
-	// Parse source type
-	sourceType := dtos.ParseSourceType(req.SourceType)
-
 	// Get source to verify it exists
 	source, err := uc.sourceRepo.GetByID(ctx, req.SourceID)
 	if err != nil {
@@ -68,45 +67,97 @@ func (uc *knowledgeUseCase) Create(ctx context.Context, req *dtos.CreateKnowledg
 		return errors.NewNotFoundError("source")
 	}
 
-	// Create document for chunking and indexing
-	doc := &schema.Document{
-		ID:      source.ID.String(),
-		Content: req.Content,
-		MetaData: map[string]any{
-			"reference_id": source.ID.String(),
-			"title":        req.Title,
-			"source_type":  sourceType,
-			"created_at":   source.CreatedAt,
+	chunks, err := uc.transformer.Transform(ctx, []*schema.Document{
+		{
+			ID:       source.ID.String(),
+			Content:  req.Content,
+			MetaData: req.Metadata,
 		},
-	}
-
-	// Add sub-indexes to metadata if provided
-	if len(req.SubIndexes) > 0 {
-		doc.MetaData["sub_indexes"] = req.SubIndexes
-	}
-
-	// Add source metadata if available
-	if source.Metadata != nil {
-		for k, v := range source.Metadata {
-			if _, exists := doc.MetaData[k]; !exists {
-				doc.MetaData[k] = v
-			}
-		}
-	}
-
-	// Transform document into chunks
-	splitDocs, err := uc.transformer.Transform(ctx, []*schema.Document{doc})
+	})
 	if err != nil {
-		return fmt.Errorf("failed to transform document: %v", err)
+		return fmt.Errorf("failed to transform document: %w", err)
 	}
+
+	// Enrich chunks with parent metadata (reference_id, title, source_type, sub_indexes, created_at)
+	enrichedChunks := uc.enrichChunksWithParentMetadata(chunks, req, source)
 
 	// Store with embeddings for vector search
-	_, err = uc.indexer.Store(ctx, splitDocs, indexer.WithEmbedding(uc.embedder))
+	// Use WithSkipExisting to make the operation idempotent - if the same source
+	// is processed again (e.g., retry), it will skip existing documents instead of failing
+	_, err = uc.indexer.Store(ctx, enrichedChunks,
+		indexer.WithEmbedding(uc.embedder),
+		pgvector.WithSkipExisting(true),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to index knowledge for search: %v\n", err)
 	}
 
 	return nil
+}
+
+// sanitizeContent removes null bytes (0x00) from content.
+// PostgreSQL rejects null bytes in TEXT columns with error code 22021.
+// Null bytes can come from external services like Kreuzberg (OCR artifacts, binary data).
+func (uc *knowledgeUseCase) sanitizeContent(content string) string {
+	// Fast path: check if null bytes exist
+	if !strings.Contains(content, "\x00") {
+		return content
+	}
+	// Remove all null bytes
+	return strings.ReplaceAll(content, "\x00", "")
+}
+
+// enrichChunksWithParentMetadata adds parent metadata to each chunk
+// This ensures that split chunks retain the original document's metadata for filtering and retrieval
+func (uc *knowledgeUseCase) enrichChunksWithParentMetadata(chunks []*schema.Document, req *dtos.CreateKnowledgeRequest, source *entities.Source) []*schema.Document {
+	enriched := make([]*schema.Document, len(chunks))
+
+	for i, chunk := range chunks {
+		// Create a new document to avoid modifying the original chunk
+		newDoc := &schema.Document{
+			ID:       chunk.ID,
+			Content:  chunk.Content,
+			MetaData: make(map[string]any),
+		}
+
+		// Copy existing metadata from chunk
+		if chunk.MetaData != nil {
+			for k, v := range chunk.MetaData {
+				newDoc.MetaData[k] = v
+			}
+		}
+
+		// Add parent metadata
+		newDoc.MetaData["reference_id"] = req.SourceID.String()
+
+		if req.Title != "" {
+			newDoc.MetaData["title"] = req.Title
+		}
+		if req.SourceType != "" {
+			newDoc.MetaData["source_type"] = req.SourceType
+		}
+
+		// Merge user-provided metadata
+		if req.Metadata != nil {
+			for k, v := range req.Metadata {
+				newDoc.MetaData[k] = v
+			}
+		}
+
+		// Add sub_indexes if provided
+		if len(req.SubIndexes) > 0 {
+			newDoc.MetaData["sub_indexes"] = req.SubIndexes
+		}
+
+		// Add source created_at timestamp
+		if source != nil && !source.CreatedAt.IsZero() {
+			newDoc.MetaData["created_at"] = source.CreatedAt
+		}
+
+		enriched[i] = newDoc
+	}
+
+	return enriched
 }
 
 // mapContentType maps KnowledgeSource to ContentType

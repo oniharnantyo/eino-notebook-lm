@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/cloudwego/eino/components/retriever"
@@ -188,6 +189,16 @@ func (r *Retriever) executeHybridSearch(
 		filtered = documents
 	}
 
+	// Log final merged/RRF results
+	slog.Info("rrf_merged_results",
+		"top_k", topK,
+		"rrf_k", retrieveOpts.RRFK,
+		"threshold", commonOpts.ScoreThreshold,
+		"before_threshold", len(documents),
+		"after_threshold", len(filtered),
+		"results", formatDocumentResults(filtered),
+	)
+
 	// Apply reranker if configured and not skipped
 	if r.config.BM25IndexName != "" && !retrieveOpts.SkipRerank {
 		// Reranker would be applied here if one was configured
@@ -297,6 +308,12 @@ func (r *Retriever) executeVectorSearch(
 		return nil, fmt.Errorf("vector row iteration error: %w", err)
 	}
 
+	// Log vector search results
+	slog.Info("vector_search_results",
+		"count", len(results),
+		"results", formatRankedResults(results),
+	)
+
 	return results, nil
 }
 
@@ -319,6 +336,12 @@ func (r *Retriever) executeBM25SearchRanked(
 			Rank: i + 1, // 1-indexed rank
 		}
 	}
+
+	// Log BM25 search results
+	slog.Info("bm25_search_results",
+		"count", len(ranked),
+		"results", formatRankedResults(ranked),
+	)
 
 	return ranked, nil
 }
@@ -495,6 +518,48 @@ func vectorToString(vector []float64) string {
 			builder.WriteString(",")
 		}
 		builder.WriteString(fmt.Sprintf("%g", v))
+	}
+	builder.WriteString("]")
+
+	return builder.String()
+}
+
+// formatRankedResults formats ranked documents for logging.
+func formatRankedResults(results []RankedDocument) string {
+	if len(results) == 0 {
+		return "[]"
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(results)*20) // Pre-allocate approximate capacity
+
+	builder.WriteString("[")
+	for i, r := range results {
+		if i > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(fmt.Sprintf("{id:%s,rank:%d}", r.ID, r.Rank))
+	}
+	builder.WriteString("]")
+
+	return builder.String()
+}
+
+// formatDocumentResults formats documents for logging.
+func formatDocumentResults(docs []*schema.Document) string {
+	if len(docs) == 0 {
+		return "[]"
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(docs)*30) // Pre-allocate approximate capacity
+
+	builder.WriteString("[")
+	for i, doc := range docs {
+		if i > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(fmt.Sprintf("{id:%s,score:%.4f}", doc.ID, doc.Score()))
 	}
 	builder.WriteString("]")
 

@@ -9,25 +9,25 @@ import (
 
 // CreateKnowledgeRequest represents a request to create knowledge
 type CreateKnowledgeRequest struct {
-	SourceID   uuid.UUID                      `json:"source_id" validate:"required"`
-	Title      string                         `json:"title"`
-	Content    string                         `json:"content" validate:"required"`
-	SourceType string                         `json:"source_type" validate:"omitempty,oneof=document website text api other"`
-	Metadata   map[string]any                 `json:"metadata,omitempty"`
-	SubIndexes []string                       `json:"sub_indexes,omitempty"`
+	SourceID   uuid.UUID      `json:"source_id" validate:"required"`
+	Title      string         `json:"title"`
+	Content    string         `json:"content" validate:"required"`
+	SourceType string         `json:"source_type" validate:"omitempty,oneof=document website text api other"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
+	SubIndexes []string       `json:"sub_indexes,omitempty"`
 }
 
 // CreateKnowledgeMultipartRequest represents a multipart request to create knowledge
 // Supports: file uploads (PDF, images, etc.), URLs, and direct text/markdown content
 type CreateKnowledgeMultipartRequest struct {
-	NotebookID  string                `form:"notebook_id" validate:"required"`
-	Title       string                `form:"title"`
-	Content     string                `form:"content"`        // For text/markdown input
-	URL         string                `form:"url"`            // For website content
-	SourceType  string                `form:"source_type"`    // document, website, text, api, other
-	Metadata    string                `form:"metadata"`       // JSON string for metadata
-	SubIndexes  string                `form:"sub_indexes"`    // JSON array for sub_indexes
-	File        *MultipartFileHeader  `form:"file"`           // For file uploads (PDF, etc.)
+	NotebookID string               `form:"notebook_id" validate:"required"`
+	Title      string               `form:"title"`
+	Content    string               `form:"content"`     // For text/markdown input
+	URL        string               `form:"url"`         // For website content
+	SourceType string               `form:"source_type"` // document, website, text, api, other
+	Metadata   string               `form:"metadata"`    // JSON string for metadata
+	SubIndexes string               `form:"sub_indexes"` // JSON array for sub_indexes
+	File       *MultipartFileHeader `form:"file"`        // For file uploads (PDF, etc.)
 }
 
 // MultipartFileHeader represents an uploaded file in multipart form
@@ -40,24 +40,24 @@ type MultipartFileHeader struct {
 
 // UpdateKnowledgeRequest represents a request to update knowledge
 type UpdateKnowledgeRequest struct {
-	KnowledgeID uuid.UUID                      `json:"knowledge_id" validate:"required"`
-	Title       string                         `json:"title"`
-	Content     string                         `json:"content"`
-	SourceType  string                         `json:"source_type" validate:"omitempty,oneof=document website text api other"`
-	Metadata    map[string]interface{}         `json:"metadata,omitempty"`
-	SubIndexes  []string                       `json:"sub_indexes,omitempty"`
+	KnowledgeID uuid.UUID              `json:"knowledge_id" validate:"required"`
+	Title       string                 `json:"title"`
+	Content     string                 `json:"content"`
+	SourceType  string                 `json:"source_type" validate:"omitempty,oneof=document website text api other"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	SubIndexes  []string               `json:"sub_indexes,omitempty"`
 }
 
 // KnowledgeResponse represents a knowledge response
 type KnowledgeResponse struct {
-	KnowledgeID uuid.UUID                      `json:"knowledge_id"`
-	SourceID    uuid.UUID                      `json:"source_id"`
-	Title       string                         `json:"title"`
-	Content     string                         `json:"content"`
-	SourceType  string                         `json:"source_type"`
-	Metadata    map[string]any                 `json:"metadata,omitempty"`
-	SubIndexes  []string                       `json:"sub_indexes,omitempty"`
-	CreatedAt   time.Time                      `json:"created_at"`
+	KnowledgeID uuid.UUID      `json:"knowledge_id"`
+	SourceID    uuid.UUID      `json:"source_id"`
+	Title       string         `json:"title"`
+	Content     string         `json:"content"`
+	SourceType  string         `json:"source_type"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	SubIndexes  []string       `json:"sub_indexes,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 // ListKnowledgesRequest represents a request to list knowledges
@@ -71,11 +71,11 @@ type ListKnowledgesRequest struct {
 
 // ListKnowledgesResponse represents a paginated list of knowledges
 type ListKnowledgesResponse struct {
-	Knowledges  []KnowledgeResponse `json:"knowledges"`
-	Total       int64              `json:"total"`
-	Page        int                `json:"page"`
-	Limit       int                `json:"limit"`
-	TotalPages  int                `json:"total_pages"`
+	Knowledges []KnowledgeResponse `json:"knowledges"`
+	Total      int64               `json:"total"`
+	Page       int                 `json:"page"`
+	Limit      int                 `json:"limit"`
+	TotalPages int                 `json:"total_pages"`
 }
 
 // AsyncKnowledgeResponse represents an async knowledge ingestion response

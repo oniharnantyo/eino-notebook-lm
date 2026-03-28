@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/cloudwego/eino/schema"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
 )
 
@@ -33,25 +34,25 @@ func NewURLContentExtractor(maxTimeout time.Duration) *URLContentExtractor {
 }
 
 // Extract extracts content from a URL
-func (e *URLContentExtractor) Extract(ctx context.Context, source usecases.ContentSource) (string, map[string]interface{}, error) {
+func (e *URLContentExtractor) Extract(ctx context.Context, source usecases.ContentSource) ([]*schema.Document, error) {
 	if source.URL == "" {
-		return "", nil, fmt.Errorf("no URL provided for URL extraction")
+		return nil, fmt.Errorf("no URL provided for URL extraction")
 	}
 
 	// Validate URL
 	parsedURL, err := url.Parse(source.URL)
 	if err != nil {
-		return "", nil, fmt.Errorf("invalid URL: %w", err)
+		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return "", nil, fmt.Errorf("unsupported URL scheme: %s (only http/https supported)", parsedURL.Scheme)
+		return nil, fmt.Errorf("unsupported URL scheme: %s (only http/https supported)", parsedURL.Scheme)
 	}
 
 	// Create request with context
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, source.URL, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Set user agent to avoid being blocked
@@ -60,25 +61,25 @@ func (e *URLContentExtractor) Extract(ctx context.Context, source usecases.Conte
 	// Execute request
 	resp, err := e.client.Do(req)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to fetch URL: %w", err)
+		return nil, fmt.Errorf("failed to fetch URL: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		return "", nil, fmt.Errorf("URL returned status %d: %s", resp.StatusCode, resp.Status)
+		return nil, fmt.Errorf("URL returned status %d: %s", resp.StatusCode, resp.Status)
 	}
 
 	// Check content type
 	contentType := resp.Header.Get("Content-Type")
 	if !e.isTextContent(contentType) {
-		return "", nil, fmt.Errorf("unsupported content type: %s (only text content supported)", contentType)
+		return nil, fmt.Errorf("unsupported content type: %s (only text content supported)", contentType)
 	}
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// Create metadata
@@ -88,8 +89,15 @@ func (e *URLContentExtractor) Extract(ctx context.Context, source usecases.Conte
 	metadata["content_type"] = contentType
 	metadata["content_length"] = len(body)
 
-	// Return the content
-	return string(body), metadata, nil
+	// Return as single document
+	docs := []*schema.Document{
+		{
+			Content:  string(body),
+			MetaData: metadata,
+		},
+	}
+
+	return docs, nil
 }
 
 // isTextContent checks if the content type is text-based

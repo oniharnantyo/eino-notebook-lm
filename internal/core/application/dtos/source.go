@@ -1,8 +1,10 @@
 package dtos
 
 import (
+	"io"
 	"time"
 
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
@@ -132,4 +134,40 @@ func ParseContentType(contentType string) entities.ContentType {
 	default:
 		return entities.ContentTypeOther
 	}
+}
+
+// IngestContentRequest represents a request to ingest content from various sources
+type IngestContentRequest struct {
+	// Source identification
+	NotebookID    uuid.UUID                `validate:"required"`
+	Title         string
+	URI           string                   // For URL content type
+	ContentType   usecases.ContentType     `validate:"required"` // file, url, text
+	MIMEType      entities.ContentType     // The actual MIME type (application/pdf, text/html, etc.)
+	SourceType    string                   // document, website, text, api, other
+	Metadata      map[string]interface{}   `json:"metadata,omitempty"`
+	SubIndexes    []string                 `json:"sub_indexes,omitempty"`
+
+	// Content source (one of these will be populated)
+	FileContent io.Reader
+	FileSize    int64
+	Filename    string
+
+	TextContent string
+
+	// Processing options
+	Async bool `json:"async"`
+}
+
+// IngestContentResponse represents the response from content ingestion
+type IngestContentResponse struct {
+	SourceID        uuid.UUID              `json:"source_id"`
+	Status          string                 `json:"status"`
+	Error           *string                `json:"error,omitempty"`
+	UpdatedAt       time.Time              `json:"updated_at"`
+
+	// Async-specific fields
+	IsAsync         bool                   `json:"is_async"`
+	StatusURL       string                 `json:"status_url,omitempty"`
+	StatusStreamURL string                 `json:"status_stream_url,omitempty"`
 }

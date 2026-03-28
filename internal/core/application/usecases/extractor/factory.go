@@ -3,6 +3,7 @@ package extractor
 import (
 	"context"
 
+	"github.com/cloudwego/eino/schema"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
 )
 
@@ -11,9 +12,9 @@ import (
 // Interface Segregation Principle: Small, focused interface
 // Dependency Inversion Principle: High-level modules depend on this abstraction
 type ContentExtractor interface {
-	// Extract extracts content from the source and returns it as a string
-	// Also returns metadata about the extraction (e.g., filename, URL, content type)
-	Extract(ctx context.Context, source usecases.ContentSource) (content string, metadata map[string]interface{}, err error)
+	// Extract extracts content from the source and returns documents
+	// Returns schema.Document slices with metadata embedded in each document
+	Extract(ctx context.Context, source usecases.ContentSource) ([]*schema.Document, error)
 }
 
 // ContentExtractorFactory creates content extractors based on content type

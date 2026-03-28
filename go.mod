@@ -4,7 +4,8 @@ go 1.26.1
 
 require (
 	github.com/cloudwego/eino v0.8.1
-	github.com/cloudwego/eino-ext/components/document/transformer/splitter/markdown v0.0.0-20260313050455-88e279b3b32f
+	github.com/cloudwego/eino-ext/callbacks/langfuse v0.0.0-20260316121515-014a29323bbe
+	github.com/cloudwego/eino-ext/components/document/transformer/splitter/recursive v0.0.0-20260323112355-f061db7e8419
 	github.com/cloudwego/eino-ext/components/embedding/gemini v0.0.0-20260313050455-88e279b3b32f
 	github.com/cloudwego/eino-ext/components/model/gemini v0.1.29
 	github.com/go-playground/validator/v10 v10.30.1
@@ -30,7 +31,6 @@ require (
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/cloudwego/eino-ext/callbacks/langfuse v0.0.0-20260316121515-014a29323bbe // indirect
 	github.com/cloudwego/eino-ext/libs/acl/langfuse v0.0.0-20251124083837-ce2e7e196f9f // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
