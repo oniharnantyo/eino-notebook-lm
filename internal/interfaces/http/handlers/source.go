@@ -31,36 +31,6 @@ func NewSourceHandler(
 	}
 }
 
-// Create handles source creation requests
-// POST /api/v1/notebooks/{notebookId}/sources
-func (h *SourceHandler) Create(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	notebookIDStr := vars["notebookId"]
-
-	notebookID, err := mappers.ParseID(notebookIDStr)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "invalid notebook_id format")
-		return
-	}
-
-	var req dtos.CreateSourceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "Invalid request payload")
-		return
-	}
-
-	// Set notebook_id from URL
-	req.NotebookID = notebookID
-
-	source, err := h.useCase.Create(r.Context(), &req)
-	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create source: %v", err))
-		return
-	}
-
-	h.respondWithJSON(w, http.StatusCreated, source)
-}
-
 // GetByID handles get source by ID requests
 // GET /api/v1/notebooks/{notebookId}/sources/{id}
 func (h *SourceHandler) GetByID(w http.ResponseWriter, r *http.Request) {

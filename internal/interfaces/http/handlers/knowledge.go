@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -117,21 +116,6 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondWithJSON(w, http.StatusCreated, response)
-}
-
-// GetSourceStatus handles requests to check the status of a knowledge source
-func (h *KnowledgeHandler) GetSourceStatus(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	sourceIDStr := vars["sourceId"]
-
-	response, err := h.sourceUseCase.GetStatus(r.Context(), sourceIDStr)
-	if err != nil {
-		h.logger.Error("Failed to get source status", "source_id", sourceIDStr, "error", err)
-		h.respondWithError(w, http.StatusNotFound, "Source not found")
-		return
-	}
-
-	h.respondWithJSON(w, http.StatusOK, response)
 }
 
 func (h *KnowledgeHandler) StreamSourceStatus(w http.ResponseWriter, r *http.Request) {
@@ -302,140 +286,6 @@ func (h *KnowledgeHandler) detectMimeType(filename string) entities.ContentType 
 // endsWith checks if a string ends with a suffix (case-insensitive)
 func endsWith(s, suffix string) bool {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
-}
-
-// GetByID handles get knowledge by ID requests
-func (h *KnowledgeHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-
-	knowledge, err := h.useCase.GetByID(r.Context(), id)
-	if err != nil {
-		h.respondWithError(w, http.StatusNotFound, fmt.Sprintf("Knowledge not found: %v", err))
-		return
-	}
-
-	h.respondWithJSON(w, http.StatusOK, knowledge)
-}
-
-// List handles list knowledges requests
-func (h *KnowledgeHandler) List(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters
-	query := r.URL.Query()
-
-	sourceIDStr := query.Get("source_id")
-	if sourceIDStr == "" {
-		h.respondWithError(w, http.StatusBadRequest, "source_id is required")
-		return
-	}
-
-	sourceID, err := mappers.ParseID(sourceIDStr)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "invalid source_id format")
-		return
-	}
-
-	page, _ := strconv.Atoi(query.Get("page"))
-	limit, _ := strconv.Atoi(query.Get("limit"))
-	sourceType := query.Get("source_type")
-	searchQuery := query.Get("q")
-
-	req := &dtos.ListKnowledgesRequest{
-		SourceID:   sourceID,
-		Page:       page,
-		Limit:      limit,
-		SourceType: sourceType,
-		Query:      searchQuery,
-	}
-
-	result, err := h.useCase.List(r.Context(), req)
-	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to list knowledges: %v", err))
-		return
-	}
-
-	h.respondWithJSON(w, http.StatusOK, result)
-}
-
-// Update handles knowledge update requests
-func (h *KnowledgeHandler) Update(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	idStr := vars["id"]
-
-	knowledgeID, err := mappers.ParseID(idStr)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "invalid knowledge ID format")
-		return
-	}
-
-	var req dtos.UpdateKnowledgeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "Invalid request payload")
-		return
-	}
-
-	// Set ID from URL
-	req.KnowledgeID = knowledgeID
-
-	knowledge, err := h.useCase.Update(r.Context(), &req)
-	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update knowledge: %v", err))
-		return
-	}
-
-	h.respondWithJSON(w, http.StatusOK, knowledge)
-}
-
-// Delete handles knowledge deletion requests
-func (h *KnowledgeHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-
-	if err := h.useCase.Delete(r.Context(), id); err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to delete knowledge: %v", err))
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// Search handles knowledge search requests
-func (h *KnowledgeHandler) Search(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
-	if query == "" {
-		h.respondWithError(w, http.StatusBadRequest, "search query is required")
-		return
-	}
-
-	sourceIDStr := r.URL.Query().Get("source_id")
-	if sourceIDStr == "" {
-		h.respondWithError(w, http.StatusBadRequest, "source_id is required")
-		return
-	}
-
-	sourceID, err := mappers.ParseID(sourceIDStr)
-	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "invalid source_id format")
-		return
-	}
-
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-
-	req := &dtos.ListKnowledgesRequest{
-		SourceID: sourceID,
-		Query:    query,
-		Page:     page,
-		Limit:    limit,
-	}
-
-	result, err := h.useCase.Search(r.Context(), req)
-	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to search knowledges: %v", err))
-		return
-	}
-
-	h.respondWithJSON(w, http.StatusOK, result)
 }
 
 // respondWithJSON writes a JSON response

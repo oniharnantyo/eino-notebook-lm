@@ -30,10 +30,8 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 	notebooks.HandleFunc("/{id}", notebookHandler.GetByID).Methods(http.MethodGet)
 	notebooks.HandleFunc("/{id}", notebookHandler.Update).Methods(http.MethodPut)
 	notebooks.HandleFunc("/{id}", notebookHandler.Delete).Methods(http.MethodDelete)
-	notebooks.HandleFunc("/{id}/archive", notebookHandler.Archive).Methods(http.MethodPost)
 
 	// Source routes (nested under notebooks)
-	notebooks.HandleFunc("/{notebookId}/sources", sourceHandler.Create).Methods(http.MethodPost)
 	notebooks.HandleFunc("/{notebookId}/sources", sourceHandler.List).Methods(http.MethodGet)
 	notebooks.HandleFunc("/{notebookId}/sources/{id}", sourceHandler.GetByID).Methods(http.MethodGet)
 	notebooks.HandleFunc("/{notebookId}/sources/{id}", sourceHandler.Delete).Methods(http.MethodDelete)
@@ -43,17 +41,7 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 
 	// Knowledge routes (nested under notebooks)
 	notebooks.HandleFunc("/{notebookId}/knowledges", knowledgeHandler.Create).Methods(http.MethodPost)
-	notebooks.HandleFunc("/{notebookId}/knowledges/status/{sourceId}", knowledgeHandler.GetSourceStatus).Methods(http.MethodGet)
 	notebooks.HandleFunc("/{notebookId}/knowledges/status/{sourceId}/stream", knowledgeHandler.StreamSourceStatus).Methods(http.MethodGet)
-
-	// Knowledge routes
-	knowledges := api.PathPrefix("/knowledges").Subrouter()
-	knowledges.HandleFunc("", knowledgeHandler.Create).Methods(http.MethodPost)
-	knowledges.HandleFunc("", knowledgeHandler.List).Methods(http.MethodGet)
-	knowledges.HandleFunc("/search", knowledgeHandler.Search).Methods(http.MethodGet)
-	knowledges.HandleFunc("/{id}", knowledgeHandler.GetByID).Methods(http.MethodGet)
-	knowledges.HandleFunc("/{id}", knowledgeHandler.Update).Methods(http.MethodPut)
-	knowledges.HandleFunc("/{id}", knowledgeHandler.Delete).Methods(http.MethodDelete)
 
 	// OpenAI Responses API (only if responseHandler is provided)
 	if responseHandler != nil {

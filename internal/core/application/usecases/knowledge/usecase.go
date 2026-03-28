@@ -3,7 +3,6 @@ package knowledge
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/cloudwego/eino/components/document"
 	"github.com/cloudwego/eino/components/embedding"
@@ -15,17 +14,11 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/errors"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
 	"github.com/oniharnantyo/eino-notebook/pkg/indexer/pgvector"
-	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
 // KnowledgeUseCase defines the interface for knowledge business logic
 type KnowledgeUseCase interface {
 	Create(ctx context.Context, req *dtos.CreateKnowledgeRequest) error
-	GetByID(ctx context.Context, id string) (*dtos.KnowledgeResponse, error)
-	List(ctx context.Context, req *dtos.ListKnowledgesRequest) (*dtos.ListKnowledgesResponse, error)
-	Update(ctx context.Context, req *dtos.UpdateKnowledgeRequest) (*dtos.KnowledgeResponse, error)
-	Delete(ctx context.Context, id string) error
-	Search(ctx context.Context, req *dtos.ListKnowledgesRequest) (*dtos.ListKnowledgesResponse, error)
 }
 
 // knowledgeUseCase implements KnowledgeUseCase
@@ -95,18 +88,6 @@ func (uc *knowledgeUseCase) Create(ctx context.Context, req *dtos.CreateKnowledg
 	return nil
 }
 
-// sanitizeContent removes null bytes (0x00) from content.
-// PostgreSQL rejects null bytes in TEXT columns with error code 22021.
-// Null bytes can come from external services like Kreuzberg (OCR artifacts, binary data).
-func (uc *knowledgeUseCase) sanitizeContent(content string) string {
-	// Fast path: check if null bytes exist
-	if !strings.Contains(content, "\x00") {
-		return content
-	}
-	// Remove all null bytes
-	return strings.ReplaceAll(content, "\x00", "")
-}
-
 // enrichChunksWithParentMetadata adds parent metadata to each chunk
 // This ensures that split chunks retain the original document's metadata for filtering and retrieval
 func (uc *knowledgeUseCase) enrichChunksWithParentMetadata(chunks []*schema.Document, req *dtos.CreateKnowledgeRequest, source *entities.Source) []*schema.Document {
@@ -158,162 +139,4 @@ func (uc *knowledgeUseCase) enrichChunksWithParentMetadata(chunks []*schema.Docu
 	}
 
 	return enriched
-}
-
-// mapContentType maps KnowledgeSource to ContentType
-func mapContentType(sourceType entities.KnowledgeSource) entities.ContentType {
-	switch entityType := sourceType; entityType {
-	case entities.SourceDocument:
-		return entities.ContentTypePDF
-	case entities.SourceWebsite:
-		return entities.ContentTypeWebsite
-	case entities.SourceText:
-		return entities.ContentTypeText
-	case entities.SourceAPI:
-		return entities.ContentTypeAPI
-	default:
-		return entities.ContentTypeOther
-	}
-}
-
-// GetByID retrieves a knowledge by ID
-func (uc *knowledgeUseCase) GetByID(ctx context.Context, id string) (*dtos.KnowledgeResponse, error) {
-	// Parse ID
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return nil, errors.NewValidationError("invalid knowledge ID")
-	}
-
-	// Find by ID
-	knowledge, err := uc.knowledgeRepo.FindByID(ctx, uid)
-	if err != nil {
-		return nil, errors.NewInternalError("failed to find knowledge", err)
-	}
-	if knowledge == nil {
-		return nil, errors.NewNotFoundError("knowledge")
-	}
-
-	return dtos.ToKnowledgeResponse(knowledge), nil
-}
-
-// List retrieves a paginated list of knowledges for a source
-func (uc *knowledgeUseCase) List(ctx context.Context, req *dtos.ListKnowledgesRequest) (*dtos.ListKnowledgesResponse, error) {
-	// Set defaults
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.Limit < 1 {
-		req.Limit = 10
-	}
-	if req.Limit > 100 {
-		req.Limit = 100
-	}
-
-	// Get knowledges by source ID
-	knowledges, err := uc.knowledgeRepo.GetBySourceID(ctx, req.SourceID)
-	if err != nil {
-		return nil, errors.NewInternalError("failed to list knowledges", err)
-	}
-
-	// Apply pagination manually since we're getting all knowledges for the source
-	total := len(knowledges)
-	start := (req.Page - 1) * req.Limit
-	end := start + req.Limit
-
-	if start >= total {
-		return &dtos.ListKnowledgesResponse{
-			Knowledges: []dtos.KnowledgeResponse{},
-			Total:      int64(total),
-			Page:       req.Page,
-			Limit:      req.Limit,
-			TotalPages: 0,
-		}, nil
-	}
-
-	if end > total {
-		end = total
-	}
-
-	paginatedKnowledges := knowledges[start:end]
-
-	totalPages := total / req.Limit
-	if total%req.Limit > 0 {
-		totalPages++
-	}
-
-	return &dtos.ListKnowledgesResponse{
-		Knowledges: dtos.ToKnowledgeResponses(paginatedKnowledges),
-		Total:      int64(total),
-		Page:       req.Page,
-		Limit:      req.Limit,
-		TotalPages: totalPages,
-	}, nil
-}
-
-// Update updates an existing knowledge
-func (uc *knowledgeUseCase) Update(ctx context.Context, req *dtos.UpdateKnowledgeRequest) (*dtos.KnowledgeResponse, error) {
-	// Check if knowledge exists
-	knowledge, err := uc.knowledgeRepo.FindByID(ctx, req.KnowledgeID)
-	if err != nil {
-		return nil, errors.NewInternalError("failed to find knowledge", err)
-	}
-	if knowledge == nil {
-		return nil, errors.NewNotFoundError("knowledge")
-	}
-
-	// Update fields
-	if req.Title != "" {
-		knowledge.Title = req.Title
-	}
-	if req.Content != "" {
-		knowledge.Content = req.Content
-	}
-	if req.SourceType != "" {
-		knowledge.SourceType = dtos.ParseSourceType(req.SourceType)
-	}
-	if req.Metadata != nil {
-		knowledge.Metadata = req.Metadata
-	}
-	if req.SubIndexes != nil {
-		knowledge.SubIndexes = req.SubIndexes
-	}
-
-	// Save to repository
-	if err := uc.knowledgeRepo.Save(ctx, knowledge); err != nil {
-		return nil, errors.NewInternalError("failed to save knowledge", err)
-	}
-
-	return dtos.ToKnowledgeResponse(knowledge), nil
-}
-
-// Delete deletes a knowledge by ID
-func (uc *knowledgeUseCase) Delete(ctx context.Context, id string) error {
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return errors.NewValidationError("invalid knowledge ID")
-	}
-
-	return uc.knowledgeRepo.Delete(ctx, uid)
-}
-
-// Search searches knowledges using vector similarity
-func (uc *knowledgeUseCase) Search(ctx context.Context, req *dtos.ListKnowledgesRequest) (*dtos.ListKnowledgesResponse, error) {
-	if req.Query == "" {
-		return uc.List(ctx, req)
-	}
-
-	// Set defaults
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.Limit < 1 {
-		req.Limit = 10
-	}
-	if req.Limit > 100 {
-		req.Limit = 100
-	}
-
-	// TODO: Implement vector search using the indexer
-	// For now, fall back to listing by source
-	return uc.List(ctx, req)
 }

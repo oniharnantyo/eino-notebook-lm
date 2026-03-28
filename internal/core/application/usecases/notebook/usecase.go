@@ -18,7 +18,6 @@ type NotebookUseCase interface {
 	List(ctx context.Context, req *dtos.ListNotebooksRequest) (*dtos.ListNotebooksResponse, error)
 	Update(ctx context.Context, req *dtos.UpdateNotebookRequest) (*dtos.NotebookResponse, error)
 	Delete(ctx context.Context, id string) error
-	Archive(ctx context.Context, id string) error
 	Search(ctx context.Context, query string, page, limit int) (*dtos.ListNotebooksResponse, error)
 }
 
@@ -156,25 +155,6 @@ func (uc *notebookUseCase) Delete(ctx context.Context, id string) error {
 	}
 
 	return uc.notebookRepo.Delete(ctx, uid)
-}
-
-// Archive archives a notebook
-func (uc *notebookUseCase) Archive(ctx context.Context, id string) error {
-	uid, err := mappers.ParseID(id)
-	if err != nil {
-		return errors.NewValidationError("invalid notebook ID")
-	}
-
-	notebook, err := uc.notebookRepo.FindByID(ctx, uid)
-	if err != nil {
-		return errors.NewInternalError("failed to find notebook", err)
-	}
-	if notebook == nil {
-		return errors.NewNotFoundError("notebook")
-	}
-
-	notebook.Archive()
-	return uc.notebookRepo.Save(ctx, notebook)
 }
 
 // Search searches notebooks by query

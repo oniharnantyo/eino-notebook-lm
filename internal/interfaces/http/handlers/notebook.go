@@ -129,20 +129,6 @@ func (h *NotebookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Archive handles notebook archive requests
-func (h *NotebookHandler) Archive(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-
-	if err := h.useCase.Archive(r.Context(), id); err != nil {
-		h.logger.Error("failed to archive notebook", "id", id, "error", err)
-		h.respondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // respondWithJSON writes a JSON response
 func (h *NotebookHandler) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
