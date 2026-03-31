@@ -21,11 +21,13 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/genai"
 
+	artifactusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/artifact"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/conversation"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
+	mindmapusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/mindmap"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/notebook"
 	responseusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
@@ -151,6 +153,9 @@ The server can be configured with custom host and port settings.`,
 
 		conversationRepo := persistence.NewPostgresConversationRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresConversationRepository")
+
+		artifactRepo := persistence.NewPostgresArtifactRepository(dbPool)
+		log.Info("initialized", "repository", "PostgresArtifactRepository")
 
 		// Create embedder based on provider from model config
 		chatProvider := model.InferProvider(cfg.Model.ChatModel)
@@ -361,6 +366,14 @@ The server can be configured with custom host and port settings.`,
 		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, knowledgeUseCase, log)
 		log.Info("initialized", "usecase", "SourceUseCase")
 
+		// Create artifact usecase
+		artifactUseCase := artifactusecase.NewArtifactUseCase(artifactRepo)
+		log.Info("initialized", "usecase", "ArtifactUseCase")
+
+		// Create mindmap usecase
+		mindmapUseCase := mindmapusecase.NewMindmapUseCase(sourceRepo, artifactRepo, chatModel, log)
+		log.Info("initialized", "usecase", "MindmapUseCase")
+
 		// Interface Layer (HTTP Handlers)
 		notebookHandler := handlers.NewNotebookHandler(notebookUseCase, log)
 		sourceHandler := handlers.NewSourceHandler(sourceUseCase, log)
@@ -374,9 +387,13 @@ The server can be configured with custom host and port settings.`,
 		conversationHandler := handlers.NewConversationHandler(conversationUseCase, log)
 		log.Info("initialized", "handler", "ConversationHandler")
 
+		// Create artifact handler
+		artifactHandler := handlers.NewArtifactHandler(artifactUseCase, mindmapUseCase, log)
+		log.Info("initialized", "handler", "ArtifactHandler")
+
 		// Setup routes
 		router := mux.NewRouter()
-		httproutes.Setup(router, notebookHandler, knowledgeHandler, sourceHandler, responseHandler, conversationHandler)
+		httproutes.Setup(router, notebookHandler, knowledgeHandler, sourceHandler, responseHandler, conversationHandler, artifactHandler)
 		log.Info("initialized", "router", "gorilla/mux")
 
 		// Create HTTP server

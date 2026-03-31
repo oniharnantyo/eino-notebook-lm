@@ -10,7 +10,7 @@ import (
 )
 
 // Setup configures all application routes
-func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler, sourceHandler *handlers.SourceHandler, responseHandler *handlers.ResponseHandler, conversationHandler *handlers.ConversationHandler) {
+func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler, sourceHandler *handlers.SourceHandler, responseHandler *handlers.ResponseHandler, conversationHandler *handlers.ConversationHandler, artifactHandler *handlers.ArtifactHandler) {
 	// Apply global middleware
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recovery)
@@ -42,6 +42,11 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 	// Knowledge routes (nested under notebooks)
 	notebooks.HandleFunc("/{notebookId}/knowledges", knowledgeHandler.Create).Methods(http.MethodPost)
 	notebooks.HandleFunc("/{notebookId}/knowledges/status/{sourceId}/stream", knowledgeHandler.StreamSourceStatus).Methods(http.MethodGet)
+
+	// Artifact routes (nested under notebooks)
+	notebooks.HandleFunc("/{notebookId}/mindmap", artifactHandler.GenerateMindmap).Methods(http.MethodPost)
+	notebooks.HandleFunc("/{notebookId}/artifacts", artifactHandler.List).Methods(http.MethodGet)
+	notebooks.HandleFunc("/{notebookId}/artifacts/{id}", artifactHandler.GetByID).Methods(http.MethodGet)
 
 	// OpenAI Responses API (only if responseHandler is provided)
 	if responseHandler != nil {

@@ -128,6 +128,14 @@ migrate-down: ## Run all down migrations
 		echo "migrate not found. Run 'make migrate-install' first."; \
 	fi
 
+migrate-down-one: ## Revert only the last migration
+	@echo "Reverting last migration..."
+	@if command -v migrate > /dev/null; then \
+		migrate -path migrations -database "$(DATABASE_URL)" down 1; \
+	else \
+		echo "migrate not found. Run 'make migrate-install' first."; \
+	fi
+
 migrate-steps: ## Run specific number of migrations (use STEPS=n)
 	@echo "Running $(STEPS) migration steps..."
 	@if command -v migrate > /dev/null; then \
