@@ -1,0 +1,12 @@
+{
+  "last_session_id": "cfcccea9-6cdf-48f5-9f50-8ce1060a185a",
+  "last_event_key": "cfcccea9-6cdf-48f5-9f50-8ce1060a185a:transcript:529030f56bc5d2890b03dc053cb5b439e50ec28ac1f45068ff6f7fa2ab4eba5f",
+  "last_prompted_session_id": "",
+  "last_reason": "short-session",
+  "last_prompted_at": "",
+  "last_user_message_count": 6,
+  "last_actionable_message_count": 1,
+  "deep_interview_lock_active": false,
+  "deep_interview_lock_source": "/Users/oniharnantyo/projects/eino-notebook/.omg/state/deep-interview.json",
+  "updated_at": "2026-04-21T14:49:36.297Z"
+}

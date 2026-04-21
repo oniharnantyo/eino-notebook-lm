@@ -3,18 +3,25 @@ package extractor
 import (
 	"context"
 
-	"github.com/cloudwego/eino/schema"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
+	"github.com/oniharnantyo/eino-notebook/pkg/parser/kreuzberg"
 )
+
+// ExtractionResult represents the structured result of content extraction
+type ExtractionResult struct {
+	Content  string
+	Chunks   []kreuzberg.KreuzbergChunk
+	Images   []kreuzberg.KreuzbergImage
+	Metadata map[string]any
+}
 
 // ContentExtractor defines the interface for extracting content from different sources
 // Single Responsibility Principle: Each extractor handles one type of content
 // Interface Segregation Principle: Small, focused interface
 // Dependency Inversion Principle: High-level modules depend on this abstraction
 type ContentExtractor interface {
-	// Extract extracts content from the source and returns documents
-	// Returns schema.Document slices with metadata embedded in each document
-	Extract(ctx context.Context, source usecases.ContentSource) ([]*schema.Document, error)
+	// Extract extracts content from the source and returns ExtractionResult
+	Extract(ctx context.Context, source usecases.ContentSource) (*ExtractionResult, error)
 }
 
 // ContentExtractorFactory creates content extractors based on content type

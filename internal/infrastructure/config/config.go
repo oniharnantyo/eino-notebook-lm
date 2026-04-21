@@ -12,16 +12,46 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Server     ServerConfig
-	Database   DatabaseConfig
-	Gemini     GeminiConfig
-	OpenAI     OpenAIConfig
-	Model      ModelConfig
-	Log        LogConfig
-	Cache      CacheConfig
-	Kreuzberg  KreuzbergConfig
-	Langfuse   LangfuseConfig
-	Transformer TransformerConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Gemini    GeminiConfig
+	OpenAI    OpenAIConfig
+	Chat      ChatConfig
+	Embedding EmbeddingConfig
+	Model     ModelConfig
+	Log       LogConfig
+	Cache     CacheConfig
+	Kreuzberg KreuzbergConfig
+	Docling   DoclingConfig
+	Langfuse  LangfuseConfig
+	S3        S3Config
+}
+
+// S3Config holds S3/MinIO storage configuration
+type S3Config struct {
+	Endpoint  string `mapstructure:"endpoint" validate:"required"`
+	AccessKey string `mapstructure:"access_key" validate:"required"`
+	SecretKey string `mapstructure:"secret_key" validate:"required"`
+	Bucket    string `mapstructure:"bucket" validate:"required"`
+}
+
+// ChatConfig holds chat model configuration
+type ChatConfig struct {
+	Provider string `mapstructure:"provider" validate:"required"`
+	Model    string `mapstructure:"model" validate:"required"`
+	APIKey   string `mapstructure:"api_key"`
+	BaseURL  string `mapstructure:"base_url"`
+}
+
+// EmbeddingConfig holds embedding model configuration
+type EmbeddingConfig struct {
+	Provider       string        `mapstructure:"provider" validate:"required"`
+	Model          string        `mapstructure:"model" validate:"required"`
+	Dimension      int           `mapstructure:"dimension" validate:"required,min=1"`
+	APIKey         string        `mapstructure:"api_key"`
+	BaseURL        string        `mapstructure:"base_url"`
+	PromptTemplate string        `mapstructure:"prompt_template"`
+	Timeout        time.Duration `mapstructure:"timeout"`
 }
 
 // ServerConfig holds server configuration
@@ -62,13 +92,14 @@ type CacheConfig struct {
 }
 
 // GeminiConfig holds Gemini API configuration
+// Deprecated: Use ChatConfig and EmbeddingConfig instead
 type GeminiConfig struct {
-	APIKey  string `mapstructure:"api_key" validate:"required"`
-	BaseURL string `mapstructure:"base_url" validate:"required,url"`
+	APIKey  string `mapstructure:"api_key"`
+	BaseURL string `mapstructure:"base_url" validate:"omitempty,url"`
 	// Deprecated: Use ModelConfig instead
 	EmbeddingModel string `mapstructure:"embedding_model"`
 	ChatModel      string `mapstructure:"chat_model"`
-	Dimension      int     `mapstructure:"dimension"`
+	Dimension      int    `mapstructure:"dimension"`
 }
 
 // OpenAIConfig holds OpenAI API configuration
@@ -78,7 +109,7 @@ type OpenAIConfig struct {
 }
 
 // ModelConfig holds model configuration with provider prefix support
-// Format: "provider/model-name" (e.g., "gemini/gemini-2.0-flash-exp", "openai/gpt-4o-mini")
+// Deprecated: Use ChatConfig and EmbeddingConfig instead
 type ModelConfig struct {
 	ChatModel          string `mapstructure:"chat_model" validate:"required"`
 	EmbeddingModel     string `mapstructure:"embedding_model" validate:"required"`
@@ -92,6 +123,14 @@ type KreuzbergConfig struct {
 	Timeout      time.Duration `mapstructure:"timeout"`
 }
 
+// DoclingConfig holds Docling Serve configuration
+type DoclingConfig struct {
+	ServiceURL   string        `mapstructure:"service_url" validate:"required,url"`
+	Timeout      time.Duration `mapstructure:"timeout"`
+	APIKey       string        `mapstructure:"api_key"`
+	OutputFormat string        `mapstructure:"output_format" validate:"omitempty,oneof=md json text html"`
+}
+
 // LangfuseConfig holds Langfuse observability configuration
 type LangfuseConfig struct {
 	Host       string  `mapstructure:"host" validate:"omitempty,url"`
@@ -100,18 +139,6 @@ type LangfuseConfig struct {
 	Enabled    bool    `mapstructure:"enabled"`
 	SampleRate float64 `mapstructure:"sample_rate" validate:"omitempty,min=0,max=1"`
 	Release    string  `mapstructure:"release"`
-}
-
-// TransformerConfig holds document transformer configuration
-type TransformerConfig struct {
-	Type                    string                   `mapstructure:"type" validate:"required,oneof=recursive markdown"`
-	RecursiveSplitterConfig *RecursiveSplitterConfig `mapstructure:"recursive_splitter"`
-}
-
-// RecursiveSplitterConfig holds recursive chunk splitter configuration
-type RecursiveSplitterConfig struct {
-	ChunkSize   int `mapstructure:"chunk_size" validate:"required,min=1"`
-	OverlapSize int `mapstructure:"overlap_size" validate:"required,min=0"`
 }
 
 // Load loads configuration from environment variables and .env file
@@ -148,15 +175,35 @@ func Load() (*Config, error) {
 	viper.BindEnv("kreuzberg.output_format", "KREUZBERG_OUTPUT_FORMAT")
 	viper.BindEnv("kreuzberg.timeout", "KREUZBERG_TIMEOUT")
 	viper.BindEnv("kreuzberg.to_pages", "KREUZBERG_TO_PAGES")
+	viper.BindEnv("docling.service_url", "DOCLING_SERVICE_URL")
+	viper.BindEnv("docling.timeout", "DOCLING_TIMEOUT")
+	viper.BindEnv("docling.api_key", "DOCLING_API_KEY")
+	viper.BindEnv("docling.output_format", "DOCLING_OUTPUT_FORMAT")
 	viper.BindEnv("langfuse.host", "LANGFUSE_HOST")
 	viper.BindEnv("langfuse.public_key", "LANGFUSE_PUBLIC_KEY")
 	viper.BindEnv("langfuse.secret_key", "LANGFUSE_SECRET_KEY")
 	viper.BindEnv("langfuse.enabled", "LANGFUSE_ENABLED")
 	viper.BindEnv("langfuse.sample_rate", "LANGFUSE_SAMPLE_RATE")
 	viper.BindEnv("langfuse.release", "LANGFUSE_RELEASE")
-	viper.BindEnv("transformer.type", "TRANSFORMER_TYPE")
-	viper.BindEnv("transformer.recursive_splitter.chunk_size", "TRANSFORMER_CHUNK_SIZE")
-	viper.BindEnv("transformer.recursive_splitter.overlap_size", "TRANSFORMER_OVERLAP_SIZE")
+	viper.BindEnv("s3.endpoint", "S3_ENDPOINT")
+	viper.BindEnv("s3.access_key", "S3_ACCESS_KEY")
+	viper.BindEnv("s3.secret_key", "S3_SECRET_KEY")
+	viper.BindEnv("s3.bucket", "S3_BUCKET")
+
+	// Chat bindings
+	viper.BindEnv("chat.provider", "CHAT_PROVIDER")
+	viper.BindEnv("chat.model", "CHAT_MODEL")
+	viper.BindEnv("chat.api_key", "CHAT_API_KEY")
+	viper.BindEnv("chat.base_url", "CHAT_BASE_URL")
+
+	// Embedding bindings
+	viper.BindEnv("embedding.provider", "EMBEDDING_PROVIDER")
+	viper.BindEnv("embedding.model", "EMBEDDING_MODEL")
+	viper.BindEnv("embedding.dimension", "EMBEDDING_DIMENSION")
+	viper.BindEnv("embedding.api_key", "EMBEDDING_API_KEY")
+	viper.BindEnv("embedding.base_url", "EMBEDDING_BASE_URL")
+	viper.BindEnv("embedding.prompt_template", "EMBEDDING_PROMPT_TEMPLATE")
+	viper.BindEnv("embedding.timeout", "EMBEDDING_TIMEOUT")
 
 	// Set defaults
 	setDefaults()
@@ -211,15 +258,21 @@ func setDefaults() {
 	viper.SetDefault("kreuzberg.output_format", "markdown")
 	viper.SetDefault("kreuzberg.timeout", 30*time.Second)
 
+	// Docling defaults
+	viper.SetDefault("docling.service_url", "http://localhost:8000")
+	viper.SetDefault("docling.timeout", 120*time.Second)
+	viper.SetDefault("docling.output_format", "md")
+
 	// Langfuse defaults
 	viper.SetDefault("langfuse.host", "https://cloud.langfuse.com")
 	viper.SetDefault("langfuse.enabled", false)
 	viper.SetDefault("langfuse.sample_rate", 1.0)
 
-	// Transformer defaults
-	viper.SetDefault("transformer.type", "recursive")
-	viper.SetDefault("transformer.recursive_splitter.chunk_size", 4000)
-	viper.SetDefault("transformer.recursive_splitter.overlap_size", 800)
+	// S3 defaults (MinIO)
+	viper.SetDefault("s3.endpoint", "localhost:9000")
+	viper.SetDefault("s3.access_key", "minioadmin")
+	viper.SetDefault("s3.secret_key", "minioadmin")
+	viper.SetDefault("s3.bucket", "eino-notebook")
 }
 
 // GetServerAddress returns the server address
@@ -234,15 +287,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("config validation failed: %w", err)
 	}
 
-	// Custom validation: overlap_size must be less than chunk_size
-	if c.Transformer.RecursiveSplitterConfig != nil {
-		if c.Transformer.RecursiveSplitterConfig.OverlapSize >= c.Transformer.RecursiveSplitterConfig.ChunkSize {
-			return fmt.Errorf("config validation failed: TRANSFORMER_OVERLAP_SIZE (%d) must be less than TRANSFORMER_CHUNK_SIZE (%d)",
-				c.Transformer.RecursiveSplitterConfig.OverlapSize,
-				c.Transformer.RecursiveSplitterConfig.ChunkSize)
-		}
-	}
-
 	return nil
 }
 
@@ -251,4 +295,3 @@ func (c *DatabaseConfig) GetDSN() string {
 	return fmt.Sprintf("%s://%s:%s@%s:%d/%s?sslmode=disable",
 		c.Driver, c.User, c.Password, c.Host, c.Port, c.Database)
 }
-

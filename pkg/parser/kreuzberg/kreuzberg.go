@@ -47,119 +47,148 @@ type Config struct {
 
 // ExtractConfig defines the extraction configuration options for Kreuzberg.
 type ExtractConfig struct {
-	// Enable quality processing for better extraction results
-	EnableQualityProcessing bool `json:"enable_quality_processing,omitempty"`
+	UseCache                 bool            `json:"use_cache,omitempty"`
+	EnableQualityProcessing  bool            `json:"enable_quality_processing,omitempty"`
+	ForceOCR                 bool            `json:"force_ocr,omitempty"`
+	DisableOCR               bool            `json:"disable_ocr,omitempty"`
+	ExtractionTimeoutSecs    int             `json:"extraction_timeout_secs,omitempty"`
+	MaxConcurrentExtractions int             `json:"max_concurrent_extractions,omitempty"`
+	ResultFormat             string          `json:"result_format,omitempty"`
+	OutputFormat             string          `json:"output_format,omitempty"`
+	IncludeDocumentStructure bool            `json:"include_document_structure,omitempty"`
+	CacheTTLSecs             int             `json:"cache_ttl_secs,omitempty"`
+	MaxArchiveDepth          int             `json:"max_archive_depth,omitempty"`
+	OCR                      *OCRConfig      `json:"ocr,omitempty"`
+	ContentFilter            *ContentFilter  `json:"content_filter,omitempty"`
+	Images                   *ImagesConfig   `json:"images,omitempty"`
+	PDFOptions               *PDFOptions     `json:"pdf_options,omitempty"`
+	TreeSitter               *TreeSitter     `json:"tree_sitter,omitempty"`
+	SecurityLimits           *SecurityLimits `json:"security_limits,omitempty"`
+	Pages                    *PagesConfig    `json:"pages,omitempty"`
+	Chunking                 *Chunking       `json:"chunking,omitempty"`
+}
 
-	// ForceOCR forces OCR even for text-based documents
-	ForceOCR bool `json:"force_ocr,omitempty"`
+// ContentFilter defines content filtering options.
+type ContentFilter struct {
+	StripRepeatingText bool `json:"strip_repeating_text,omitempty"`
+}
 
-	// ResultFormat specifies how to structure results (e.g., "element_based")
-	ResultFormat string `json:"result_format,omitempty"`
+// TreeSitter defines tree-sitter extraction options.
+type TreeSitter struct {
+	Enabled             bool    `json:"enabled,omitempty"`
+	Language            *string `json:"language,omitempty"`
+	ContentMode         string  `json:"content_mode,omitempty"`
+	IncludeSyntaxColors bool    `json:"include_syntax_colors,omitempty"`
+	CommentStyle        string  `json:"comment_style,omitempty"`
+}
 
-	// OutputFormat is the format for extracted text: plain, markdown, djot, or html
-	OutputFormat string `json:"output_format,omitempty"`
+// SecurityLimits defines resource limits for extraction.
+type SecurityLimits struct {
+	MaxArchiveSize      int64 `json:"max_archive_size,omitempty"`
+	MaxCompressionRatio int   `json:"max_compression_ratio,omitempty"`
+	MaxFilesInArchive   int   `json:"max_files_in_archive,omitempty"`
+	MaxNestingDepth     int   `json:"max_nesting_depth,omitempty"`
+	MaxEntityLength     int   `json:"max_entity_length,omitempty"`
+	MaxContentSize      int64 `json:"max_content_size,omitempty"`
+	MaxIterations       int   `json:"max_iterations,omitempty"`
+	MaxXMLDepth         int   `json:"max_xml_depth,omitempty"`
+	MaxTableCells       int   `json:"max_table_cells,omitempty"`
+}
 
-	// IncludeDocumentStructure includes structural elements in output
-	IncludeDocumentStructure bool `json:"include_document_structure,omitempty"`
+// Chunking defines chunking strategy.
+type Chunking struct {
+	MaxCharacters         int          `json:"max_characters,omitempty"`
+	Overlap               int          `json:"overlap,omitempty"`
+	Trim                  bool         `json:"trim,omitempty"`
+	ChunkerType           string       `json:"chunker_type,omitempty"`
+	PrependHeadingContext bool         `json:"prepend_heading_context,omitempty"`
+	Sizing                *ChunkSizing `json:"sizing,omitempty"`
+}
 
-	// OCR configuration for optical character recognition
-	OCR *OCRConfig `json:"ocr,omitempty"`
-
-	// PDFOptions for PDF-specific extraction settings
-	PDFOptions *PDFOptions `json:"pdf_options,omitempty"`
-
-	// Images options for image extraction
-	Images *ImagesConfig `json:"images,omitempty"`
-
-	// Pages options for page-level processing
-	Pages *PagesConfig `json:"pages,omitempty"`
-
-	// Layout options for layout analysis
-	Layout *LayoutConfig `json:"layout,omitempty"`
-
-	// Table extraction mode
-	TableExtractionMode string `json:"table_extraction_mode,omitempty"`
+// ChunkSizing defines how chunks are sized.
+type ChunkSizing struct {
+	Type string `json:"type,omitempty"`
 }
 
 // OCRConfig defines OCR-specific configuration.
 type OCRConfig struct {
-	// Backend specifies the OCR backend (e.g., "paddleocr", "tesseract")
-	Backend string `json:"backend,omitempty"`
+	Backend           string             `json:"backend,omitempty"`
+	Language          string             `json:"language,omitempty"`
+	AutoRotate        bool               `json:"auto_rotate,omitempty"`
+	TesseractConfig   map[string]any     `json:"tesseract_config,omitempty"`
+	PaddleOCRConfig   *PaddleOCRConfig   `json:"paddle_ocr_config,omitempty"`
+	QualityThresholds *QualityThresholds `json:"quality_thresholds,omitempty"`
+	Model             string             `json:"model,omitempty"`
+}
 
-	// Language specifies the OCR language (e.g., "eng", "deu", "fra")
-	Language string `json:"language,omitempty"`
-
-	// PaddleOCRConfig for PaddleOCR-specific settings
-	PaddleOCRConfig *PaddleOCRConfig `json:"paddle_ocr_config,omitempty"`
-
-	// Model specifies the OCR model to use (for non-PaddleOCR backends)
-	Model string `json:"model,omitempty"`
+// QualityThresholds defines quality check thresholds.
+type QualityThresholds struct {
+	MinTotalNonWhitespace       int     `json:"min_total_non_whitespace,omitempty"`
+	MinNonWhitespacePerPage     int     `json:"min_non_whitespace_per_page,omitempty"`
+	MinMeaningfulWordLen        int     `json:"min_meaningful_word_len,omitempty"`
+	MinMeaningfulWords          int     `json:"min_meaningful_words,omitempty"`
+	MinAlnumRatio               float64 `json:"min_alnum_ratio,omitempty"`
+	MinGarbageChars             int     `json:"min_garbage_chars,omitempty"`
+	MaxFragmentedWordRatio      float64 `json:"max_fragmented_word_ratio,omitempty"`
+	CriticalFragmentedWordRatio float64 `json:"critical_fragmented_word_ratio,omitempty"`
+	MinAvgWordLength            float64 `json:"min_avg_word_length,omitempty"`
+	MinWordsForAvgLengthCheck   int     `json:"min_words_for_avg_length_check,omitempty"`
+	MinConsecutiveRepeatRatio   float64 `json:"min_consecutive_repeat_ratio,omitempty"`
+	MinWordsForRepeatCheck      int     `json:"min_words_for_repeat_check,omitempty"`
+	SubstantiveMinChars         int     `json:"substantive_min_chars,omitempty"`
+	NonTextMinChars             int     `json:"non_text_min_chars,omitempty"`
+	AlnumWsRatioThreshold       float64 `json:"alnum_ws_ratio_threshold,omitempty"`
+	PipelineMinQuality          float64 `json:"pipeline_min_quality,omitempty"`
 }
 
 // PaddleOCRConfig defines PaddleOCR-specific configuration.
 type PaddleOCRConfig struct {
-	// ModelTier specifies the model tier (e.g., "mobile", "server")
-	ModelTier string `json:"model_tier,omitempty"`
-
-	// Padding specifies padding around text regions
-	Padding int `json:"padding,omitempty"`
+	Language             string  `json:"language,omitempty"`
+	UseAngleCls          bool    `json:"use_angle_cls,omitempty"`
+	EnableTableDetection bool    `json:"enable_table_detection,omitempty"`
+	DetDBThresh          float64 `json:"det_db_thresh,omitempty"`
+	DetDBBoxThresh       float64 `json:"det_db_box_thresh,omitempty"`
+	DetDBUnclipRatio     float64 `json:"det_db_unclip_ratio,omitempty"`
+	DetLimitSideLen      int     `json:"det_limit_side_len,omitempty"`
+	RecBatchNum          int     `json:"rec_batch_num,omitempty"`
+	Padding              int     `json:"padding,omitempty"`
+	DropScore            float64 `json:"drop_score,omitempty"`
+	ModelTier            string  `json:"model_tier,omitempty"`
 }
 
 // PDFOptions defines PDF-specific extraction options.
 type PDFOptions struct {
-	// ExtractImages indicates whether to extract images from PDFs
-	ExtractImages bool `json:"extract_images,omitempty"`
-
-	// ExtractMetadata indicates whether to extract PDF metadata
-	ExtractMetadata bool `json:"extract_metadata,omitempty"`
-
-	// Hierarchy options for document hierarchy analysis
-	Hierarchy *HierarchyConfig `json:"hierarchy,omitempty"`
+	ExtractImages           bool             `json:"extract_images,omitempty"`
+	ExtractMetadata         bool             `json:"extract_metadata,omitempty"`
+	Hierarchy               *HierarchyConfig `json:"hierarchy,omitempty"`
+	ExtractAnnotations      bool             `json:"extract_annotations,omitempty"`
+	AllowSingleColumnTables bool             `json:"allow_single_column_tables,omitempty"`
 }
 
 // HierarchyConfig defines document hierarchy analysis options.
 type HierarchyConfig struct {
-	// Enabled enables hierarchy analysis
-	Enabled bool `json:"enabled,omitempty"`
-
-	// KClusters specifies the number of clusters for hierarchy detection
-	KClusters int `json:"k_clusters,omitempty"`
-
-	// IncludeBBox includes bounding box information in output
-	IncludeBBox bool `json:"include_bbox,omitempty"`
-
-	// OCRCoverageThreshold is the threshold for OCR coverage (0.0-1.0)
+	Enabled              bool    `json:"enabled,omitempty"`
+	KClusters            int     `json:"k_clusters,omitempty"`
+	IncludeBBox          bool    `json:"include_bbox,omitempty"`
 	OCRCoverageThreshold float64 `json:"ocr_coverage_threshold,omitempty"`
 }
 
 // ImagesConfig defines image extraction options.
 type ImagesConfig struct {
-	// ExtractImages indicates whether to extract images
-	ExtractImages bool `json:"extract_images,omitempty"`
-
-	// InjectPlaceholders injects placeholders where images were located
+	ExtractImages      bool `json:"extract_images,omitempty"`
+	TargetDPI          int  `json:"target_dpi,omitempty"`
+	MaxImageDimension  int  `json:"max_image_dimension,omitempty"`
 	InjectPlaceholders bool `json:"inject_placeholders,omitempty"`
+	AutoAdjustDPI      bool `json:"auto_adjust_dpi,omitempty"`
+	MinDPI             int  `json:"min_dpi,omitempty"`
+	MaxDPI             int  `json:"max_dpi,omitempty"`
 }
 
 // PagesConfig defines page-level processing options.
 type PagesConfig struct {
-	// ExtractPages enables page-level extraction
-	ExtractPages bool `json:"extract_pages,omitempty"`
-
-	// InsertPageMarkers inserts markers between pages
-	InsertPageMarkers bool `json:"insert_page_markers,omitempty"`
-
-	// MarkerFormat is the format string for page markers
-	MarkerFormat string `json:"marker_format,omitempty"`
-}
-
-// LayoutConfig defines layout analysis options.
-type LayoutConfig struct {
-	// Preset specifies the layout analysis preset (e.g., "accurate", "fast")
-	Preset string `json:"preset,omitempty"`
-
-	// ApplyHeuristics applies heuristic rules to layout analysis
-	ApplyHeuristics bool `json:"apply_heuristics,omitempty"`
+	ExtractPages      bool   `json:"extract_pages,omitempty"`
+	InsertPageMarkers bool   `json:"insert_page_markers,omitempty"`
+	MarkerFormat      string `json:"marker_format,omitempty"`
 }
 
 // KreuzbergParser extracts text from documents using the Kreuzberg HTTP API.
@@ -207,10 +236,99 @@ type KreuzbergExtractResponse struct {
 	Content           string                 `json:"content"`
 	MimeType          string                 `json:"mime_type"`
 	Metadata          map[string]interface{} `json:"metadata"`
-	Tables            []interface{}          `json:"tables"`
+	Tables            []any                  `json:"tables"`
 	DetectedLanguages []string               `json:"detected_languages"`
-	Chunks            interface{}            `json:"chunks"`
-	Images            interface{}            `json:"images"`
+	Chunks            []KreuzbergChunk       `json:"chunks"`
+	Images            []KreuzbergImage       `json:"images"`
+	Elements          []KreuzbergElement     `json:"elements"`
+	QualityScore      float64                `json:"quality_score"`
+	Pages             []KreuzbergPage        `json:"pages"`
+	URIs              []KreuzbergURI         `json:"uris"`
+	Annotations       []any                  `json:"annotations"`
+}
+
+type KreuzbergChunk struct {
+	Content   string             `json:"content"`
+	ChunkType string             `json:"chunk_type"`
+	Metadata  KreuzbergChunkMeta `json:"metadata"`
+}
+
+type KreuzbergChunkMeta struct {
+	ChunkIndex     int            `json:"chunk_index"`
+	TotalChunks    int            `json:"total_chunks"`
+	ByteStart      int            `json:"byte_start"`
+	ByteEnd        int            `json:"byte_end"`
+	FirstPage      int            `json:"first_page"`
+	LastPage       int            `json:"last_page"`
+	HeadingContext map[string]any `json:"heading_context"`
+}
+
+type KreuzbergImage struct {
+	Data       []byte             `json:"data"`
+	Format     string             `json:"format"`
+	Width      int                `json:"width"`
+	Height     int                `json:"height"`
+	PageNumber int                `json:"page_number"`
+	OCRResult  KreuzbergOCRResult `json:"ocr_result"`
+}
+
+type KreuzbergOCRResult struct {
+	Content     string                `json:"content"`
+	MimeType    string                `json:"mime_type"`
+	OCRElements []KreuzbergOCRElement `json:"ocr_elements"`
+}
+
+type KreuzbergOCRElement struct {
+	Text       string                 `json:"text"`
+	Geometry   KreuzbergOCRGeometry   `json:"geometry"`
+	Confidence KreuzbergOCRConfidence `json:"confidence"`
+	Level      string                 `json:"level"`
+	PageNumber int                    `json:"page_number"`
+}
+
+type KreuzbergOCRGeometry struct {
+	Type   string  `json:"type"`
+	Left   float64 `json:"left"`
+	Top    float64 `json:"top"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+type KreuzbergOCRConfidence struct {
+	Recognition float64 `json:"recognition"`
+}
+
+type KreuzbergElement struct {
+	ElementID   string         `json:"element_id"`
+	ElementType string         `json:"element_type"`
+	Text        string         `json:"text"`
+	Metadata    map[string]any `json:"metadata"`
+}
+
+type KreuzbergPage struct {
+	PageNumber int            `json:"page_number"`
+	Dimensions map[string]any `json:"dimensions"`
+	Metadata   map[string]any `json:"metadata"`
+}
+
+type KreuzbergURI struct {
+	URI  string `json:"uri"`
+	Type string `json:"type"`
+}
+
+// ParseFull parses the document content and returns structured KreuzbergExtractResponse.
+func (kp *KreuzbergParser) ParseFull(ctx context.Context, reader io.Reader) ([]KreuzbergExtractResponse, error) {
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("kreuzberg parser read all from reader failed: %w", err)
+	}
+
+	body, contentType, err := kp.buildMultipartBody(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return kp.executeExtractRequest(ctx, body, contentType)
 }
 
 // Parse parses the document content from io.Reader using Kreuzberg service.

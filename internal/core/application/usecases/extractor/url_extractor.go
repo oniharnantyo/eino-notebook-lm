@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/cloudwego/eino/schema"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
 )
 
@@ -34,7 +33,7 @@ func NewURLContentExtractor(maxTimeout time.Duration) *URLContentExtractor {
 }
 
 // Extract extracts content from a URL
-func (e *URLContentExtractor) Extract(ctx context.Context, source usecases.ContentSource) ([]*schema.Document, error) {
+func (e *URLContentExtractor) Extract(ctx context.Context, source usecases.ContentSource) (*ExtractionResult, error) {
 	if source.URL == "" {
 		return nil, fmt.Errorf("no URL provided for URL extraction")
 	}
@@ -89,15 +88,10 @@ func (e *URLContentExtractor) Extract(ctx context.Context, source usecases.Conte
 	metadata["content_type"] = contentType
 	metadata["content_length"] = len(body)
 
-	// Return as single document
-	docs := []*schema.Document{
-		{
-			Content:  string(body),
-			MetaData: metadata,
-		},
-	}
-
-	return docs, nil
+	return &ExtractionResult{
+		Content:  string(body),
+		Metadata: metadata,
+	}, nil
 }
 
 // isTextContent checks if the content type is text-based

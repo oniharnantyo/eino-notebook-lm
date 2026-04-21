@@ -1,0 +1,454 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776438258495,
+  "projectRoot": "/Users/oniharnantyo/projects/eino-notebook",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Go",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "go.mod"
+        ]
+      },
+      {
+        "name": "C/C++",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Makefile"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "go",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "make build",
+    "testCommand": "make test",
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "bin",
+      "docs",
+      "scripts"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "_bmad": {
+      "path": "_bmad",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1776438258474,
+      "keyFiles": []
+    },
+    "_bmad-output": {
+      "path": "_bmad-output",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1776438258477,
+      "keyFiles": []
+    },
+    "bin": {
+      "path": "bin",
+      "purpose": "Executable scripts",
+      "fileCount": 1,
+      "lastAccessed": 1776438258478,
+      "keyFiles": [
+        "eino-notebook"
+      ]
+    },
+    "build": {
+      "path": "build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1776438258478,
+      "keyFiles": []
+    },
+    "cmd": {
+      "path": "cmd",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1776438258479,
+      "keyFiles": [
+        "config.go",
+        "root.go",
+        "serve.go",
+        "version.go"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 4,
+      "lastAccessed": 1776438258480,
+      "keyFiles": [
+        "API_KNOWLEDGE_CREATION.md",
+        "ARCHITECTURE.md",
+        "DEVELOPMENT.md",
+        "LANGFUSE.md"
+      ]
+    },
+    "internal": {
+      "path": "internal",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1776438258480,
+      "keyFiles": []
+    },
+    "migrations": {
+      "path": "migrations",
+      "purpose": "Database migrations",
+      "fileCount": 21,
+      "lastAccessed": 1776438258482,
+      "keyFiles": [
+        "000001_initial_schema.down.sql",
+        "000001_initial_schema.up.sql",
+        "000002_seed_users.down.sql",
+        "000002_seed_users.up.sql",
+        "000003_add_sources_table.down.sql"
+      ]
+    },
+    "openspec": {
+      "path": "openspec",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1776438258482,
+      "keyFiles": [
+        "config.yaml"
+      ]
+    },
+    "pkg": {
+      "path": "pkg",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1776438258483,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 0,
+      "lastAccessed": 1776438258484,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "pkg/embedding/llamacpp/embedder.go",
+      "accessCount": 39,
+      "lastAccessed": 1776443799450,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/application/usecases/image/usecase.go",
+      "accessCount": 31,
+      "lastAccessed": 1776443496561,
+      "type": "file"
+    },
+    {
+      "path": "cmd/serve.go",
+      "accessCount": 18,
+      "lastAccessed": 1776444393634,
+      "type": "file"
+    },
+    {
+      "path": ".env.example",
+      "accessCount": 9,
+      "lastAccessed": 1776441874505,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/application/usecases/source/usecase.go",
+      "accessCount": 9,
+      "lastAccessed": 1776443600145,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 8,
+      "lastAccessed": 1776440372749,
+      "type": "directory"
+    },
+    {
+      "path": "internal/infrastructure/config/config.go",
+      "accessCount": 7,
+      "lastAccessed": 1776439305137,
+      "type": "file"
+    },
+    {
+      "path": "pkg/model/chat_factory.go",
+      "accessCount": 5,
+      "lastAccessed": 1776439418092,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000011_alter_embedding_dimension_to_2048.up.sql",
+      "accessCount": 5,
+      "lastAccessed": 1776440372667,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000011_alter_embedding_dimension_to_2048.down.sql",
+      "accessCount": 4,
+      "lastAccessed": 1776439163087,
+      "type": "file"
+    },
+    {
+      "path": "pkg/parser/kreuzberg/kreuzberg.go",
+      "accessCount": 4,
+      "lastAccessed": 1776444153909,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000001_initial_schema.up.sql",
+      "accessCount": 3,
+      "lastAccessed": 1776440360365,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000010_refactor_knowledge_ingestion.up.sql",
+      "accessCount": 3,
+      "lastAccessed": 1776440360417,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000012_add_bm25_fulltext_search.up.sql",
+      "accessCount": 3,
+      "lastAccessed": 1776440537636,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000012_add_bm25_fulltext_search.down.sql",
+      "accessCount": 3,
+      "lastAccessed": 1776440565075,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/application/usecases/knowledge/usecase.go",
+      "accessCount": 3,
+      "lastAccessed": 1776443550143,
+      "type": "file"
+    },
+    {
+      "path": "pkg/indexer/pgvector/indexer.go",
+      "accessCount": 2,
+      "lastAccessed": 1776350727054,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/split-chat-embedding-config-llamacpp/proposal.md",
+      "accessCount": 2,
+      "lastAccessed": 1776351405840,
+      "type": "file"
+    },
+    {
+      "path": "pkg/model/provider.go",
+      "accessCount": 2,
+      "lastAccessed": 1776439299760,
+      "type": "file"
+    },
+    {
+      "path": "pkg/retriever/pgvector/retriever.go",
+      "accessCount": 2,
+      "lastAccessed": 1776440360524,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/application/usecases/sentence/usecase.go",
+      "accessCount": 2,
+      "lastAccessed": 1776441086719,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/application/usecases/document/parser.go",
+      "accessCount": 2,
+      "lastAccessed": 1776444173936,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/domain/entities/source.go",
+      "accessCount": 1,
+      "lastAccessed": 1776264584418,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/domain/entities/knowledge.go",
+      "accessCount": 1,
+      "lastAccessed": 1776264584496,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/application/usecases/extractor/file_extractor.go",
+      "accessCount": 1,
+      "lastAccessed": 1776264584568,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/domain/repositories/knowledge.go",
+      "accessCount": 1,
+      "lastAccessed": 1776265267610,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/application/dtos/knowledge.go",
+      "accessCount": 1,
+      "lastAccessed": 1776265304401,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/application/dtos/source.go",
+      "accessCount": 1,
+      "lastAccessed": 1776265304523,
+      "type": "file"
+    },
+    {
+      "path": "pkg/indexer/pgvector/config.go",
+      "accessCount": 1,
+      "lastAccessed": 1776268410716,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000003_add_sources_table.up.sql",
+      "accessCount": 1,
+      "lastAccessed": 1776268410789,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/refactor-knowledge-ingestion/proposal.md",
+      "accessCount": 1,
+      "lastAccessed": 1776330453996,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/refactor-knowledge-ingestion/design.md",
+      "accessCount": 1,
+      "lastAccessed": 1776330692234,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/refactor-knowledge-ingestion/specs/sentence-embedding/spec.md",
+      "accessCount": 1,
+      "lastAccessed": 1776330693028,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/refactor-knowledge-ingestion/specs/image-ingestion/spec.md",
+      "accessCount": 1,
+      "lastAccessed": 1776330694272,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/refactor-knowledge-ingestion/specs/s3-storage/spec.md",
+      "accessCount": 1,
+      "lastAccessed": 1776330695217,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/refactor-knowledge-ingestion/tasks.md",
+      "accessCount": 1,
+      "lastAccessed": 1776330860864,
+      "type": "file"
+    },
+    {
+      "path": "proxy.sh",
+      "accessCount": 1,
+      "lastAccessed": 1776349255083,
+      "type": "file"
+    },
+    {
+      "path": "proxy.py",
+      "accessCount": 1,
+      "lastAccessed": 1776349312501,
+      "type": "file"
+    },
+    {
+      "path": "pkg/model",
+      "accessCount": 1,
+      "lastAccessed": 1776350727112,
+      "type": "directory"
+    },
+    {
+      "path": "internal/core/application/usecases/response/response_usecase.go",
+      "accessCount": 1,
+      "lastAccessed": 1776351054348,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/split-chat-embedding-config-llamacpp/design.md",
+      "accessCount": 1,
+      "lastAccessed": 1776351426185,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/split-chat-embedding-config-llamacpp/specs/llamacpp-embedding/spec.md",
+      "accessCount": 1,
+      "lastAccessed": 1776351476338,
+      "type": "file"
+    },
+    {
+      "path": "openspec/changes/split-chat-embedding-config-llamacpp/tasks.md",
+      "accessCount": 1,
+      "lastAccessed": 1776351518595,
+      "type": "file"
+    },
+    {
+      "path": "pkg",
+      "accessCount": 1,
+      "lastAccessed": 1776354418746,
+      "type": "directory"
+    },
+    {
+      "path": "pkg/logger/logger.go",
+      "accessCount": 1,
+      "lastAccessed": 1776354421450,
+      "type": "file"
+    },
+    {
+      "path": "migrations",
+      "accessCount": 1,
+      "lastAccessed": 1776355270849,
+      "type": "directory"
+    },
+    {
+      "path": "internal/infrastructure/persistence/sentence.go",
+      "accessCount": 1,
+      "lastAccessed": 1776439187046,
+      "type": "file"
+    },
+    {
+      "path": "internal/infrastructure/persistence/utils.go",
+      "accessCount": 1,
+      "lastAccessed": 1776439195558,
+      "type": "file"
+    },
+    {
+      "path": "go.mod",
+      "accessCount": 1,
+      "lastAccessed": 1776439305197,
+      "type": "file"
+    },
+    {
+      "path": ".claude/skills/eino-component/reference/model",
+      "accessCount": 1,
+      "lastAccessed": 1776439305261,
+      "type": "directory"
+    }
+  ],
+  "userDirectives": []
+}

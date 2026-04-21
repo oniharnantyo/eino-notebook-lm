@@ -11,6 +11,18 @@ This is a Go-based notebook application using Clean Architecture with DDD princi
 - `internal/interfaces` - HTTP handlers and routes
 - `pkg/` - Shared packages (indexer, parser, uuid, logger)
 
+## Configuration
+
+The application uses independent configurations for chat and embedding models:
+- **Chat**: Configured via `CHAT_PROVIDER`, `CHAT_MODEL`, `CHAT_API_KEY`, `CHAT_BASE_URL`.
+- **Embedding**: Configured via `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_API_KEY`, `EMBEDDING_BASE_URL`, `EMBEDDING_DIMENSION`.
+
+Supported providers:
+- **Chat**: `gemini`, `openai` (scaffolded)
+- **Embedding**: `gemini`, `llamacpp`
+
+Model initialization should use factories in `pkg/model/chat_factory.go` and `pkg/model/embedding_factory.go`.
+
 ## Coding Conventions
 
 ### Dependency Injection

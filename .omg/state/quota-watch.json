@@ -1,8 +1,20 @@
 {
-  "turn_count": 1,
-  "last_session_id": "335dc0d6-9f8a-4697-a451-ad2f58d7c57f",
+  "turn_count": 5,
+  "last_session_id": "cfcccea9-6cdf-48f5-9f50-8ce1060a185a",
+  "last_event_key": "cfcccea9-6cdf-48f5-9f50-8ce1060a185a:transcript:529030f56bc5d2890b03dc053cb5b439e50ec28ac1f45068ff6f7fa2ab4eba5f",
+  "last_transcript_hash": "529030f56bc5d2890b03dc053cb5b439e50ec28ac1f45068ff6f7fa2ab4eba5f",
   "last_model": "gemini-3-flash-preview",
-  "last_turn_total_tokens": 62875,
-  "last_session_total_tokens": 1168669,
-  "updated_at": "2026-03-26T09:26:51.384Z"
+  "last_provider": "gemini",
+  "last_turn_total_tokens": 44722,
+  "last_session_total_tokens": 912416,
+  "session_totals_by_model": {
+    "gemini-3-flash-preview": 798469,
+    "gemini-3.1-pro-preview": 113947
+  },
+  "session_totals_by_provider": {
+    "gemini": 912416
+  },
+  "cwd_mode": "parent-leaf",
+  "last_cwd_label": "projects/eino-notebook",
+  "updated_at": "2026-04-21T14:49:36.326Z"
 }

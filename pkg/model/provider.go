@@ -15,30 +15,10 @@ import (
 type Provider string
 
 const (
-	ProviderGemini Provider = "gemini"
-	ProviderOpenAI Provider = "openai"
+	ProviderGemini   Provider = "gemini"
+	ProviderOpenAI   Provider = "openai"
+	ProviderLlamaCpp Provider = "llamacpp"
 )
-
-// InferProvider infers the provider from the model name prefix
-// Format: "provider/model-name" (e.g., "gemini/gemini-2.0-flash-exp", "openai/gpt-4o-mini")
-func InferProvider(modelName string) Provider {
-	if strings.HasPrefix(modelName, "gemini/") {
-		return ProviderGemini
-	}
-	if strings.HasPrefix(modelName, "openai/") {
-		return ProviderOpenAI
-	}
-	// For backward compatibility, try to infer from model name
-	switch {
-	case strings.HasPrefix(modelName, "gemini-"), strings.HasPrefix(modelName, "text-embedding-"):
-		return ProviderGemini
-	case strings.HasPrefix(modelName, "gpt-"), strings.HasPrefix(modelName, "o1-"):
-		return ProviderOpenAI
-	default:
-		// Default to Gemini for unknown models
-		return ProviderGemini
-	}
-}
 
 // ExtractModelName extracts the actual model name from the provider-prefixed format
 // e.g., "gemini/gemini-2.0-flash-exp" -> "gemini-2.0-flash-exp"

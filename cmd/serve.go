@@ -12,27 +12,26 @@ import (
 	langfusecallback "github.com/cloudwego/eino-ext/callbacks/langfuse"
 	"github.com/cloudwego/eino-ext/components/document/transformer/splitter/recursive"
 	"github.com/cloudwego/eino/callbacks"
-	einodoc "github.com/cloudwego/eino/components/document"
-	"github.com/cloudwego/eino/components/embedding"
-	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/genai"
 
 	artifactusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/artifact"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/conversation"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/image"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
 	mindmapusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/mindmap"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/notebook"
 	responseusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/sentence"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/config"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/persistence"
+	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/storage"
 	"github.com/oniharnantyo/eino-notebook/internal/interfaces/http/handlers"
 	httproutes "github.com/oniharnantyo/eino-notebook/internal/interfaces/http/routes"
 	"github.com/oniharnantyo/eino-notebook/pkg/indexer/pgvector"
@@ -124,29 +123,60 @@ The server can be configured with custom host and port settings.`,
 		defer dbPool.Close()
 		log.Info("initialized", "db_pool", "pgxpool")
 
-		// Create pgvector indexer with default configuration
-		// The pgvector package has built-in defaults for all fields
-		pgvectorConfig := &pgvector.Config{
+		// Initialize S3 storage
+		s3Storage, err := storage.NewS3Storage(cfg.S3)
+		if err != nil {
+			return fmt.Errorf("failed to create S3 storage: %w", err)
+		}
+		if err := s3Storage.EnsureBucket(ctx); err != nil {
+			log.Warn("failed to ensure S3 bucket exists", "error", err)
+		}
+		log.Info("initialized", "storage", "S3", "bucket", cfg.S3.Bucket)
+
+		// Create pgvector indexers for different content types (for storage/indexing)
+		// Sentence indexer
+		sentenceIndexerConfig := &pgvector.Config{
 			Pool:                   dbPool,
-			Dimension:              cfg.Model.EmbeddingDimension,
-			ReferenceIDColumn:      "source_id",
+			TableName:              "sentences",
+			Dimension:              cfg.Embedding.Dimension,
+			ReferenceIDColumn:      "knowledge_id", // Sentences reference knowledge chunks
 			AutoCreateTable:        false,
-			DropBeforeCreate:       false,
-			AutoCreateExtension:    false,
 			CreateIndexIfNotExists: false,
 		}
-		vectorIndexer, err := pgvector.NewIndexer(ctx, pgvectorConfig)
+		sentenceIndexer, err := pgvector.NewIndexer(ctx, sentenceIndexerConfig)
 		if err != nil {
-			return fmt.Errorf("failed to create pgvector indexer: %w", err)
+			return fmt.Errorf("failed to create sentence indexer: %w", err)
 		}
-		log.Info("initialized", "indexer", "pgvector",
-			"dimension", cfg.Model.EmbeddingDimension)
+		log.Info("initialized", "indexer", "sentence-pgvector")
+		_ = sentenceIndexer // Repositories use dbPool directly for now, but indexer is initialized as requested
+
+		// Image indexer
+		imageIndexerConfig := &pgvector.Config{
+			Pool:                   dbPool,
+			TableName:              "images",
+			Dimension:              cfg.Embedding.Dimension,
+			ReferenceIDColumn:      "source_id", // Images reference sources directly
+			AutoCreateTable:        false,
+			CreateIndexIfNotExists: false,
+		}
+		imageIndexer, err := pgvector.NewIndexer(ctx, imageIndexerConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create image indexer: %w", err)
+		}
+		log.Info("initialized", "indexer", "image-pgvector")
+		_ = imageIndexer
 
 		notebookRepo := persistence.NewPostgresNotebookRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresNotebookRepository")
 
 		knowledgeRepo := persistence.NewPostgresKnowledgeRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresKnowledgeRepository")
+
+		sentenceRepo := persistence.NewPostgresSentenceRepository(dbPool)
+		log.Info("initialized", "repository", "PostgresSentenceRepository")
+
+		imageRepo := persistence.NewPostgresImageRepository(dbPool)
+		log.Info("initialized", "repository", "PostgresImageRepository")
 
 		sourceRepo := persistence.NewPostgresSourceRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresSourceRepository")
@@ -157,116 +187,80 @@ The server can be configured with custom host and port settings.`,
 		artifactRepo := persistence.NewPostgresArtifactRepository(dbPool)
 		log.Info("initialized", "repository", "PostgresArtifactRepository")
 
-		// Create embedder based on provider from model config
-		chatProvider := model.InferProvider(cfg.Model.ChatModel)
-		embeddingProvider := model.InferProvider(cfg.Model.EmbeddingModel)
-
-		var embedder embedding.Embedder
-		var geminiClient *genai.Client
-
-		// Initialize Gemini client if needed
-		if (chatProvider == model.ProviderGemini || embeddingProvider == model.ProviderGemini) &&
-			cfg.Gemini.APIKey != "" {
-			client, err := model.NewGeminiClient(ctx, cfg.Gemini.APIKey)
-			if err != nil {
-				log.Warn("failed to create Gemini client", "error", err)
-			} else {
-				geminiClient = client
-				// Create Gemini embedder if needed
-				if embeddingProvider == model.ProviderGemini {
-					modelName := model.ExtractModelName(cfg.Model.EmbeddingModel)
-					embedder, err = model.CreateGeminiEmbedder(ctx, client, modelName, cfg.Model.EmbeddingDimension)
-					if err != nil {
-						log.Warn("failed to initialize Gemini embedder", "error", err)
-					} else {
-						log.Info("initialized", "embedder", "Gemini", "model", modelName, "dimension", cfg.Model.EmbeddingDimension)
-					}
-				}
-			}
+		// Initialize embedder using factory
+		embedder, err := model.CreateEmbedder(ctx, &cfg.Embedding)
+		if err != nil {
+			log.Warn("failed to initialize embedder", "error", err)
+		} else {
+			log.Info("initialized", "embedder", cfg.Embedding.Provider, "model", cfg.Embedding.Model, "dimension", cfg.Embedding.Dimension)
 		}
 
-		// TODO: Add OpenAI support when needed
-		if embeddingProvider == model.ProviderOpenAI {
-			log.Warn("OpenAI provider not yet implemented", "provider", "openai")
+		// Initialize vision embedder for image processing
+		visionEmbedder, err := model.CreateVisionEmbedder(ctx, &cfg.Embedding)
+		if err != nil {
+			log.Warn("failed to initialize vision embedder", "error", err)
+		} else {
+			log.Info("initialized", "vision_embedder", cfg.Embedding.Provider, "model", cfg.Embedding.Model, "dimension", cfg.Embedding.Dimension)
+		}
+
+		// Initialize vision describer for image description generation
+		visionDescriber, err := model.CreateVisionDescriber(ctx, &cfg.Chat)
+		if err != nil {
+			log.Warn("failed to initialize vision describer", "error", err)
+		} else {
+			log.Info("initialized", "vision_describer", cfg.Chat.Provider, "model", cfg.Chat.Model)
 		}
 
 		// Application Layer (Use Cases)
 		notebookUseCase := notebook.NewNotebookUseCase(notebookRepo)
 		log.Info("initialized", "usecase", "NotebookUseCase")
 
-		// Create document transformer based on configuration
-		var docTransformer einodoc.Transformer
-		switch cfg.Transformer.Type {
-		case "recursive":
-			// Use recursive character splitter with overlap
-			docTransformer, err = recursive.NewSplitter(ctx, &recursive.Config{
-				ChunkSize:   cfg.Transformer.RecursiveSplitterConfig.ChunkSize,
-				OverlapSize: cfg.Transformer.RecursiveSplitterConfig.OverlapSize,
-				Separators:  []string{"\n\n", "\n", ". ", " ", ""},
-				IDGenerator: func(ctx context.Context, originalID string, splitIndex int) string {
-					return fmt.Sprintf("%s-%d", originalID, splitIndex)
-				},
-			})
-			if err != nil {
-				log.Warn("failed to create recursive splitter", "error", err)
-				docTransformer = nil
-			} else {
-				log.Info("initialized", "transformer", "recursive-splitter",
-					"chunk_size", cfg.Transformer.RecursiveSplitterConfig.ChunkSize,
-					"overlap_size", cfg.Transformer.RecursiveSplitterConfig.OverlapSize)
-			}
-		default:
-			log.Warn("unknown transformer type", "type", cfg.Transformer.Type, "error", "falling back to recursive splitter")
-			docTransformer, err = recursive.NewSplitter(ctx, &recursive.Config{
-				ChunkSize:   cfg.Transformer.RecursiveSplitterConfig.ChunkSize,
-				OverlapSize: cfg.Transformer.RecursiveSplitterConfig.OverlapSize,
-				Separators:  []string{"\n\n", "\n", ". ", " ", ""},
-			})
-			if err != nil {
-				log.Warn("failed to create fallback recursive splitter", "error", err)
-				docTransformer = nil
-			} else {
-				log.Info("initialized", "transformer", "recursive-splitter", "note", "fallback",
-					"chunk_size", cfg.Transformer.RecursiveSplitterConfig.ChunkSize,
-					"overlap_size", cfg.Transformer.RecursiveSplitterConfig.OverlapSize)
-			}
+		// Create a transformer specifically for sentences (Shard 10.2)
+		sentenceTransformer, err := recursive.NewSplitter(ctx, &recursive.Config{
+			ChunkSize:   200,
+			OverlapSize: 20,
+			Separators:  []string{"\n\n", "\n", ". ", " ", ""},
+		})
+		if err != nil {
+			log.Warn("failed to create sentence splitter", "error", err)
+		} else {
+			log.Info("initialized", "transformer", "sentence-splitter",
+				"chunk_size", 200, "overlap_size", 20)
 		}
 
-		knowledgeUseCase := knowledge.NewKnowledgeUseCase(knowledgeRepo, sourceRepo, vectorIndexer, embedder, docTransformer)
+		knowledgeUseCase := knowledge.NewKnowledgeUseCase(knowledgeRepo)
 		log.Info("initialized", "usecase", "KnowledgeUseCase")
+
+		sentenceUseCase := sentence.NewSentenceUseCase(sentenceRepo, sentenceTransformer, embedder)
+		log.Info("initialized", "usecase", "SentenceUseCase")
+
+		imageUseCase := image.NewImageUseCase(imageRepo, s3Storage, visionEmbedder, visionDescriber, log)
+		log.Info("initialized", "usecase", "ImageUseCase")
 
 		conversationUseCase := conversation.NewConversationUseCase(conversationRepo)
 		log.Info("initialized", "usecase", "ConversationUseCase")
 
-		// Create pgvector retriever for RAG
+		// Create pgvector retriever for RAG (searching in sentences table)
 		pgvectorRetriever, err := pgvectoretriever.NewRetriever(ctx, &pgvectoretriever.Config{
 			Pool:                    dbPool,
-			Dimension:               cfg.Model.EmbeddingDimension,
-			ReferenceIDColumn:       "source_id",
+			TableName:               "sentences",
+			Dimension:               cfg.Embedding.Dimension,
+			ReferenceIDColumn:       "knowledge_id", // Sentences reference knowledge chunks
 			AutoCreateBM25Extension: true,
 			AutoCreateBM25Index:     true,
 		})
 		if err != nil {
 			log.Warn("failed to create pgvector retriever", "error", err)
 		} else {
-			log.Info("initialized", "retriever", "pgvector")
+			log.Info("initialized", "retriever", "pgvector", "table", "sentences")
 		}
 
-		// Create chat model based on provider from model config
-		var chatModel einomodel.BaseChatModel
-		if chatProvider == model.ProviderGemini && geminiClient != nil {
-			modelName := model.ExtractModelName(cfg.Model.ChatModel)
-			chatModel, err = model.CreateGeminiChatModel(ctx, geminiClient, modelName)
-			if err != nil {
-				log.Warn("failed to initialize Gemini chat model", "error", err)
-			} else {
-				log.Info("initialized", "chat_model", "Gemini", "model", modelName)
-			}
-		}
-
-		// TODO: Add OpenAI support when needed
-		if chatProvider == model.ProviderOpenAI {
-			log.Warn("OpenAI provider not yet implemented", "provider", "openai")
+		// Initialize chat model using factory
+		chatModel, err := model.CreateChatModel(ctx, &cfg.Chat)
+		if err != nil {
+			log.Warn("failed to initialize chat model", "error", err)
+		} else {
+			log.Info("initialized", "chat_model", cfg.Chat.Provider, "model", cfg.Chat.Model)
 		}
 
 		// Create response use case with history management configuration
@@ -280,62 +274,122 @@ The server can be configured with custom host and port settings.`,
 				TokenEstimationRatio: 4,    // 1 token ≈ 4 chars
 				SummarizeThreshold:   5,    // Summarize messages older than 5 turns
 			}
-			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, pgvectorRetriever, embedder, chatModel, cfg.Model.ChatModel, historyConfig)
+			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, pgvectorRetriever, embedder, chatModel, cfg.Chat.Model, historyConfig)
 			log.Info("initialized", "usecase", "ResponseUseCase", "history_strategy", historyConfig.Strategy, "max_messages", historyConfig.MaxMessages)
 		}
 
-		// Initialize Kreuzberg document parser with hardcoded extract config
+		// Initialize Kreuzberg document parser with the provided detailed configuration
 		kreuzbergConfig := &kreuzberg.Config{
 			ServiceURL:   cfg.Kreuzberg.ServiceURL,
 			OutputFormat: cfg.Kreuzberg.OutputFormat,
 			Timeout:      cfg.Kreuzberg.Timeout,
 			ExtractConfig: &kreuzberg.ExtractConfig{
+				UseCache:                 true,
 				EnableQualityProcessing:  true,
-				ForceOCR:                 true,
+				ForceOCR:                 false,
+				DisableOCR:               false,
+				ExtractionTimeoutSecs:    300,
+				MaxConcurrentExtractions: 4,
 				ResultFormat:             "element_based",
 				OutputFormat:             "markdown",
-				IncludeDocumentStructure: true,
-				TableExtractionMode:      "",
+				IncludeDocumentStructure: false,
+				CacheTTLSecs:             3600,
+				MaxArchiveDepth:          4,
 				OCR: &kreuzberg.OCRConfig{
-					Backend:  "paddleocr",
-					Language: "eng",
+					Backend:    "paddleocr",
+					Language:   "eng",
+					AutoRotate: true,
 					PaddleOCRConfig: &kreuzberg.PaddleOCRConfig{
-						ModelTier: "mobile",
-						Padding:   10,
+						Language:             "en",
+						UseAngleCls:          true,
+						EnableTableDetection: true,
+						DetDBThresh:          0.3,
+						DetDBBoxThresh:       0.6,
+						DetDBUnclipRatio:     1.5,
+						DetLimitSideLen:      960,
+						RecBatchNum:          6,
+						Padding:              0,
+						DropScore:            0.5,
+						ModelTier:            "mobile",
+					},
+					QualityThresholds: &kreuzberg.QualityThresholds{
+						MinTotalNonWhitespace:       10,
+						MinNonWhitespacePerPage:     5,
+						MinMeaningfulWordLen:        3,
+						MinMeaningfulWords:          3,
+						MinAlnumRatio:               0.25,
+						MinGarbageChars:             100,
+						MaxFragmentedWordRatio:      0.5,
+						CriticalFragmentedWordRatio: 0.8,
+						MinAvgWordLength:            3.5,
+						MinWordsForAvgLengthCheck:   10,
+						MinConsecutiveRepeatRatio:   0.2,
+						MinWordsForRepeatCheck:      20,
+						SubstantiveMinChars:         100,
+						NonTextMinChars:             50,
+						AlnumWsRatioThreshold:       0.1,
+						PipelineMinQuality:          0.7,
 					},
 				},
-				PDFOptions: &kreuzberg.PDFOptions{
-					ExtractImages:   false,
-					ExtractMetadata: true,
-					Hierarchy: &kreuzberg.HierarchyConfig{
-						Enabled:              false,
-						KClusters:            6,
-						IncludeBBox:          false,
-						OCRCoverageThreshold: 0.5,
-					},
+				ContentFilter: &kreuzberg.ContentFilter{
+					StripRepeatingText: true,
 				},
 				Images: &kreuzberg.ImagesConfig{
-					ExtractImages:      false,
+					ExtractImages:      true,
+					TargetDPI:          72,
+					MaxImageDimension:  512,
 					InjectPlaceholders: true,
+					AutoAdjustDPI:      true,
+					MinDPI:             72,
+					MaxDPI:             150,
+				},
+				PDFOptions: &kreuzberg.PDFOptions{
+					ExtractImages:           true,
+					ExtractMetadata:         true,
+					ExtractAnnotations:      true,
+					AllowSingleColumnTables: true,
+					Hierarchy: &kreuzberg.HierarchyConfig{
+						Enabled:              false,
+						KClusters:            3,
+						IncludeBBox:          false,
+						OCRCoverageThreshold: 0.1,
+					},
+				},
+				TreeSitter: &kreuzberg.TreeSitter{
+					Enabled:             true,
+					ContentMode:         "full",
+					IncludeSyntaxColors: true,
+					CommentStyle:        "docstring",
+				},
+				SecurityLimits: &kreuzberg.SecurityLimits{
+					MaxArchiveSize:      104857600,
+					MaxCompressionRatio: 100,
+					MaxFilesInArchive:   1000,
+					MaxNestingDepth:     10,
+					MaxEntityLength:     65536,
+					MaxContentSize:      10485760,
+					MaxIterations:       1000,
+					MaxXMLDepth:         100,
+					MaxTableCells:       10000,
 				},
 				Pages: &kreuzberg.PagesConfig{
-					ExtractPages:      true,
-					InsertPageMarkers: true,
-					MarkerFormat:      "\n\n\n\n",
+					ExtractPages: false,
 				},
-				Layout: &kreuzberg.LayoutConfig{
-					Preset:          "accurate",
-					ApplyHeuristics: true,
+				Chunking: &kreuzberg.Chunking{
+					MaxCharacters:         1000,
+					Overlap:               200,
+					Trim:                  true,
+					ChunkerType:           "markdown",
+					PrependHeadingContext: false,
+					Sizing: &kreuzberg.ChunkSizing{
+						Type: "characters",
+					},
 				},
 			},
 		}
 
-		// Create raw Kreuzberg parser for file extractor
-		rawKreuzbergParser, err := kreuzberg.NewKreuzbergParser(kreuzbergConfig)
-		if err != nil {
-			log.Error("failed to initialize raw Kreuzberg parser", "error", err)
-			panic("failed to initialize raw Kreuzberg parser: " + err.Error())
-		}
+		// rawKreuzbergParser kept for fallback (currently unused, Docling is default)
+		_ = kreuzbergConfig
 
 		kreuzbergDocParser, err := document.NewKreuzbergDocumentParser(kreuzbergConfig)
 		if err != nil {
@@ -350,7 +404,7 @@ The server can be configured with custom host and port settings.`,
 
 		// Initialize content extractors following SOLID principles
 		// Strategy Pattern: Different extractors for different content types
-		fileExtractor := extractor.NewFileContentExtractor(rawKreuzbergParser, 100<<20)
+		fileExtractor := extractor.NewFileContentExtractor(kreuzbergDocParser, 100<<20)
 		urlExtractor := extractor.NewURLContentExtractor(30 * time.Second)
 		textExtractor := extractor.NewTextContentExtractor(1 << 20)
 
@@ -363,7 +417,7 @@ The server can be configured with custom host and port settings.`,
 		log.Info("initialized", "factory", "ContentExtractorFactory")
 
 		// Create source usecase with content extraction dependencies
-		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, knowledgeUseCase, log)
+		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, knowledgeUseCase, sentenceUseCase, imageUseCase, log)
 		log.Info("initialized", "usecase", "SourceUseCase")
 
 		// Create artifact usecase

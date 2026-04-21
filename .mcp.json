@@ -9,6 +9,14 @@
         "postgresql://postgres:password@localhost:5432/eino_notebook?sslmode=disable"
       ],
       "env": {}
+    },
+    "openapi": {
+      "command": "uvx",
+      "args": ["awslabs.openapi-mcp-server@latest"],
+      "env": {
+        "API_SPEC_URL": "http://0.0.0.0:5001/openapi.json",
+        "LOG_LEVEL": "ERROR"
+      }
     }
   }
 }

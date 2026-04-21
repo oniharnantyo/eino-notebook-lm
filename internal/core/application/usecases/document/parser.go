@@ -32,6 +32,9 @@ type DocumentParser interface {
 	// Parse parses a document from io.Reader and returns schema documents
 	Parse(ctx context.Context, reader io.Reader, opts ...parser.Option) ([]*schema.Document, error)
 
+	// ParseFull parses the document and returns full Kreuzberg structured results
+	ParseFull(ctx context.Context, reader io.Reader) ([]kreuzberg.KreuzbergExtractResponse, error)
+
 	// IsAvailable checks if the parser is available
 	IsAvailable(ctx context.Context) bool
 }
@@ -53,6 +56,11 @@ func NewKreuzbergDocumentParser(cfg *kreuzberg.Config) (DocumentParser, error) {
 // Parse parses a document using Kreuzberg
 func (p *KreuzbergDocumentParser) Parse(ctx context.Context, reader io.Reader, opts ...parser.Option) ([]*schema.Document, error) {
 	return p.parser.Parse(ctx, reader, opts...)
+}
+
+// ParseFull parses the document using Kreuzberg and returns full structured results
+func (p *KreuzbergDocumentParser) ParseFull(ctx context.Context, reader io.Reader) ([]kreuzberg.KreuzbergExtractResponse, error) {
+	return p.parser.ParseFull(ctx, reader)
 }
 
 // IsAvailable checks if the Kreuzberg parser is available

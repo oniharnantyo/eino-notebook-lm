@@ -12,6 +12,9 @@ type KnowledgeRepository interface {
 	// Save saves a knowledge (create or update)
 	Save(ctx context.Context, knowledge *entities.Knowledge) error
 
+	// SaveBatch saves multiple knowledges in a single operation
+	SaveBatch(ctx context.Context, knowledges []*entities.Knowledge) error
+
 	// FindByID finds a knowledge by ID
 	FindByID(ctx context.Context, id uuid.UUID) (*entities.Knowledge, error)
 

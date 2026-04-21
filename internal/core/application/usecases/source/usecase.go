@@ -5,16 +5,16 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
-
-	"github.com/cloudwego/eino/schema"
+	"sync"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/image"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/sentence"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/errors"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
@@ -44,6 +44,8 @@ type sourceUseCase struct {
 	contentExtractorFactory extractor.ContentExtractorFactory
 	documentParserFactory   *document.DocumentParserFactory
 	knowledgeUseCase        knowledge.KnowledgeUseCase
+	sentenceUseCase         sentence.SentenceUseCase
+	imageUseCase            image.ImageUseCase
 	logger                  *logger.Logger
 }
 
@@ -54,6 +56,8 @@ func NewSourceUseCase(
 	contentExtractorFactory extractor.ContentExtractorFactory,
 	documentParserFactory *document.DocumentParserFactory,
 	knowledgeUseCase knowledge.KnowledgeUseCase,
+	sentenceUseCase sentence.SentenceUseCase,
+	imageUseCase image.ImageUseCase,
 	log *logger.Logger,
 ) SourceUseCase {
 	return &sourceUseCase{
@@ -62,6 +66,8 @@ func NewSourceUseCase(
 		contentExtractorFactory: contentExtractorFactory,
 		documentParserFactory:   documentParserFactory,
 		knowledgeUseCase:        knowledgeUseCase,
+		sentenceUseCase:         sentenceUseCase,
+		imageUseCase:            imageUseCase,
 		logger:                  log,
 	}
 }
@@ -414,82 +420,112 @@ func (uc *sourceUseCase) processAsync(
 	defer func() {
 		if r := recover(); r != nil {
 			uc.logger.Error("Panic in async processing", "source_id", sourceID, "panic", r)
-			uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, fmt.Errorf("panic: %v", r))
+			_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, fmt.Errorf("panic: %v", r))
 		}
 	}()
 
-	// Update status to processing
+	// 1. Update status to processing
 	if err := uc.UpdateStatus(ctx, sourceID, entities.SourceStatusProcessing, nil); err != nil {
 		uc.logger.Error("Failed to update source status to processing", "source_id", sourceID, "error", err)
 		return
 	}
+	uc.logger.Info("Knowledge ingestion started", "source_id", sourceID)
 
-	docs, err := extractor.Extract(ctx, contentSource)
+	// 2. Extract content
+	result, err := extractor.Extract(ctx, contentSource)
 	if err != nil {
 		uc.logger.Error("Failed to extract content", "source_id", sourceID, "error", err)
-		uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
+		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
 		return
 	}
+	uc.logger.Info("Content extracted successfully", "source_id", sourceID, "chunks", len(result.Chunks), "images", len(result.Images))
 
-	// Combine extracted content from all documents
-	var contentBuilder strings.Builder
-	for _, doc := range docs {
-		contentBuilder.WriteString(doc.Content)
-		contentBuilder.WriteString("\n\n")
-	}
-	sanitizedContent := uc.sanitizeContent(contentBuilder.String())
-
-	// Get extracted metadata from first document if available
-	// The first document typically contains global metadata like filename, content_type, page_count
-	var extractedMetadata map[string]interface{}
-	if len(docs) > 0 && docs[0].MetaData != nil {
-		extractedMetadata = docs[0].MetaData
-	}
+	sanitizedContent := uc.sanitizeContent(result.Content)
 
 	// Merge metadata
-	mergedMetadata := extractedMetadata
+	mergedMetadata := result.Metadata
+	if mergedMetadata == nil {
+		mergedMetadata = make(map[string]interface{})
+	}
 	if metadata != nil {
-		if mergedMetadata == nil {
-			mergedMetadata = make(map[string]interface{})
-		}
 		for k, v := range metadata {
 			mergedMetadata[k] = v
 		}
 	}
+	if len(subIndexes) > 0 {
+		mergedMetadata["sub_indexes"] = subIndexes
+	}
+	if title != "" {
+		mergedMetadata["title"] = title
+	}
+	if sourceType != "" {
+		mergedMetadata["source_type"] = sourceType
+	}
 
-	// Update source with extracted content
+	// 3. Update source with extracted content and metadata
 	if err = uc.Update(ctx, sourceID, sanitizedContent, len(sanitizedContent)); err != nil {
 		uc.logger.Error("Failed to update source content", "source_id", sourceID, "error", err)
 		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
 		return
 	}
 
-	// Update source with metadata
 	if err = uc.UpdateMetadata(ctx, sourceID, mergedMetadata); err != nil {
 		uc.logger.Error("Failed to update source metadata", "source_id", sourceID, "error", err)
-		// Don't fail on metadata update error, just log it
 	}
+	uc.logger.Info("Source updated with extracted content", "source_id", sourceID, "content_size", len(sanitizedContent))
 
-	// Create knowledge
-	knowledgeReq := &dtos.CreateKnowledgeRequest{
-		SourceID:   sourceID,
-		Title:      title,
-		Content:    sanitizedContent,
-		SourceType: sourceType,
-		Metadata:   mergedMetadata,
-		SubIndexes: subIndexes,
-	}
-
-	if err = uc.knowledgeUseCase.Create(ctx, knowledgeReq); err != nil {
-		uc.logger.Error("Failed to create knowledge", "source_id", sourceID, "error", err)
+	// 4. Save Knowledge chunks
+	knowledges, err := uc.knowledgeUseCase.SaveChunks(ctx, sourceID, result.Chunks)
+	if err != nil {
+		uc.logger.Error("Failed to save knowledge chunks", "source_id", sourceID, "error", err)
 		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
 		return
 	}
+	uc.logger.Info("Knowledge chunks saved", "source_id", sourceID, "chunk_count", len(knowledges))
 
-	// Mark as completed
+	// 5. Process Sentences and Images in parallel
+	uc.logger.Info("Processing sentences and images", "source_id", sourceID, "parallel", true)
+
+	var wg sync.WaitGroup
+	errChan := make(chan error, 2)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := uc.sentenceUseCase.ProcessKnowledgeChunks(ctx, sourceID, knowledges); err != nil {
+			errChan <- fmt.Errorf("sentence processing error: %w", err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := uc.imageUseCase.ProcessImages(ctx, sourceID, result.Images); err != nil {
+			errChan <- fmt.Errorf("image processing error: %w", err)
+		}
+	}()
+
+	// Wait for processing to complete or error
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case err := <-errChan:
+		uc.logger.Error("Error in parallel processing", "source_id", sourceID, "error", err)
+		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
+		return
+	case <-done:
+		uc.logger.Info("Sentences and images processed successfully", "source_id", sourceID)
+	}
+
+	// 6. Mark as completed
 	if err = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusCompleted, nil); err != nil {
 		uc.logger.Error("Failed to update source status to completed", "source_id", sourceID, "error", err)
 	}
+	uc.logger.Info("Knowledge ingestion completed successfully", "source_id", sourceID, "status", "completed")
 }
 
 // processSync processes content extraction and knowledge creation synchronously
@@ -503,97 +539,78 @@ func (uc *sourceUseCase) processSync(
 	metadata map[string]interface{},
 	subIndexes []string,
 ) error {
-	// Extract content
-	// docs is a slice of schema.Document containing extracted text and metadata
-	// For multi-page documents (PDF, DOCX), docs contains one document per page
-	// Each document includes:
-	//   - Content: The extracted text content
-	//   - MetaData: Page-specific metadata (page_number, dimensions, etc.)
-	//   - ID: Unique identifier for the document/chunk
-	docs, err := extractor.Extract(ctx, contentSource)
+	// 1. Extract content
+	uc.logger.Info("Knowledge ingestion started (sync)", "source_id", sourceID)
+	result, err := extractor.Extract(ctx, contentSource)
 	if err != nil {
+		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
 		return fmt.Errorf("failed to extract content: %w", err)
 	}
+	uc.logger.Info("Content extracted successfully", "source_id", sourceID, "chunks", len(result.Chunks), "images", len(result.Images))
 
-	// Concatenate all documents into a single content string
-	sanitizedContent := uc.concatenateDocuments(docs)
-
-	// Sanitize content to remove null bytes that PostgreSQL rejects
-	sanitizedContent = uc.sanitizeContent(sanitizedContent)
-
-	// Get extracted metadata from first document if available
-	// The first document typically contains global metadata like filename, content_type, page_count
-	var extractedMetadata map[string]interface{}
-	if len(docs) > 0 && docs[0].MetaData != nil {
-		extractedMetadata = docs[0].MetaData
-	}
+	sanitizedContent := uc.sanitizeContent(result.Content)
 
 	// Merge metadata
-	mergedMetadata := extractedMetadata
+	mergedMetadata := result.Metadata
+	if mergedMetadata == nil {
+		mergedMetadata = make(map[string]interface{})
+	}
 	if metadata != nil {
-		if mergedMetadata == nil {
-			mergedMetadata = make(map[string]interface{})
-		}
 		for k, v := range metadata {
 			mergedMetadata[k] = v
 		}
 	}
+	if len(subIndexes) > 0 {
+		mergedMetadata["sub_indexes"] = subIndexes
+	}
+	if title != "" {
+		mergedMetadata["title"] = title
+	}
+	if sourceType != "" {
+		mergedMetadata["source_type"] = sourceType
+	}
 
-	// Update source with extracted content
+	// 2. Update source with extracted content and metadata
 	if err = uc.Update(ctx, sourceID, sanitizedContent, len(sanitizedContent)); err != nil {
+		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
 		return fmt.Errorf("failed to update source content: %w", err)
 	}
 
-	// Update source with metadata
 	if err = uc.UpdateMetadata(ctx, sourceID, mergedMetadata); err != nil {
 		uc.logger.Error("Failed to update source metadata", "source_id", sourceID, "error", err)
-		// Don't fail on metadata update error, just log it
 	}
+	uc.logger.Info("Source updated with extracted content", "source_id", sourceID, "content_size", len(sanitizedContent))
 
-	// Create knowledge
-	knowledgeReq := &dtos.CreateKnowledgeRequest{
-		SourceID:   sourceID,
-		Title:      title,
-		Content:    sanitizedContent,
-		SourceType: sourceType,
-		Metadata:   mergedMetadata,
-		SubIndexes: subIndexes,
+	// 3. Save Knowledge chunks
+	knowledges, err := uc.knowledgeUseCase.SaveChunks(ctx, sourceID, result.Chunks)
+	if err != nil {
+		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
+		return fmt.Errorf("failed to save knowledge chunks: %w", err)
 	}
+	uc.logger.Info("Knowledge chunks saved", "source_id", sourceID, "chunk_count", len(knowledges))
 
-	if err = uc.knowledgeUseCase.Create(ctx, knowledgeReq); err != nil {
-		return fmt.Errorf("failed to create knowledge: %w", err)
+	// 4. Process Sentences
+	uc.logger.Info("Processing sentences", "source_id", sourceID)
+	if err = uc.sentenceUseCase.ProcessKnowledgeChunks(ctx, sourceID, knowledges); err != nil {
+		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
+		return fmt.Errorf("failed to process sentences: %w", err)
 	}
+	uc.logger.Info("Sentences processed successfully", "source_id", sourceID)
 
-	// Mark as completed
-	return uc.UpdateStatus(ctx, sourceID, entities.SourceStatusCompleted, nil)
-}
-
-// concatenateDocuments concatenates multiple documents into a single string.
-func (uc *sourceUseCase) concatenateDocuments(docs []*schema.Document) string {
-	if len(docs) == 0 {
-		return ""
+	// 5. Process Images
+	uc.logger.Info("Processing images", "source_id", sourceID, "image_count", len(result.Images))
+	if err = uc.imageUseCase.ProcessImages(ctx, sourceID, result.Images); err != nil {
+		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
+		return fmt.Errorf("failed to process images: %w", err)
 	}
+	uc.logger.Info("Images processed successfully", "source_id", sourceID)
 
-	var b strings.Builder
-	for i, doc := range docs {
-		if doc.Content == "" {
-			continue
-		}
-		if i > 0 {
-			// Add separator between documents if page info exists
-			if pageNum, ok := doc.MetaData["page_number"].(int); ok {
-				b.WriteString("\n\n--- PAGE ")
-				b.WriteString(strconv.Itoa(pageNum))
-				b.WriteString(" ---\n\n")
-			} else {
-				b.WriteString("\n\n--- DOCUMENT ")
-				b.WriteString(strconv.Itoa(i + 1))
-				b.WriteString(" ---\n\n")
-			}
-		}
-		b.WriteString(doc.Content)
+	// 6. Mark as completed
+	if err = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusCompleted, nil); err != nil {
+		return fmt.Errorf("failed to update source status to completed: %w", err)
 	}
-	return b.String()
+	uc.logger.Info("Knowledge ingestion completed successfully", "source_id", sourceID, "status", "completed")
+	return nil
 }
 
 // sanitizeContent removes null bytes (0x00) from content.
