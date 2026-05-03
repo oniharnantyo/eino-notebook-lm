@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases"
@@ -14,6 +13,7 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/image"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/pipeline"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/sentence"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/errors"
@@ -34,7 +34,7 @@ type SourceUseCase interface {
 
 	// IngestContent handles content extraction and knowledge creation
 	// Supports both sync and async processing
-	IngestContent(ctx context.Context, req *dtos.IngestContentRequest) (*dtos.IngestContentResponse, error)
+	IngestContent(ctx context.Context, req *dtos.IngestContentRequest) (*dtos.IngestContentResponse, <-chan pipeline.Progress, error)
 }
 
 // sourceUseCase implements SourceUseCase
@@ -46,6 +46,7 @@ type sourceUseCase struct {
 	knowledgeUseCase        knowledge.KnowledgeUseCase
 	sentenceUseCase         sentence.SentenceUseCase
 	imageUseCase            image.ImageUseCase
+	pipelineFactory         pipeline.PipelineFactory
 	logger                  *logger.Logger
 }
 
@@ -58,6 +59,7 @@ func NewSourceUseCase(
 	knowledgeUseCase knowledge.KnowledgeUseCase,
 	sentenceUseCase sentence.SentenceUseCase,
 	imageUseCase image.ImageUseCase,
+	pipelineFactory pipeline.PipelineFactory,
 	log *logger.Logger,
 ) SourceUseCase {
 	return &sourceUseCase{
@@ -68,6 +70,7 @@ func NewSourceUseCase(
 		knowledgeUseCase:        knowledgeUseCase,
 		sentenceUseCase:         sentenceUseCase,
 		imageUseCase:            imageUseCase,
+		pipelineFactory:         pipelineFactory,
 		logger:                  log,
 	}
 }
@@ -282,7 +285,7 @@ func (uc *sourceUseCase) Delete(ctx context.Context, id string) error {
 
 // IngestContent handles content extraction and knowledge creation
 // Supports both sync and async processing
-func (uc *sourceUseCase) IngestContent(ctx context.Context, req *dtos.IngestContentRequest) (*dtos.IngestContentResponse, error) {
+func (uc *sourceUseCase) IngestContent(ctx context.Context, req *dtos.IngestContentRequest) (*dtos.IngestContentResponse, <-chan pipeline.Progress, error) {
 	// Step 1: Determine MIME type for source creation
 	mimeType := req.MIMEType
 	if mimeType == "" {
@@ -308,7 +311,7 @@ func (uc *sourceUseCase) IngestContent(ctx context.Context, req *dtos.IngestCont
 
 	sourceResp, err := uc.Create(ctx, createSourceReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create source: %w", err)
+		return nil, nil, fmt.Errorf("failed to create source: %w", err)
 	}
 
 	// Step 3: Build content source for extraction
@@ -316,14 +319,14 @@ func (uc *sourceUseCase) IngestContent(ctx context.Context, req *dtos.IngestCont
 	if err != nil {
 		// Mark source as failed
 		uc.UpdateStatus(ctx, sourceResp.ID, entities.SourceStatusFailed, err)
-		return nil, fmt.Errorf("failed to build content source: %w", err)
+		return nil, nil, fmt.Errorf("failed to build content source: %w", err)
 	}
 
 	// Step 4: Get appropriate extractor
 	contentExtractor, err := uc.contentExtractorFactory.GetExtractor(req.ContentType)
 	if err != nil {
 		uc.UpdateStatus(ctx, sourceResp.ID, entities.SourceStatusFailed, err)
-		return nil, fmt.Errorf("unsupported content type: %w", err)
+		return nil, nil, fmt.Errorf("unsupported content type: %w", err)
 	}
 
 	// Step 5: Determine source type
@@ -334,7 +337,7 @@ func (uc *sourceUseCase) IngestContent(ctx context.Context, req *dtos.IngestCont
 
 	// Step 6: Handle async vs sync processing
 	if req.Async {
-		go uc.processAsync(context.WithoutCancel(ctx), sourceResp.ID, contentSource, contentExtractor, req.Title, sourceType, req.Metadata, req.SubIndexes)
+		progressChan := uc.processAsync(context.WithoutCancel(ctx), sourceResp.ID, contentSource, contentExtractor, string(mimeType))
 
 		return &dtos.IngestContentResponse{
 			SourceID:        sourceResp.ID,
@@ -342,18 +345,24 @@ func (uc *sourceUseCase) IngestContent(ctx context.Context, req *dtos.IngestCont
 			IsAsync:         true,
 			StatusURL:       fmt.Sprintf("/api/v1/notebooks/%s/knowledges/status/%s", req.NotebookID, sourceResp.ID),
 			StatusStreamURL: fmt.Sprintf("/api/v1/notebooks/%s/knowledges/status/%s/stream", req.NotebookID, sourceResp.ID),
-		}, nil
+		}, progressChan, nil
 	}
 
 	// Sync processing
-	if err := uc.processSync(ctx, sourceResp.ID, contentSource, contentExtractor, req.Title, sourceType, req.Metadata, req.SubIndexes); err != nil {
-		return nil, err
+	progressChan, err := uc.processSync(ctx, sourceResp.ID, contentSource, contentExtractor, string(mimeType))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Consume progress channel for sync request
+	for range progressChan {
+		// Just wait for completion
 	}
 
 	// Get updated source for response
 	source, err := uc.sourceRepo.GetByID(ctx, sourceResp.ID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get updated source: %w", err)
+		return nil, nil, fmt.Errorf("failed to get updated source: %w", err)
 	}
 
 	return &dtos.IngestContentResponse{
@@ -362,7 +371,7 @@ func (uc *sourceUseCase) IngestContent(ctx context.Context, req *dtos.IngestCont
 		Error:     source.Error,
 		UpdatedAt: source.UpdatedAt,
 		IsAsync:   false,
-	}, nil
+	}, nil, nil
 }
 
 // buildContentSource builds a ContentSource from the ingestion request
@@ -406,211 +415,64 @@ func (uc *sourceUseCase) buildContentSource(req *dtos.IngestContentRequest) (use
 	}
 }
 
-// processAsync processes content extraction and knowledge creation asynchronously
+// processAsync processes content extraction and knowledge creation asynchronously using the pipeline
 func (uc *sourceUseCase) processAsync(
 	ctx context.Context,
 	sourceID uuid.UUID,
 	contentSource usecases.ContentSource,
 	extractor extractor.ContentExtractor,
-	title string,
-	sourceType string,
-	metadata map[string]interface{},
-	subIndexes []string,
-) {
-	defer func() {
-		if r := recover(); r != nil {
-			uc.logger.Error("Panic in async processing", "source_id", sourceID, "panic", r)
-			_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, fmt.Errorf("panic: %v", r))
-		}
-	}()
-
-	// 1. Update status to processing
-	if err := uc.UpdateStatus(ctx, sourceID, entities.SourceStatusProcessing, nil); err != nil {
-		uc.logger.Error("Failed to update source status to processing", "source_id", sourceID, "error", err)
-		return
-	}
-	uc.logger.Info("Knowledge ingestion started", "source_id", sourceID)
-
-	// 2. Extract content
-	result, err := extractor.Extract(ctx, contentSource)
-	if err != nil {
-		uc.logger.Error("Failed to extract content", "source_id", sourceID, "error", err)
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return
-	}
-	uc.logger.Info("Content extracted successfully", "source_id", sourceID, "chunks", len(result.Chunks), "images", len(result.Images))
-
-	sanitizedContent := uc.sanitizeContent(result.Content)
-
-	// Merge metadata
-	mergedMetadata := result.Metadata
-	if mergedMetadata == nil {
-		mergedMetadata = make(map[string]interface{})
-	}
-	if metadata != nil {
-		for k, v := range metadata {
-			mergedMetadata[k] = v
-		}
-	}
-	if len(subIndexes) > 0 {
-		mergedMetadata["sub_indexes"] = subIndexes
-	}
-	if title != "" {
-		mergedMetadata["title"] = title
-	}
-	if sourceType != "" {
-		mergedMetadata["source_type"] = sourceType
+	mimeType string,
+) <-chan pipeline.Progress {
+	pipe := uc.pipelineFactory.Create(extractor, mimeType)
+	initialInput := pipeline.StageInput{
+		SourceID: sourceID,
+		Data:     contentSource,
 	}
 
-	// 3. Update source with extracted content and metadata
-	if err = uc.Update(ctx, sourceID, sanitizedContent, len(sanitizedContent)); err != nil {
-		uc.logger.Error("Failed to update source content", "source_id", sourceID, "error", err)
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return
-	}
+	progressChan := pipe.Ingest(ctx, initialInput)
 
-	if err = uc.UpdateMetadata(ctx, sourceID, mergedMetadata); err != nil {
-		uc.logger.Error("Failed to update source metadata", "source_id", sourceID, "error", err)
-	}
-	uc.logger.Info("Source updated with extracted content", "source_id", sourceID, "content_size", len(sanitizedContent))
-
-	// 4. Save Knowledge chunks
-	knowledges, err := uc.knowledgeUseCase.SaveChunks(ctx, sourceID, result.Chunks)
-	if err != nil {
-		uc.logger.Error("Failed to save knowledge chunks", "source_id", sourceID, "error", err)
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return
-	}
-	uc.logger.Info("Knowledge chunks saved", "source_id", sourceID, "chunk_count", len(knowledges))
-
-	// 5. Process Sentences and Images in parallel
-	uc.logger.Info("Processing sentences and images", "source_id", sourceID, "parallel", true)
-
-	var wg sync.WaitGroup
-	errChan := make(chan error, 2)
-
-	wg.Add(1)
+	// Wrap progress channel to handle source status updates and logging
+	wrappedChan := make(chan pipeline.Progress)
 	go func() {
-		defer wg.Done()
-		if err := uc.sentenceUseCase.ProcessKnowledgeChunks(ctx, sourceID, knowledges); err != nil {
-			errChan <- fmt.Errorf("sentence processing error: %w", err)
+		defer close(wrappedChan)
+
+		// 1. Update status to processing
+		if err := uc.UpdateStatus(ctx, sourceID, entities.SourceStatusProcessing, nil); err != nil {
+			uc.logger.Error("Failed to update source status to processing", "source_id", sourceID, "error", err)
+		}
+
+		for p := range progressChan {
+			if p.Status == pipeline.StatusFailed {
+				uc.logger.Error("Pipeline stage failed", "source_id", sourceID, "stage", p.StageName, "error", p.Error)
+				_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, p.Error)
+			}
+			wrappedChan <- p
 		}
 	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := uc.imageUseCase.ProcessImages(ctx, sourceID, result.Images); err != nil {
-			errChan <- fmt.Errorf("image processing error: %w", err)
-		}
-	}()
-
-	// Wait for processing to complete or error
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case err := <-errChan:
-		uc.logger.Error("Error in parallel processing", "source_id", sourceID, "error", err)
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return
-	case <-done:
-		uc.logger.Info("Sentences and images processed successfully", "source_id", sourceID)
-	}
-
-	// 6. Mark as completed
-	if err = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusCompleted, nil); err != nil {
-		uc.logger.Error("Failed to update source status to completed", "source_id", sourceID, "error", err)
-	}
-	uc.logger.Info("Knowledge ingestion completed successfully", "source_id", sourceID, "status", "completed")
+	return wrappedChan
 }
 
-// processSync processes content extraction and knowledge creation synchronously
+// processSync processes content extraction and knowledge creation synchronously using the pipeline
 func (uc *sourceUseCase) processSync(
 	ctx context.Context,
 	sourceID uuid.UUID,
 	contentSource usecases.ContentSource,
 	extractor extractor.ContentExtractor,
-	title string,
-	sourceType string,
-	metadata map[string]interface{},
-	subIndexes []string,
-) error {
-	// 1. Extract content
-	uc.logger.Info("Knowledge ingestion started (sync)", "source_id", sourceID)
-	result, err := extractor.Extract(ctx, contentSource)
-	if err != nil {
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return fmt.Errorf("failed to extract content: %w", err)
-	}
-	uc.logger.Info("Content extracted successfully", "source_id", sourceID, "chunks", len(result.Chunks), "images", len(result.Images))
-
-	sanitizedContent := uc.sanitizeContent(result.Content)
-
-	// Merge metadata
-	mergedMetadata := result.Metadata
-	if mergedMetadata == nil {
-		mergedMetadata = make(map[string]interface{})
-	}
-	if metadata != nil {
-		for k, v := range metadata {
-			mergedMetadata[k] = v
-		}
-	}
-	if len(subIndexes) > 0 {
-		mergedMetadata["sub_indexes"] = subIndexes
-	}
-	if title != "" {
-		mergedMetadata["title"] = title
-	}
-	if sourceType != "" {
-		mergedMetadata["source_type"] = sourceType
+	mimeType string,
+) (<-chan pipeline.Progress, error) {
+	pipe := uc.pipelineFactory.Create(extractor, mimeType)
+	initialInput := pipeline.StageInput{
+		SourceID: sourceID,
+		Data:     contentSource,
 	}
 
-	// 2. Update source with extracted content and metadata
-	if err = uc.Update(ctx, sourceID, sanitizedContent, len(sanitizedContent)); err != nil {
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return fmt.Errorf("failed to update source content: %w", err)
+	// 1. Update status to processing
+	if err := uc.UpdateStatus(ctx, sourceID, entities.SourceStatusProcessing, nil); err != nil {
+		uc.logger.Error("Failed to update source status to processing", "source_id", sourceID, "error", err)
 	}
 
-	if err = uc.UpdateMetadata(ctx, sourceID, mergedMetadata); err != nil {
-		uc.logger.Error("Failed to update source metadata", "source_id", sourceID, "error", err)
-	}
-	uc.logger.Info("Source updated with extracted content", "source_id", sourceID, "content_size", len(sanitizedContent))
-
-	// 3. Save Knowledge chunks
-	knowledges, err := uc.knowledgeUseCase.SaveChunks(ctx, sourceID, result.Chunks)
-	if err != nil {
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return fmt.Errorf("failed to save knowledge chunks: %w", err)
-	}
-	uc.logger.Info("Knowledge chunks saved", "source_id", sourceID, "chunk_count", len(knowledges))
-
-	// 4. Process Sentences
-	uc.logger.Info("Processing sentences", "source_id", sourceID)
-	if err = uc.sentenceUseCase.ProcessKnowledgeChunks(ctx, sourceID, knowledges); err != nil {
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return fmt.Errorf("failed to process sentences: %w", err)
-	}
-	uc.logger.Info("Sentences processed successfully", "source_id", sourceID)
-
-	// 5. Process Images
-	uc.logger.Info("Processing images", "source_id", sourceID, "image_count", len(result.Images))
-	if err = uc.imageUseCase.ProcessImages(ctx, sourceID, result.Images); err != nil {
-		_ = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusFailed, err)
-		return fmt.Errorf("failed to process images: %w", err)
-	}
-	uc.logger.Info("Images processed successfully", "source_id", sourceID)
-
-	// 6. Mark as completed
-	if err = uc.UpdateStatus(ctx, sourceID, entities.SourceStatusCompleted, nil); err != nil {
-		return fmt.Errorf("failed to update source status to completed: %w", err)
-	}
-	uc.logger.Info("Knowledge ingestion completed successfully", "source_id", sourceID, "status", "completed")
-	return nil
+	return pipe.Ingest(ctx, initialInput), nil
 }
 
 // sanitizeContent removes null bytes (0x00) from content.
