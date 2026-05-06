@@ -82,16 +82,30 @@ func (uc *usecase) validateOptional(req *Request) error {
 }
 ```
 
-### Error Handling
+### Ingestion Pipeline
 
-- Use `internal/core/domain/errors` for domain-specific errors
-- Wrap errors with context using `fmt.Errorf`
-- Return validation errors for invalid input, internal errors for system failures
+- Use the stage-based pipeline architecture located in `internal/core/application/usecases/pipeline/`.
+- Every pipeline stage MUST implement the `Stage` interface.
+- Pipeline stages are initialized via `PipelineFactory` to ensure proper dependency wiring.
+- Always use `context.Context` to manage pipeline stage lifecycle and cancellation.
+- Use the progress channel to stream status updates; do not rely on database polling for long-running ingestion.
 
-### Entity Mapping
+## Retrieval Agent
 
-- Use mappers in `internal/core/application/mappers` for entity <-> DTO conversions
-- Keep entities pure (no HTTP concerns)
+The Retrieval Agent enables agentic RAG by providing a source-aware interface:
+- **Source Awareness**: The agent is aware of the specific source catalog provided in the system prompt.
+- **Tools**: Includes `list_sources`, `semantic_search`, `keyword_search`, `image_search`, and `chunk_read`.
+- **Flow**: Integrates via `AgentStage` in the `ResponsePipeline` to manage reasoning and tool execution.
+- **Supported Models**: Supports any model implementing `model.ChatModel` with tool-calling capabilities (e.g., `gemini`, `openai`).
+- **Architecture**:
+  ```
+  [User Request] -> [ResponseUseCase] -> [ResponsePipeline]
+                                            |
+                                            v
+                                      [AgentStage] -> [Eino ADK Runner]
+                                                            |
+                                                   [Retrieval Agent + Tools]
+  ```
 
 ## Build Commands
 

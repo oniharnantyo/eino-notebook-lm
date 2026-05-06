@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cloudwego/eino/components/embedding"
-	"github.com/cloudwego/eino/components/model"
 	geminiembedder "github.com/cloudwego/eino-ext/components/embedding/gemini"
 	geminimodel "github.com/cloudwego/eino-ext/components/model/gemini"
+	"github.com/cloudwego/eino/components/embedding"
+	"github.com/cloudwego/eino/components/model"
 	"google.golang.org/genai"
 )
 
@@ -18,12 +18,14 @@ const (
 	ProviderGemini   Provider = "gemini"
 	ProviderOpenAI   Provider = "openai"
 	ProviderLlamaCpp Provider = "llamacpp"
+	ProviderOllama   Provider = "ollama"
 )
 
 // ExtractModelName extracts the actual model name from the provider-prefixed format
 // e.g., "gemini/gemini-2.0-flash-exp" -> "gemini-2.0-flash-exp"
-//      "openai/gpt-4o-mini" -> "gpt-4o-mini"
-//      "gemini-2.0-flash-exp" -> "gemini-2.0-flash-exp" (no prefix)
+//
+//	"openai/gpt-4o-mini" -> "gpt-4o-mini"
+//	"gemini-2.0-flash-exp" -> "gemini-2.0-flash-exp" (no prefix)
 func ExtractModelName(modelName string) string {
 	if idx := strings.Index(modelName, "/"); idx != -1 {
 		return modelName[idx+1:]

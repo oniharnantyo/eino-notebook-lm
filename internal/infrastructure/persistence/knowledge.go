@@ -113,7 +113,7 @@ func (r *PostgresKnowledgeRepository) FindByID(ctx context.Context, id uuid.UUID
 	`
 
 	row := r.pool.QueryRow(ctx, query, id.String())
-	
+
 	var k entities.Knowledge
 	var idStr, sourceIDStr string
 	var headingJSON, metadataJSON []byte
@@ -265,6 +265,37 @@ func (r *PostgresKnowledgeRepository) CountBySourceID(ctx context.Context, sourc
 	}
 
 	return count, nil
+}
+
+// FindByIDs finds multiple knowledges by their IDs
+func (r *PostgresKnowledgeRepository) FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*entities.Knowledge, error) {
+	idStrings := make([]string, len(ids))
+	for i, id := range ids {
+		idStrings[i] = id.String()
+	}
+
+	query := `
+		SELECT id, source_id, content, chunk_index, heading_context, first_page, last_page, metadata, created_at
+		FROM knowledges
+		WHERE id = ANY($1)
+	`
+
+	rows, err := r.pool.Query(ctx, query, idStrings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find knowledges by ids: %w", err)
+	}
+	defer rows.Close()
+
+	var knowledges []*entities.Knowledge
+	for rows.Next() {
+		k, err := r.scanKnowledge(rows)
+		if err != nil {
+			return nil, err
+		}
+		knowledges = append(knowledges, k)
+	}
+
+	return knowledges, nil
 }
 
 // scanKnowledge scans a knowledge from a database row

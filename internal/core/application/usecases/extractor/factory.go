@@ -9,10 +9,11 @@ import (
 
 // ExtractionResult represents the structured result of content extraction
 type ExtractionResult struct {
-	Content  string
-	Chunks   []kreuzberg.KreuzbergChunk
-	Images   []kreuzberg.KreuzbergImage
-	Metadata map[string]any
+	Content           string
+	Chunks            []kreuzberg.KreuzbergChunk
+	Images            []kreuzberg.KreuzbergImage
+	Metadata          map[string]any
+	DetectedLanguages []string
 }
 
 // ContentExtractor defines the interface for extracting content from different sources

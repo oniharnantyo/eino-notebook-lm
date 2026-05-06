@@ -17,9 +17,10 @@ type ResponseRequest struct {
 	StreamOptions      *StreamOptionsParam `json:"stream_options,omitempty"`
 	Metadata           map[string]string   `json:"metadata,omitempty"`
 	// Preserve RAG-specific fields
-	NotebookID *string  `json:"notebook_id,omitempty" validate:"omitempty,uuid"`
-	SourceIDs  []string `json:"source_ids,omitempty"`
-	SourceTypes []string `json:"source_types,omitempty"`
+	NotebookID    *string  `json:"notebook_id,omitempty" validate:"omitempty,uuid"`
+	SourceIDs     []string `json:"source_ids,omitempty"`
+	SourceTypes   []string `json:"source_types,omitempty"`
+	RetrievalMode string   `json:"retrieval_mode,omitempty"`
 }
 
 // ItemParam types (discriminated by "type" field)
@@ -29,8 +30,8 @@ type ItemParam interface {
 
 type UserMessageItemParam struct {
 	ID      *string     `json:"id,omitempty"`
-	Type    string      `json:"type"` // "message"
-	Role    string      `json:"role"` // "user"
+	Type    string      `json:"type"`    // "message"
+	Role    string      `json:"role"`    // "user"
 	Content interface{} `json:"content"` // string or []ContentPart
 	Status  *string     `json:"status,omitempty"`
 }
@@ -64,9 +65,9 @@ type InputTextContentParam struct {
 }
 
 type InputImageContentParam struct {
-	Type    string  `json:"type"` // "input_image"
+	Type     string  `json:"type"` // "input_image"
 	ImageURL *string `json:"image_url,omitempty"`
-	Detail  *string `json:"detail,omitempty"` // "low", "high", "auto"
+	Detail   *string `json:"detail,omitempty"` // "low", "high", "auto"
 }
 
 type InputFileContentParam struct {
@@ -82,24 +83,24 @@ type InputFileContentParam struct {
 
 // ResponseResource represents the complete Responses API response
 type ResponseResource struct {
-	ID                string                 `json:"id"`
-	Object            string                 `json:"object"` // "response"
-	CreatedAt         int64                  `json:"created_at"`
-	CompletedAt       *int64                 `json:"completed_at,omitempty"`
-	Status            string                 `json:"status"` // "in_progress", "completed", "failed"
-	IncompleteDetails interface{}            `json:"incomplete_details,omitempty"`
-	Model             string                 `json:"model"`
-	Output            []ItemField            `json:"output"`
-	Error             *Error                 `json:"error,omitempty"`
-	Tools             []Tool                 `json:"tools"`
-	ToolChoice        interface{}            `json:"tool_choice,omitempty"`
-	Truncation        string                 `json:"truncation"` // "auto", "disabled"
-	ParallelToolCalls bool                   `json:"parallel_tool_calls"`
-	Text              *TextField             `json:"text,omitempty"`
-	Temperature       *float64               `json:"temperature,omitempty"`
-	TopP              *float64               `json:"top_p,omitempty"`
-	Usage             *Usage                 `json:"usage,omitempty"`
-	Metadata          map[string]string      `json:"metadata,omitempty"`
+	ID                string            `json:"id"`
+	Object            string            `json:"object"` // "response"
+	CreatedAt         int64             `json:"created_at"`
+	CompletedAt       *int64            `json:"completed_at,omitempty"`
+	Status            string            `json:"status"` // "in_progress", "completed", "failed"
+	IncompleteDetails interface{}       `json:"incomplete_details,omitempty"`
+	Model             string            `json:"model"`
+	Output            []ItemField       `json:"output"`
+	Error             *Error            `json:"error,omitempty"`
+	Tools             []Tool            `json:"tools"`
+	ToolChoice        interface{}       `json:"tool_choice,omitempty"`
+	Truncation        string            `json:"truncation"` // "auto", "disabled"
+	ParallelToolCalls bool              `json:"parallel_tool_calls"`
+	Text              *TextField        `json:"text,omitempty"`
+	Temperature       *float64          `json:"temperature,omitempty"`
+	TopP              *float64          `json:"top_p,omitempty"`
+	Usage             *Usage            `json:"usage,omitempty"`
+	Metadata          map[string]string `json:"metadata,omitempty"`
 }
 
 // ItemField represents output items (discriminated by "type" field)
@@ -109,9 +110,9 @@ type ItemField interface {
 
 type Message struct {
 	ID      string        `json:"id"`
-	Type    string        `json:"type"` // "message"
+	Type    string        `json:"type"`   // "message"
 	Status  string        `json:"status"` // "in_progress", "completed"
-	Role    string        `json:"role"` // "assistant"
+	Role    string        `json:"role"`   // "assistant"
 	Content []ContentPart `json:"content"`
 }
 
@@ -146,10 +147,10 @@ func (r *RefusalContent) GetContentType() string { return "refusal" }
 
 // Usage statistics
 type Usage struct {
-	InputTokens         int                `json:"input_tokens"`
-	OutputTokens        int                `json:"output_tokens"`
-	TotalTokens         int                `json:"total_tokens"`
-	InputTokensDetails  *InputTokensDetails `json:"input_tokens_details,omitempty"`
+	InputTokens         int                  `json:"input_tokens"`
+	OutputTokens        int                  `json:"output_tokens"`
+	TotalTokens         int                  `json:"total_tokens"`
+	InputTokensDetails  *InputTokensDetails  `json:"input_tokens_details,omitempty"`
 	OutputTokensDetails *OutputTokensDetails `json:"output_tokens_details,omitempty"`
 }
 
@@ -172,8 +173,8 @@ type TextFormatParam struct {
 
 // Tool definitions
 type ResponsesTool struct {
-	Type       string                 `json:"type"` // "function"
-	Name       string                 `json:"name"`
+	Type        string                 `json:"type"` // "function"
+	Name        string                 `json:"name"`
 	Description *string                `json:"description,omitempty"`
 	Parameters  map[string]interface{} `json:"parameters,omitempty"`
 	Strict      *bool                  `json:"strict,omitempty"`
@@ -181,8 +182,8 @@ type ResponsesTool struct {
 
 // Tool represents a tool in the response
 type Tool struct {
-	Type       string                 `json:"type"` // "function"
-	Name       string                 `json:"name"`
+	Type        string                 `json:"type"` // "function"
+	Name        string                 `json:"name"`
 	Description *string                `json:"description,omitempty"`
 	Parameters  map[string]interface{} `json:"parameters,omitempty"`
 	Strict      *bool                  `json:"strict,omitempty"`
@@ -255,41 +256,41 @@ type ResponseFailedEvent struct {
 func (r *ResponseFailedEvent) GetEventType() string { return "response.failed" }
 
 type ResponseOutputItemAddedEvent struct {
-	Type           string     `json:"type"` // "response.output_item.added"
-	SequenceNumber int        `json:"sequence_number"`
-	OutputIndex    int        `json:"output_index"`
-	Item           ItemField  `json:"item"`
+	Type           string    `json:"type"` // "response.output_item.added"
+	SequenceNumber int       `json:"sequence_number"`
+	OutputIndex    int       `json:"output_index"`
+	Item           ItemField `json:"item"`
 }
 
 func (r *ResponseOutputItemAddedEvent) GetEventType() string { return "response.output_item.added" }
 
 type ResponseOutputItemDoneEvent struct {
-	Type           string     `json:"type"` // "response.output_item.done"
-	SequenceNumber int        `json:"sequence_number"`
-	OutputIndex    int        `json:"output_index"`
-	Item           ItemField  `json:"item"`
+	Type           string    `json:"type"` // "response.output_item.done"
+	SequenceNumber int       `json:"sequence_number"`
+	OutputIndex    int       `json:"output_index"`
+	Item           ItemField `json:"item"`
 }
 
 func (r *ResponseOutputItemDoneEvent) GetEventType() string { return "response.output_item.done" }
 
 type ResponseContentPartAddedEvent struct {
-	Type           string       `json:"type"` // "response.content_part.added"
-	SequenceNumber int          `json:"sequence_number"`
-	ItemID         string       `json:"item_id"`
-	OutputIndex    int          `json:"output_index"`
-	ContentIndex   int          `json:"content_index"`
-	Part           ContentPart  `json:"part"`
+	Type           string      `json:"type"` // "response.content_part.added"
+	SequenceNumber int         `json:"sequence_number"`
+	ItemID         string      `json:"item_id"`
+	OutputIndex    int         `json:"output_index"`
+	ContentIndex   int         `json:"content_index"`
+	Part           ContentPart `json:"part"`
 }
 
 func (r *ResponseContentPartAddedEvent) GetEventType() string { return "response.content_part.added" }
 
 type ResponseContentPartDoneEvent struct {
-	Type           string       `json:"type"` // "response.content_part.done"
-	SequenceNumber int          `json:"sequence_number"`
-	ItemID         string       `json:"item_id"`
-	OutputIndex    int          `json:"output_index"`
-	ContentIndex   int          `json:"content_index"`
-	Part           ContentPart  `json:"part"`
+	Type           string      `json:"type"` // "response.content_part.done"
+	SequenceNumber int         `json:"sequence_number"`
+	ItemID         string      `json:"item_id"`
+	OutputIndex    int         `json:"output_index"`
+	ContentIndex   int         `json:"content_index"`
+	Part           ContentPart `json:"part"`
 }
 
 func (r *ResponseContentPartDoneEvent) GetEventType() string { return "response.content_part.done" }
@@ -319,14 +320,14 @@ type ResponseOutputTextDoneEvent struct {
 func (r *ResponseOutputTextDoneEvent) GetEventType() string { return "response.output_text.done" }
 
 type LogProb struct {
-	Token       string      `json:"token"`
-	Logprob     float64     `json:"logprob"`
-	Bytes       []int       `json:"bytes"`
+	Token       string       `json:"token"`
+	Logprob     float64      `json:"logprob"`
+	Bytes       []int        `json:"bytes"`
 	TopLogprobs []TopLogProb `json:"top_logprobs,omitempty"`
 }
 
 type TopLogProb struct {
-	Token  string  `json:"token"`
+	Token   string  `json:"token"`
 	Logprob float64 `json:"logprob"`
-	Bytes  []int   `json:"bytes"`
+	Bytes   []int   `json:"bytes"`
 }

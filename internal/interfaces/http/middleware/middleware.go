@@ -26,7 +26,7 @@ func Logger(next http.Handler) http.Handler {
 		if r.Body != nil && r.Method != http.MethodGet && r.Method != http.MethodHead {
 			if isMultipart {
 				// For multipart requests, just extract metadata without buffering body
-			uploadedFile = extractFileMetadata(r)
+				uploadedFile = extractFileMetadata(r)
 			} else {
 				// For other requests, buffer body for logging
 				bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, 4096))

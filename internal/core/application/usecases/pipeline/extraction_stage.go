@@ -27,7 +27,7 @@ func (s *ExtractionStage) Name() string {
 
 // Execute extracts content from the source.
 // Input: usecases.ContentSource
-// Output: *extractor.ExtractionResult
+// Output: *PipelineData with ExtractionResult populated
 func (s *ExtractionStage) Execute(ctx context.Context, input StageInput) (StageOutput, error) {
 	source, ok := input.Data.(usecases.ContentSource)
 	if !ok {
@@ -39,5 +39,9 @@ func (s *ExtractionStage) Execute(ctx context.Context, input StageInput) (StageO
 		return StageOutput{}, err
 	}
 
-	return StageOutput{Data: result}, nil
+	data := &PipelineData{
+		ExtractionResult: result,
+	}
+
+	return StageOutput{Data: data}, nil
 }

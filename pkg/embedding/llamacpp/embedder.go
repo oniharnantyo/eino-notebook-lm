@@ -67,7 +67,7 @@ type LlamaCppResponse struct {
 
 // EmbeddingRequestItem represents a single item in the embedding request
 type EmbeddingRequestItem struct {
-	PromptString  string   `json:"prompt_string"`
+	PromptString   string   `json:"prompt_string"`
 	MultimodalData []string `json:"multimodal_data"` // Array of base64 strings
 }
 
@@ -86,7 +86,7 @@ func (e *LlamaCppEmbedder) EmbedStrings(ctx context.Context, texts []string, opt
 	requestItems := make([]EmbeddingRequestItem, len(texts))
 	for i, text := range texts {
 		requestItems[i] = EmbeddingRequestItem{
-			PromptString:  text,
+			PromptString:   text,
 			MultimodalData: []string{}, // No multimodal data for text-only
 		}
 	}
@@ -178,7 +178,7 @@ func (e *LlamaCppEmbedder) EmbedVision(ctx context.Context, text string, imageDa
 	request := EmbeddingRequest{
 		Content: []EmbeddingRequestItem{
 			{
-				PromptString:  text + " <__media__>",
+				PromptString:   text + " <__media__>",
 				MultimodalData: []string{encoded},
 			},
 		},

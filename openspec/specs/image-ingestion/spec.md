@@ -2,21 +2,30 @@
 
 ## Purpose
 
-Extract, store, and enable vector search for images from ingested documents, including OCR text extraction and embedding generation.
+Extract, store, and enable vector search for images from ingested documents, including multimodal vision embedding generation with LLM-generated descriptions.
 
 ## Requirements
 
 ### Requirement: Image extraction from Kreuzberg response
-The system SHALL extract images from Kreuzberg's `images` array and store each as an image entity with metadata and embedding.
+The system SHALL extract images from Kreuzberg's `images` array as a pipeline stage (ImageProcessingStage), generate an LLM description using the image bytes and OCR text as grounding, and store each as an image entity with a text embedding of the description.
 
 #### Scenario: Image with OCR result
 - **WHEN** Kreuzberg returns an image with `data` (byte array), `format`, `width`, `height`, `page_number`, and `ocr_result.content`
-- **THEN** the system SHALL create an image record with `source_id` FK, `format`, `width`, `height`, `page_number`, and the OCR text content
+- **THEN** the system SHALL upload the image binary to S3
+- **AND** pass the image bytes and OCR content to the VisionDescriber to generate a description
+- **AND** generate a text embedding of the description using the text embedder (same embedder as sentences)
+- **AND** create an image record with `source_id` FK, `s3_key`, `format`, `width`, `height`, `page_number`, `description`, and text `embedding`
 
 #### Scenario: Image without OCR result
 - **WHEN** Kreuzberg returns an image with no `ocr_result` or empty OCR content
-- **THEN** the system SHALL create an image record with `ocr_text` set to empty string
-- **AND** the system SHALL NOT generate an embedding for that image
+- **THEN** the system SHALL pass the image bytes with empty OCR text to the VisionDescriber
+- **AND** continue with description text embedding and storage
+
+#### Scenario: Individual image failure does not fail pipeline
+- **WHEN** image processing fails (S3 upload, description generation, or embedding)
+- **THEN** the system SHALL log the error and skip that image
+- **AND** continue processing remaining images
+- **AND** the pipeline SHALL NOT fail
 
 ### Requirement: Image storage in S3
 The system SHALL upload image binary data to S3-compatible storage and store only the `s3_key` reference in the database.
@@ -31,28 +40,20 @@ The system SHALL upload image binary data to S3-compatible storage and store onl
 - **THEN** the system SHALL return an error and not create the image record in the database
 - **AND** the source ingestion SHALL be marked as failed
 
-### Requirement: Image embedding from OCR text
-The system SHALL generate text embeddings from the OCR result of each image and store them in the `images` pgvector table.
-
-#### Scenario: Embed OCR text
-- **WHEN** an image has OCR text content "Shanghai Artificial Intelligence Laboratory"
-- **THEN** the system SHALL generate an embedding vector from the OCR text
-- **AND** store it in the `embedding` column of the `images` table
-
 ### Requirement: Image storage schema
-The system SHALL store images in an `images` table with columns: `id` (UUID PK), `source_id` (FK to sources), `s3_key` (TEXT), `format` (TEXT), `width` (INT), `height` (INT), `ocr_text` (TEXT), `page_number` (INT), `embedding` (vector), `metadata` (JSONB), `created_at` (TIMESTAMPTZ).
+The system SHALL store images in an `images` table with columns: `id` (UUID PK), `source_id` (FK to sources), `s3_key` (TEXT), `format` (TEXT), `width` (INT), `height` (INT), `description` (TEXT), `page_number` (INT), `embedding` (vector), `metadata` (JSONB), `created_at` (TIMESTAMPTZ).
 
 #### Scenario: Image record structure
 - **WHEN** an image is persisted
-- **THEN** the record SHALL contain a UUID primary key, the parent source_id, the S3 object key, image metadata, OCR text, embedding vector, and timestamps
+- **THEN** the record SHALL contain a UUID primary key, the parent source_id, the S3 object key, image metadata, the LLM-generated description, text embedding vector, and timestamps
 
 ### Requirement: Image vector search
-The system SHALL support cosine similarity search on the `images` table using an HNSW index on the `embedding` column.
+The system SHALL support cosine similarity search on the `images` table using the `embedding` column, which contains text embeddings of the LLM-generated descriptions.
 
-#### Scenario: Search images by OCR content
-- **WHEN** a user query "laboratory logo" is embedded and searched against images
-- **THEN** the system SHALL return matching image records ordered by cosine similarity
-- **AND** each result SHALL include the `source_id` for joining to the parent source
+#### Scenario: Search images by description
+- **WHEN** a user query "quarterly revenue chart" is used to search images
+- **THEN** the system SHALL return matching image records ordered by cosine similarity on the text embedding of the description
+- **AND** each result SHALL include the `source_id` and `description`
 
 ### Requirement: Image deletion cascades from source
 The system SHALL delete all images belonging to a source when the source is deleted, and remove the corresponding objects from S3.

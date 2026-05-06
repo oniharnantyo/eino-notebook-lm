@@ -42,8 +42,8 @@ func (uc *conversationUseCase) List(ctx context.Context, req *dtos.ListConversat
 
 	// Build filter
 	filter := repositories.ConversationFilter{
-		Limit:  req.Limit,
-		Offset: offset,
+		Limit:   req.Limit,
+		Offset:  offset,
 		OrderBy: "created_at DESC",
 	}
 

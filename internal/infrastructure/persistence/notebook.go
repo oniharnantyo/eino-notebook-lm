@@ -129,7 +129,6 @@ func (r *PostgresNotebookRepository) FindAll(ctx context.Context, limit, offset 
 	return notebooks, nil
 }
 
-
 // FindByStatus finds notebooks by status
 func (r *PostgresNotebookRepository) FindByStatus(ctx context.Context, status string, limit, offset int) ([]*entities.Notebook, error) {
 	query := `

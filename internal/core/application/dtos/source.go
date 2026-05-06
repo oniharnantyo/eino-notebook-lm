@@ -11,28 +11,28 @@ import (
 
 // CreateSourceRequest represents a request to create a source
 type CreateSourceRequest struct {
-	NotebookID  uuid.UUID                      `json:"notebook_id" validate:"required"`
-	Title       string                         `json:"title" validate:"required"`
-	URI         string                         `json:"uri,omitempty"`
-	ContentType string                         `json:"content_type" validate:"required"`
-	Metadata    map[string]any                 `json:"metadata,omitempty"`
+	NotebookID  uuid.UUID      `json:"notebook_id" validate:"required"`
+	Title       string         `json:"title" validate:"required"`
+	URI         string         `json:"uri,omitempty"`
+	ContentType string         `json:"content_type" validate:"required"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 // SourceResponse represents a source response
 type SourceResponse struct {
-	ID          uuid.UUID                      `json:"id"`
-	NotebookID  uuid.UUID                      `json:"notebook_id"`
-	Title       string                         `json:"title"`
-	URI         string                         `json:"uri,omitempty"`
-	ContentType string                         `json:"content_type"`
-	Content     string                         `json:"content,omitempty"`
-	ChunkCount  int                            `json:"chunk_count"`
-	TotalSize   int                            `json:"total_size,omitempty"`
-	Metadata    map[string]any                 `json:"metadata,omitempty"`
-	Status      string                         `json:"status"`
-	Error       *string                        `json:"error,omitempty"`
-	CreatedAt   time.Time                      `json:"created_at"`
-	UpdatedAt   time.Time                      `json:"updated_at"`
+	ID          uuid.UUID      `json:"id"`
+	NotebookID  uuid.UUID      `json:"notebook_id"`
+	Title       string         `json:"title"`
+	URI         string         `json:"uri,omitempty"`
+	ContentType string         `json:"content_type"`
+	Content     string         `json:"content,omitempty"`
+	ChunkCount  int            `json:"chunk_count"`
+	TotalSize   int            `json:"total_size,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	Status      string         `json:"status"`
+	Error       *string        `json:"error,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
 // ListSourcesRequest represents a request to list sources
@@ -139,14 +139,14 @@ func ParseContentType(contentType string) entities.ContentType {
 // IngestContentRequest represents a request to ingest content from various sources
 type IngestContentRequest struct {
 	// Source identification
-	NotebookID    uuid.UUID                `validate:"required"`
-	Title         string
-	URI           string                   // For URL content type
-	ContentType   usecases.ContentType     `validate:"required"` // file, url, text
-	MIMEType      entities.ContentType     // The actual MIME type (application/pdf, text/html, etc.)
-	SourceType    string                   // document, website, text, api, other
-	Metadata      map[string]interface{}   `json:"metadata,omitempty"`
-	SubIndexes    []string                 `json:"sub_indexes,omitempty"`
+	NotebookID  uuid.UUID `validate:"required"`
+	Title       string
+	URI         string                 // For URL content type
+	ContentType usecases.ContentType   `validate:"required"` // file, url, text
+	MIMEType    entities.ContentType   // The actual MIME type (application/pdf, text/html, etc.)
+	SourceType  string                 // document, website, text, api, other
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	SubIndexes  []string               `json:"sub_indexes,omitempty"`
 
 	// Content source (one of these will be populated)
 	FileContent io.Reader
@@ -161,13 +161,13 @@ type IngestContentRequest struct {
 
 // IngestContentResponse represents the response from content ingestion
 type IngestContentResponse struct {
-	SourceID        uuid.UUID              `json:"source_id"`
-	Status          string                 `json:"status"`
-	Error           *string                `json:"error,omitempty"`
-	UpdatedAt       time.Time              `json:"updated_at"`
+	SourceID  uuid.UUID `json:"source_id"`
+	Status    string    `json:"status"`
+	Error     *string   `json:"error,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
 
 	// Async-specific fields
-	IsAsync         bool                   `json:"is_async"`
-	StatusURL       string                 `json:"status_url,omitempty"`
-	StatusStreamURL string                 `json:"status_stream_url,omitempty"`
+	IsAsync         bool   `json:"is_async"`
+	StatusURL       string `json:"status_url,omitempty"`
+	StatusStreamURL string `json:"status_stream_url,omitempty"`
 }

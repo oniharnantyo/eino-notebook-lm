@@ -32,13 +32,13 @@ func (sm *StoredMessage) ToEinoMessage() *schema.Message {
 // Conversation represents a stored conversation (one response)
 type Conversation struct {
 	ID                 string            `json:"id"`
-	NotebookID         *string           `json:"notebook_id,omitempty"`       // Optional association with a notebook
+	NotebookID         *string           `json:"notebook_id,omitempty"` // Optional association with a notebook
 	PreviousResponseID *string           `json:"previous_response_id,omitempty"`
 	ResponseID         string            `json:"response_id"`
-	Messages           []*StoredMessage  `json:"messages"`           // Full conversation history up to this point
+	Messages           []*StoredMessage  `json:"messages"` // Full conversation history up to this point
 	RequestInput       interface{}       `json:"request_input"`
-	ResponseText       string            `json:"response_text"`       // Plain text for quick access
-	ResponseMessage    interface{}       `json:"response_message"`    // Full schema.Message as JSONB
+	ResponseText       string            `json:"response_text"`    // Plain text for quick access
+	ResponseMessage    interface{}       `json:"response_message"` // Full schema.Message as JSONB
 	Model              string            `json:"model"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	CreatedAt          int64             `json:"created_at"`

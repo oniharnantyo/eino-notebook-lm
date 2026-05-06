@@ -9,9 +9,9 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/mappers"
 	artifactUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/artifact"
 	mindmapUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/mindmap"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/mappers"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )

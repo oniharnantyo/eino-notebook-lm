@@ -1,11 +1,11 @@
 package imageutil
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"testing"
-	"bytes"
 )
 
 func TestResizeToFit(t *testing.T) {

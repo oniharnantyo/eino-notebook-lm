@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/cloudwego/eino-ext/components/document/transformer/splitter/recursive"
-	"github.com/cloudwego/eino/schema"
 )
 
 // ChunkingStage splits large documents into smaller chunks based on token limits.
@@ -22,12 +21,16 @@ func NewChunkingStage(tokenLimit int) *ChunkingStage {
 func (s *ChunkingStage) Name() string { return "ChunkingStage" }
 
 // Execute splits documents into chunks.
-// Input: []*schema.Document
-// Output: []*schema.Document (chunked)
+// Input: *PipelineData with Documents populated
+// Output: *PipelineData with chunked Documents
 func (s *ChunkingStage) Execute(ctx context.Context, input StageInput) (StageOutput, error) {
-	docs, ok := input.Data.([]*schema.Document)
+	data, ok := input.Data.(*PipelineData)
 	if !ok {
-		return StageOutput{}, fmt.Errorf("invalid input type for ChunkingStage: expected []*schema.Document, got %T", input.Data)
+		return StageOutput{}, fmt.Errorf("invalid input type for ChunkingStage: expected *PipelineData, got %T", input.Data)
+	}
+
+	if len(data.Documents) == 0 {
+		return StageOutput{Data: data}, nil
 	}
 
 	splitter, err := recursive.NewSplitter(ctx, &recursive.Config{
@@ -38,10 +41,12 @@ func (s *ChunkingStage) Execute(ctx context.Context, input StageInput) (StageOut
 		return StageOutput{}, fmt.Errorf("failed to create recursive splitter: %w", err)
 	}
 
-	chunks, err := splitter.Transform(ctx, docs)
+	chunks, err := splitter.Transform(ctx, data.Documents)
 	if err != nil {
 		return StageOutput{}, fmt.Errorf("failed to chunk documents: %w", err)
 	}
 
-	return StageOutput{Data: chunks}, nil
+	// Update PipelineData with chunked documents
+	data.Documents = chunks
+	return StageOutput{Data: data}, nil
 }

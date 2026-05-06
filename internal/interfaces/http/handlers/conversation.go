@@ -8,8 +8,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	conversationUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/conversation"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
+	conversationUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/conversation"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 )
 

@@ -8,10 +8,10 @@
 //
 // The usecases package is organized into subpackages by domain:
 //
-//	- notebook: Notebook-related business logic
-//	- knowledge: Knowledge management and content extraction
-//	- extractor: Content extraction from various sources (files, URLs, text)
-//	- document: Document parsing (Kreuzberg integration)
+//   - notebook: Notebook-related business logic
+//   - knowledge: Knowledge management and content extraction
+//   - extractor: Content extraction from various sources (files, URLs, text)
+//   - document: Document parsing (Kreuzberg integration)
 //
 // # Example
 //

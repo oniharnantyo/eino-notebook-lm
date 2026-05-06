@@ -35,9 +35,9 @@ func ResizeToFit(data []byte, mimeType string, maxSize int) ([]byte, error) {
 	// We use the ratio of current size to max size as a rough area factor.
 	sizeRatio := float64(len(data)) / float64(maxSize)
 	scaleFactor := 1.0 / math.Sqrt(sizeRatio)
-	
+
 	// Safety margin to ensure we hit the target under 325KB
-	scaleFactor *= 0.9 
+	scaleFactor *= 0.9
 
 	newWidth := int(float64(width) * scaleFactor)
 	newHeight := int(float64(height) * scaleFactor)

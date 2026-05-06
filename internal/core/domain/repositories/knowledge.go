@@ -18,6 +18,9 @@ type KnowledgeRepository interface {
 	// FindByID finds a knowledge by ID
 	FindByID(ctx context.Context, id uuid.UUID) (*entities.Knowledge, error)
 
+	// FindByIDs finds multiple knowledges by their IDs
+	FindByIDs(ctx context.Context, ids []uuid.UUID) ([]*entities.Knowledge, error)
+
 	// FindBySourceID retrieves all knowledge chunks for a source
 	GetBySourceID(ctx context.Context, sourceID uuid.UUID) ([]*entities.Knowledge, error)
 

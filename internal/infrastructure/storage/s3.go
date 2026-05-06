@@ -19,7 +19,7 @@ type S3Storage struct {
 // NewS3Storage creates a new S3 storage client
 func NewS3Storage(cfg config.S3Config) (*S3Storage, error) {
 	// Initialize minio client object.
-	// For local MinIO, Secure is typically false. 
+	// For local MinIO, Secure is typically false.
 	// In a production environment, this should be configurable.
 	minioClient, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),

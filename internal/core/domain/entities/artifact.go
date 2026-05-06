@@ -38,34 +38,34 @@ const (
 
 // Artifact represents a generated output from knowledge sources
 type Artifact struct {
-	ID          uuid.UUID              `json:"id" db:"id"`
-	NotebookID  uuid.UUID              `json:"notebook_id" db:"notebook_id"`
-	Title       string                 `json:"title" db:"title"`
-	Type        ArtifactType           `json:"type" db:"type"`
-	Status      ArtifactStatus         `json:"status" db:"status"`
-	Format      ArtifactFormat         `json:"format" db:"format"`
-	Content     string                 `json:"content,omitempty" db:"content"`
-	SourceIDs   []uuid.UUID            `json:"source_ids,omitempty" db:"source_ids"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
-	Error       *string                `json:"error,omitempty" db:"error"`
-	CreatedAt   time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at" db:"updated_at"`
-	DeletedAt   *time.Time             `json:"deleted_at,omitempty" db:"deleted_at"`
+	ID         uuid.UUID              `json:"id" db:"id"`
+	NotebookID uuid.UUID              `json:"notebook_id" db:"notebook_id"`
+	Title      string                 `json:"title" db:"title"`
+	Type       ArtifactType           `json:"type" db:"type"`
+	Status     ArtifactStatus         `json:"status" db:"status"`
+	Format     ArtifactFormat         `json:"format" db:"format"`
+	Content    string                 `json:"content,omitempty" db:"content"`
+	SourceIDs  []uuid.UUID            `json:"source_ids,omitempty" db:"source_ids"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
+	Error      *string                `json:"error,omitempty" db:"error"`
+	CreatedAt  time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time              `json:"updated_at" db:"updated_at"`
+	DeletedAt  *time.Time             `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // NewArtifact creates a new artifact entity
 func NewArtifact(notebookID uuid.UUID, title string, artifactType ArtifactType, format ArtifactFormat) (*Artifact, error) {
 	artifact := &Artifact{
-		ID:          uuid.New(),
-		NotebookID:  notebookID,
-		Title:       title,
-		Type:        artifactType,
-		Status:      ArtifactStatusPending,
-		Format:      format,
-		SourceIDs:   make([]uuid.UUID, 0),
-		Metadata:    make(map[string]interface{}),
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:         uuid.New(),
+		NotebookID: notebookID,
+		Title:      title,
+		Type:       artifactType,
+		Status:     ArtifactStatusPending,
+		Format:     format,
+		SourceIDs:  make([]uuid.UUID, 0),
+		Metadata:   make(map[string]interface{}),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
 	if err := artifact.Validate(); err != nil {

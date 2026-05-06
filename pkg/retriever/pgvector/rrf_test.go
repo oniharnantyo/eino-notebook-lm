@@ -109,9 +109,9 @@ func TestMergeByRRF_MultipleLists(t *testing.T) {
 				},
 			},
 			expected: map[string]float64{
-				"doc1": 1.0 / 61.0,                           // rank 1 in list 1 only
-				"doc2": 1.0/62.0 + 1.0/61.0,                   // rank 2 in list 1, rank 1 in list 2
-				"doc3": 1.0 / 62.0,                           // rank 2 in list 2 only
+				"doc1": 1.0 / 61.0,          // rank 1 in list 1 only
+				"doc2": 1.0/62.0 + 1.0/61.0, // rank 2 in list 1, rank 1 in list 2
+				"doc3": 1.0 / 62.0,          // rank 2 in list 2 only
 			},
 		},
 		{
@@ -135,10 +135,10 @@ func TestMergeByRRF_MultipleLists(t *testing.T) {
 				},
 			},
 			expected: map[string]float64{
-				"doc1": 1.0/101.0 + 1.0/101.0,               // rank 1 in lists 1 and 3
-				"doc2": 1.0/102.0 + 1.0/101.0,               // rank 2 in list 1, rank 1 in list 2
-				"doc3": 1.0/103.0 + 1.0/102.0 + 1.0/103.0,   // rank 3 in list 1, rank 2 in list 2, rank 3 in list 3
-				"doc4": 1.0/103.0 + 1.0/105.0,               // rank 3 in list 2, rank 5 in list 3
+				"doc1": 1.0/101.0 + 1.0/101.0,             // rank 1 in lists 1 and 3
+				"doc2": 1.0/102.0 + 1.0/101.0,             // rank 2 in list 1, rank 1 in list 2
+				"doc3": 1.0/103.0 + 1.0/102.0 + 1.0/103.0, // rank 3 in list 1, rank 2 in list 2, rank 3 in list 3
+				"doc4": 1.0/103.0 + 1.0/105.0,             // rank 3 in list 2, rank 5 in list 3
 			},
 		},
 		{
@@ -275,8 +275,8 @@ func TestSortByScore(t *testing.T) {
 func TestSortByScore_TieBreaking(t *testing.T) {
 	// Test that ties are broken by ID (alphabetically)
 	scores := map[string]float64{
-		"zebra": 0.5,
-		"apple": 0.5,
+		"zebra":  0.5,
+		"apple":  0.5,
 		"banana": 0.5,
 	}
 

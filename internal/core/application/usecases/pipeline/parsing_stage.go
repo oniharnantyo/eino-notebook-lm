@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/document"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 )
 
 type ParsingStage struct {
@@ -22,12 +21,16 @@ func NewParsingStage(parser document.DocumentParser) *ParsingStage {
 func (s *ParsingStage) Name() string { return "ParsingStage" }
 
 func (s *ParsingStage) Execute(ctx context.Context, input StageInput) (StageOutput, error) {
-	result, ok := input.Data.(*extractor.ExtractionResult)
+	data, ok := input.Data.(*PipelineData)
 	if !ok {
-		return StageOutput{}, fmt.Errorf("invalid input type for ParsingStage: expected *extractor.ExtractionResult, got %T", input.Data)
+		return StageOutput{}, fmt.Errorf("invalid input type for ParsingStage: expected *PipelineData, got %T", input.Data)
 	}
 
-	reader := strings.NewReader(result.Content)
+	if data.ExtractionResult == nil {
+		return StageOutput{}, fmt.Errorf("ExtractionResult is nil in PipelineData")
+	}
+
+	reader := strings.NewReader(data.ExtractionResult.Content)
 	docs, err := s.parser.Parse(ctx, reader)
 	if err != nil {
 		return StageOutput{}, err
@@ -38,10 +41,12 @@ func (s *ParsingStage) Execute(ctx context.Context, input StageInput) (StageOutp
 		if doc.MetaData == nil {
 			doc.MetaData = make(map[string]any)
 		}
-		for k, v := range result.Metadata {
+		for k, v := range data.ExtractionResult.Metadata {
 			doc.MetaData[k] = v
 		}
 	}
 
-	return StageOutput{Data: docs}, nil
+	// Store documents in PipelineData for next stages
+	data.Documents = docs
+	return StageOutput{Data: data}, nil
 }

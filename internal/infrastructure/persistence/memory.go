@@ -14,8 +14,8 @@ import (
 // InMemoryNotebookRepository implements NotebookRepository in memory
 // Useful for testing and development
 type InMemoryNotebookRepository struct {
-	mu      sync.RWMutex
-	nbs     map[uuid.UUID]*entities.Notebook
+	mu  sync.RWMutex
+	nbs map[uuid.UUID]*entities.Notebook
 }
 
 // NewInMemoryNotebookRepository creates a new in-memory repository

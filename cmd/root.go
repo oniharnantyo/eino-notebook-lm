@@ -69,9 +69,9 @@ func initConfig() {
 		cobra.CheckErr(err)
 
 		// Search .env in multiple locations (in order of priority)
-		viper.AddConfigPath(".")           // Current directory
-		viper.AddConfigPath("./configs")   // ./configs directory
-		viper.AddConfigPath(home)          // Home directory
+		viper.AddConfigPath(".")         // Current directory
+		viper.AddConfigPath("./configs") // ./configs directory
+		viper.AddConfigPath(home)        // Home directory
 		viper.SetConfigName(".env")
 		viper.SetConfigType("env")
 	}

@@ -37,21 +37,21 @@ func TestParsingStage_Execute(t *testing.T) {
 		mock := &mockParser{docs: expectedDocs}
 		stage := &ParsingStage{parser: mock}
 
-		input := StageInput{Data: &extractor.ExtractionResult{Content: "raw content"}}
+		input := StageInput{Data: &PipelineData{ExtractionResult: &extractor.ExtractionResult{Content: "raw content"}}}
 		output, err := stage.Execute(ctx, input)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		docs, ok := output.Data.([]*schema.Document)
+		data, ok := output.Data.(*PipelineData)
 		if !ok {
-			t.Fatalf("expected output data to be []*schema.Document, got %T", output.Data)
+			t.Fatalf("expected output data to be *PipelineData, got %T", output.Data)
 		}
-		if len(docs) != 1 {
-			t.Errorf("expected 1 document, got %v", len(docs))
+		if len(data.Documents) != 1 {
+			t.Errorf("expected 1 document, got %v", len(data.Documents))
 		}
-		if docs[0].Content != "parsed content" {
-			t.Errorf("expected content 'parsed content', got '%s'", docs[0].Content)
+		if data.Documents[0].Content != "parsed content" {
+			t.Errorf("expected content 'parsed content', got '%s'", data.Documents[0].Content)
 		}
 	})
 
@@ -60,7 +60,7 @@ func TestParsingStage_Execute(t *testing.T) {
 		mock := &mockParser{err: expectedErr}
 		stage := &ParsingStage{parser: mock}
 
-		input := StageInput{Data: &extractor.ExtractionResult{Content: "raw content"}}
+		input := StageInput{Data: &PipelineData{ExtractionResult: &extractor.ExtractionResult{Content: "raw content"}}}
 		_, err := stage.Execute(ctx, input)
 
 		if err != expectedErr {

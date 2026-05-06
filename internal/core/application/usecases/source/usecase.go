@@ -423,7 +423,7 @@ func (uc *sourceUseCase) processAsync(
 	extractor extractor.ContentExtractor,
 	mimeType string,
 ) <-chan pipeline.Progress {
-	pipe := uc.pipelineFactory.Create(extractor, mimeType)
+	pipe := uc.pipelineFactory.Create(extractor, contentSource.Type)
 	initialInput := pipeline.StageInput{
 		SourceID: sourceID,
 		Data:     contentSource,
@@ -461,7 +461,7 @@ func (uc *sourceUseCase) processSync(
 	extractor extractor.ContentExtractor,
 	mimeType string,
 ) (<-chan pipeline.Progress, error) {
-	pipe := uc.pipelineFactory.Create(extractor, mimeType)
+	pipe := uc.pipelineFactory.Create(extractor, contentSource.Type)
 	initialInput := pipeline.StageInput{
 		SourceID: sourceID,
 		Data:     contentSource,

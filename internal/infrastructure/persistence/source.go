@@ -282,6 +282,37 @@ func (r *PostgresSourceRepository) List(ctx context.Context, filter repositories
 	return sources, total, nil
 }
 
+// ListSourceSummariesByID retrieves source summaries by IDs
+func (r *PostgresSourceRepository) ListSourceSummariesByID(ctx context.Context, ids []uuid.UUID) ([]*entities.Source, error) {
+	idStrings := make([]string, len(ids))
+	for i, id := range ids {
+		idStrings[i] = id.String()
+	}
+
+	query := `
+		SELECT id, notebook_id, title, uri, content_type, content, chunk_count, total_size, metadata, status, error, created_at, updated_at, deleted_at
+		FROM sources
+		WHERE id = ANY($1) AND deleted_at IS NULL
+	`
+
+	rows, err := r.pool.Query(ctx, query, idStrings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sources by ids: %w", err)
+	}
+	defer rows.Close()
+
+	var sources []*entities.Source
+	for rows.Next() {
+		source, err := r.scanSource(rows)
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, source)
+	}
+
+	return sources, nil
+}
+
 // IncrementChunkCount atomically increments the chunk counter
 func (r *PostgresSourceRepository) IncrementChunkCount(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE sources SET chunk_count = chunk_count + 1, updated_at = NOW() WHERE id = $1`

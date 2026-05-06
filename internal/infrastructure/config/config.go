@@ -37,10 +37,12 @@ type S3Config struct {
 
 // ChatConfig holds chat model configuration
 type ChatConfig struct {
-	Provider string `mapstructure:"provider" validate:"required"`
-	Model    string `mapstructure:"model" validate:"required"`
-	APIKey   string `mapstructure:"api_key"`
-	BaseURL  string `mapstructure:"base_url"`
+	Provider  string        `mapstructure:"provider" validate:"required"`
+	Model     string        `mapstructure:"model" validate:"required"`
+	APIKey    string        `mapstructure:"api_key"`
+	BaseURL   string        `mapstructure:"base_url"`
+	Timeout   time.Duration `mapstructure:"timeout"`
+	KeepAlive time.Duration `mapstructure:"keep_alive"`
 }
 
 // EmbeddingConfig holds embedding model configuration
@@ -195,6 +197,8 @@ func Load() (*Config, error) {
 	viper.BindEnv("chat.model", "CHAT_MODEL")
 	viper.BindEnv("chat.api_key", "CHAT_API_KEY")
 	viper.BindEnv("chat.base_url", "CHAT_BASE_URL")
+	viper.BindEnv("chat.timeout", "CHAT_TIMEOUT")
+	viper.BindEnv("chat.keep_alive", "CHAT_KEEP_ALIVE")
 
 	// Embedding bindings
 	viper.BindEnv("embedding.provider", "EMBEDDING_PROVIDER")

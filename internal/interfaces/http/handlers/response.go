@@ -3,14 +3,13 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 
 	"github.com/go-playground/validator/v10"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
+	"github.com/oniharnantyo/eino-notebook/internal/interfaces/http/sse"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 )
 
@@ -47,26 +46,6 @@ func (h *ResponseHandler) CreateResponse(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if req.Stream {
-		h.handleStream(w, r, &req)
-		return
-	}
-
-	// Handle non-streaming request
-	resp, err := h.useCase.CreateResponse(r.Context(), &req)
-	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, "internal_error", err.Error())
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		h.logger.Error("Failed to encode response", "error", err)
-		return
-	}
-}
-
-func (h *ResponseHandler) handleStream(w http.ResponseWriter, r *http.Request, req *dtos.ResponseRequest) {
 	// Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -74,33 +53,21 @@ func (h *ResponseHandler) handleStream(w http.ResponseWriter, r *http.Request, r
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
 	// Check if client supports streaming
-	flusher, ok := w.(http.Flusher)
-	if !ok {
+	if _, ok := w.(http.Flusher); !ok {
 		h.respondWithError(w, http.StatusNotImplemented, "internal_error", "streaming not supported")
 		return
 	}
 
-	// Get streaming reader
-	stream, err := h.useCase.CreateResponseStream(r.Context(), req)
+	stream, meta, err := h.useCase.Stream(r.Context(), &req)
 	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	defer stream.Close()
 
-	// Copy stream to response
-	_, err = io.Copy(w, stream)
-	if err != nil {
-		h.logger.Error("Stream error", "error", err)
-		// Send SSE error event to notify client
-		fmt.Fprintf(w, "data: {\"type\":\"error\",\"error\":{\"type\":\"stream_error\",\"message\":\"%s\"}}\n\n",
-			strings.ReplaceAll(err.Error(), `"`, `\"`))
-		flusher.Flush()
-		return
+	formatter := sse.NewResponsesAPIFormatter()
+	if err := formatter.WriteResponse(w, stream, meta); err != nil {
+		h.logger.Error("Failed to write SSE response", "error", err)
 	}
-
-	// Flush after each write (handled by SSE format)
-	flusher.Flush()
 }
 
 func (h *ResponseHandler) respondWithError(w http.ResponseWriter, code int, errType string, message string) {

@@ -407,8 +407,8 @@ func (r *Retriever) rankedListToDocuments(
 		}
 
 		doc := &schema.Document{
-			ID:      id,
-			Content: content,
+			ID:       id,
+			Content:  content,
 			MetaData: make(map[string]any),
 		}
 
@@ -531,7 +531,7 @@ func formatRankedResults(results []RankedDocument) string {
 	}
 
 	var builder strings.Builder
-	builder.Grow(len(results)*20) // Pre-allocate approximate capacity
+	builder.Grow(len(results) * 20) // Pre-allocate approximate capacity
 
 	builder.WriteString("[")
 	for i, r := range results {
@@ -552,7 +552,7 @@ func formatDocumentResults(docs []*schema.Document) string {
 	}
 
 	var builder strings.Builder
-	builder.Grow(len(docs)*30) // Pre-allocate approximate capacity
+	builder.Grow(len(docs) * 30) // Pre-allocate approximate capacity
 
 	builder.WriteString("[")
 	for i, doc := range docs {

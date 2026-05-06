@@ -14,8 +14,8 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
 	sourceUseCase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
-	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
+	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
 // KnowledgeHandler handles knowledge HTTP requests
@@ -103,7 +103,7 @@ func (h *KnowledgeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call usecase to handle ingestion
-	response, err := h.sourceUseCase.IngestContent(r.Context(), ingestReq)
+	response, _, err := h.sourceUseCase.IngestContent(r.Context(), ingestReq)
 	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, err.Error())
 		return

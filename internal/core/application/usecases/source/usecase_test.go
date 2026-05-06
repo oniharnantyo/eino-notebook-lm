@@ -1,69 +1,17 @@
 package source
 
 import (
-	"context"
 	"io"
 	"testing"
 
-	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
-	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
+	"github.com/oniharnantyo/eino-notebook/internal/mocks/repositories"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
-	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
-
-// mockSourceRepository is a minimal mock for testing
-type mockSourceRepository struct {
-	repositories.SourceRepository
-	createFunc  func(ctx context.Context, source *entities.Source) error
-	getByIDFunc func(ctx context.Context, id uuid.UUID) (*entities.Source, error)
-	updateFunc  func(ctx context.Context, source *entities.Source) error
-}
-
-func (m *mockSourceRepository) Create(ctx context.Context, source *entities.Source) error {
-	if m.createFunc != nil {
-		return m.createFunc(ctx, source)
-	}
-	return nil
-}
-
-func (m *mockSourceRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Source, error) {
-	if m.getByIDFunc != nil {
-		return m.getByIDFunc(ctx, id)
-	}
-	return nil, nil
-}
-
-func (m *mockSourceRepository) Update(ctx context.Context, source *entities.Source) error {
-	if m.updateFunc != nil {
-		return m.updateFunc(ctx, source)
-	}
-	return nil
-}
-
-func (m *mockSourceRepository) GetByNotebookID(ctx context.Context, notebookID uuid.UUID) ([]*entities.Source, error) {
-	return nil, nil
-}
-
-func (m *mockSourceRepository) GetByURI(ctx context.Context, notebookID uuid.UUID, uri string) (*entities.Source, error) {
-	return nil, nil
-}
-
-func (m *mockSourceRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
-
-func (m *mockSourceRepository) List(ctx context.Context, filter repositories.SourceFilter) ([]*entities.Source, int, error) {
-	return nil, 0, nil
-}
-
-func (m *mockSourceRepository) IncrementChunkCount(ctx context.Context, id uuid.UUID) error {
-	return nil
-}
 
 func TestSanitizeContent(t *testing.T) {
 	// Create a minimal usecase for testing
 	uc := &sourceUseCase{
-		sourceRepo:              &mockSourceRepository{},
+		sourceRepo:              &repositories.MockSourceRepository{},
 		notebookRepo:            nil,
 		contentExtractorFactory: nil,
 		documentParserFactory:   nil,

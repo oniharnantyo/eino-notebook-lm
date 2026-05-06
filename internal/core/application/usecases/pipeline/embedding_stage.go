@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/cloudwego/eino/components/embedding"
-	"github.com/cloudwego/eino/schema"
 )
 
 type EmbeddingStage struct {
@@ -19,18 +18,18 @@ func NewEmbeddingStage(embedder embedding.Embedder) *EmbeddingStage {
 func (s *EmbeddingStage) Name() string { return "EmbeddingStage" }
 
 func (s *EmbeddingStage) Execute(ctx context.Context, input StageInput) (StageOutput, error) {
-	docs, ok := input.Data.([]*schema.Document)
+	data, ok := input.Data.(*PipelineData)
 	if !ok {
-		return StageOutput{}, fmt.Errorf("invalid input type for EmbeddingStage: expected []*schema.Document, got %T", input.Data)
+		return StageOutput{}, fmt.Errorf("invalid input type for EmbeddingStage: expected *PipelineData, got %T", input.Data)
 	}
 
-	if len(docs) == 0 {
-		return StageOutput{Data: docs}, nil
+	if len(data.Sentences) == 0 {
+		return StageOutput{Data: data}, nil
 	}
 
-	texts := make([]string, len(docs))
-	for i, doc := range docs {
-		texts[i] = doc.Content
+	texts := make([]string, len(data.Sentences))
+	for i, sentence := range data.Sentences {
+		texts[i] = sentence.Content
 	}
 
 	embeddings, err := s.embedder.EmbedStrings(ctx, texts)
@@ -38,12 +37,10 @@ func (s *EmbeddingStage) Execute(ctx context.Context, input StageInput) (StageOu
 		return StageOutput{}, fmt.Errorf("failed to generate embeddings: %w", err)
 	}
 
-	for i, doc := range docs {
-		if doc.MetaData == nil {
-			doc.MetaData = make(map[string]any)
-		}
-		doc.MetaData["embedding"] = embeddings[i]
+	// Attach embedding vectors to each sentence in place
+	for i := range data.Sentences {
+		data.Sentences[i].Embedding = ConvertFloat64ToFloat32(embeddings[i])
 	}
 
-	return StageOutput{Data: docs}, nil
+	return StageOutput{Data: data}, nil
 }

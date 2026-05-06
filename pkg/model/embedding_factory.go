@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cloudwego/eino/components/embedding"
 	geminiembedder "github.com/cloudwego/eino-ext/components/embedding/gemini"
+	ollamaembedder "github.com/cloudwego/eino-ext/components/embedding/ollama"
+	"github.com/cloudwego/eino/components/embedding"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/config"
 	visionembedding "github.com/oniharnantyo/eino-notebook/pkg/embedding"
 	"github.com/oniharnantyo/eino-notebook/pkg/embedding/llamacpp"
@@ -23,6 +24,8 @@ func CreateEmbedder(ctx context.Context, cfg *config.EmbeddingConfig) (embedding
 		return createGeminiEmbedder(ctx, cfg)
 	case ProviderLlamaCpp:
 		return createLlamaCppEmbedder(ctx, cfg)
+	case ProviderOllama:
+		return createOllamaEmbedder(ctx, cfg)
 	default:
 		return nil, fmt.Errorf("unsupported embedding provider: %s", cfg.Provider)
 	}
@@ -39,6 +42,8 @@ func CreateVisionEmbedder(ctx context.Context, cfg *config.EmbeddingConfig) (vis
 	case ProviderLlamaCpp:
 		return createLlamaCppVisionEmbedder(ctx, cfg)
 	case ProviderGemini:
+		return nil, fmt.Errorf("vision embedding not supported for provider: %s", cfg.Provider)
+	case ProviderOllama:
 		return nil, fmt.Errorf("vision embedding not supported for provider: %s", cfg.Provider)
 	default:
 		return nil, fmt.Errorf("unsupported embedding provider for vision: %s", cfg.Provider)
@@ -87,5 +92,18 @@ func createLlamaCppEmbedder(ctx context.Context, cfg *config.EmbeddingConfig) (e
 		Dimension:      cfg.Dimension,
 		PromptTemplate: cfg.PromptTemplate,
 		Timeout:        cfg.Timeout,
+	})
+}
+
+func createOllamaEmbedder(ctx context.Context, cfg *config.EmbeddingConfig) (embedding.Embedder, error) {
+	baseURL := cfg.BaseURL
+	if baseURL == "" {
+		baseURL = "http://localhost:11434"
+	}
+
+	return ollamaembedder.NewEmbedder(ctx, &ollamaembedder.EmbeddingConfig{
+		BaseURL: baseURL,
+		Model:   cfg.Model,
+		Timeout: cfg.Timeout,
 	})
 }

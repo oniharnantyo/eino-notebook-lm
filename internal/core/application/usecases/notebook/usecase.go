@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/mappers"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/errors"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/mappers"
 )
 
 // NotebookUseCase defines the interface for notebook business logic
@@ -115,10 +115,10 @@ func (uc *notebookUseCase) List(ctx context.Context, req *dtos.ListNotebooksRequ
 	}
 
 	return &dtos.ListNotebooksResponse{
-		Notebooks: mappers.ToNotebookResponses(notebooks),
-		Total:     total,
-		Page:      req.Page,
-		Limit:     req.Limit,
+		Notebooks:  mappers.ToNotebookResponses(notebooks),
+		Total:      total,
+		Page:       req.Page,
+		Limit:      req.Limit,
 		TotalPages: totalPages,
 	}, nil
 }
@@ -183,10 +183,10 @@ func (uc *notebookUseCase) Search(ctx context.Context, query string, page, limit
 	}
 
 	return &dtos.ListNotebooksResponse{
-		Notebooks: mappers.ToNotebookResponses(notebooks),
-		Total:     total,
-		Page:      page,
-		Limit:     limit,
+		Notebooks:  mappers.ToNotebookResponses(notebooks),
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
 		TotalPages: totalPages,
 	}, nil
 }

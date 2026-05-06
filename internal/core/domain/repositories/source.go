@@ -30,6 +30,9 @@ type SourceRepository interface {
 	// List retrieves sources with pagination
 	List(ctx context.Context, filter SourceFilter) ([]*entities.Source, int, error)
 
+	// ListSourceSummariesByID retrieves source summaries by IDs
+	ListSourceSummariesByID(ctx context.Context, ids []uuid.UUID) ([]*entities.Source, error)
+
 	// IncrementChunkCount atomically increments the chunk counter
 	IncrementChunkCount(ctx context.Context, id uuid.UUID) error
 }

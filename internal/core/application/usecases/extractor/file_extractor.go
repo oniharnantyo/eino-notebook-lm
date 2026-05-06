@@ -81,10 +81,11 @@ func (e *FileContentExtractor) parseBinaryFile(ctx context.Context, filename str
 	metadata["filename"] = filename
 
 	return &ExtractionResult{
-		Content:  result.Content,
-		Chunks:   result.Chunks,
-		Images:   result.Images,
-		Metadata: metadata,
+		Content:           result.Content,
+		Chunks:            result.Chunks,
+		Images:            result.Images,
+		Metadata:          metadata,
+		DetectedLanguages: result.DetectedLanguages,
 	}, nil
 }
 

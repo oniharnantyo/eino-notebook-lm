@@ -32,8 +32,12 @@ func TestExtractionStage_Execute(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if output.Data != expectedResult {
-			t.Errorf("expected result %v, got %v", expectedResult, output.Data)
+		data, ok := output.Data.(*PipelineData)
+		if !ok {
+			t.Fatalf("expected *PipelineData, got %T", output.Data)
+		}
+		if data.ExtractionResult != expectedResult {
+			t.Errorf("expected result %v, got %v", expectedResult, data.ExtractionResult)
 		}
 	})
 

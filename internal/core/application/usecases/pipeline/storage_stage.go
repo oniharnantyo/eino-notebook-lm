@@ -5,116 +5,69 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cloudwego/eino/components/document"
-	"github.com/cloudwego/eino/components/embedding"
-	"github.com/cloudwego/eino/schema"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
-	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
+
+// documentMetadataKeys defines which metadata keys from Kreuzberg should be persisted to the Source entity.
+// These are document-level properties (title, authors, page_count, etc.) that describe the entire document,
+// as opposed to chunk-level properties (first_page, last_page, heading_context) that belong to individual chunks.
+var documentMetadataKeys = []string{
+	"title", "authors", "created_by", "format_type", "pdf_version", "producer",
+	"is_encrypted", "width", "height", "page_count", "output_format",
+	"quality_score", "pages",
+}
 
 type StorageStage struct {
 	knowledgeRepo repositories.KnowledgeRepository
 	sentenceRepo  repositories.SentenceRepository
+	imageRepo     repositories.ImageRepository
 	sourceRepo    repositories.SourceRepository
-	transformer   document.Transformer
-	embedder      embedding.Embedder
 }
 
 func NewStorageStage(
 	knowledgeRepo repositories.KnowledgeRepository,
 	sentenceRepo repositories.SentenceRepository,
+	imageRepo repositories.ImageRepository,
 	sourceRepo repositories.SourceRepository,
-	transformer document.Transformer,
-	embedder embedding.Embedder,
 ) *StorageStage {
 	return &StorageStage{
 		knowledgeRepo: knowledgeRepo,
 		sentenceRepo:  sentenceRepo,
+		imageRepo:     imageRepo,
 		sourceRepo:    sourceRepo,
-		transformer:   transformer,
-		embedder:      embedder,
 	}
 }
 
 func (s *StorageStage) Name() string { return "StorageStage" }
 
 func (s *StorageStage) Execute(ctx context.Context, input StageInput) (StageOutput, error) {
-	docs, ok := input.Data.([]*schema.Document)
+	data, ok := input.Data.(*PipelineData)
 	if !ok {
-		return StageOutput{}, fmt.Errorf("invalid input type for StorageStage: expected []*schema.Document, got %T", input.Data)
+		return StageOutput{}, fmt.Errorf("invalid input type for StorageStage: expected *PipelineData, got %T", input.Data)
 	}
 
-	if len(docs) == 0 {
-		return StageOutput{Data: input.Data}, nil
+	if len(data.Knowledges) == 0 && len(data.Sentences) == 0 && len(data.Images) == 0 {
+		return StageOutput{Data: data}, nil
 	}
 
-	knowledges := make([]*entities.Knowledge, len(docs))
-	for i, doc := range docs {
-		var firstPage, lastPage int
-		if val, ok := doc.MetaData["first_page"].(int); ok {
-			firstPage = val
+	// Save knowledges in batch (no embedding column populated)
+	if len(data.Knowledges) > 0 {
+		if err := s.knowledgeRepo.SaveBatch(ctx, data.Knowledges); err != nil {
+			return StageOutput{}, fmt.Errorf("failed to save knowledges: %w", err)
 		}
-		if val, ok := doc.MetaData["last_page"].(int); ok {
-			lastPage = val
-		}
-
-		headingContext, _ := doc.MetaData["heading_context"].(map[string]any)
-
-		k, err := entities.NewKnowledge(
-			input.SourceID,
-			doc.Content,
-			i,
-			headingContext,
-			firstPage,
-			lastPage,
-			doc.MetaData,
-		)
-		if err != nil {
-			return StageOutput{}, fmt.Errorf("failed to create knowledge entity: %w", err)
-		}
-		knowledges[i] = k
 	}
 
-	// Save knowledges in batch
-	if err := s.knowledgeRepo.SaveBatch(ctx, knowledges); err != nil {
-		return StageOutput{}, fmt.Errorf("failed to save knowledges: %w", err)
-	}
-
-	// Process and save sentences for each chunk
-	for _, chunk := range knowledges {
-		sentenceDocs, err := s.transformer.Transform(ctx, []*schema.Document{
-			{
-				ID:      chunk.ID.String(),
-				Content: chunk.Content,
-			},
-		})
-		if err != nil {
-			return StageOutput{}, fmt.Errorf("failed to split chunk %s into sentences: %w", chunk.ID, err)
-		}
-
-		if len(sentenceDocs) == 0 {
-			continue
-		}
-
-		contents := make([]string, len(sentenceDocs))
-		for i, doc := range sentenceDocs {
-			contents[i] = doc.Content
-		}
-
-		embeddings, err := s.embedder.EmbedStrings(ctx, contents)
-		if err != nil {
-			return StageOutput{}, fmt.Errorf("failed to generate embeddings for sentences in chunk %s: %w", chunk.ID, err)
-		}
-
-		sentences := make([]*entities.Sentence, len(sentenceDocs))
-		for i, doc := range sentenceDocs {
+	// Convert []Sentence intermediates to []*entities.Sentence and batch save
+	if len(data.Sentences) > 0 {
+		sentences := make([]*entities.Sentence, len(data.Sentences))
+		for i, sent := range data.Sentences {
 			sentences[i] = &entities.Sentence{
-				ID:          uuid.New(),
-				KnowledgeID: chunk.ID,
-				Content:     doc.Content,
-				Embedding:   convertToFloat32(embeddings[i]),
-				Position:    i,
+				ID:          sent.ID,
+				KnowledgeID: sent.KnowledgeID,
+				Content:     sent.Content,
+				Embedding:   sent.Embedding,
+				Position:    sent.Position,
 				Metadata: map[string]any{
 					"source_id": input.SourceID.String(),
 				},
@@ -123,7 +76,16 @@ func (s *StorageStage) Execute(ctx context.Context, input StageInput) (StageOutp
 		}
 
 		if err := s.sentenceRepo.SaveBatch(ctx, sentences); err != nil {
-			return StageOutput{}, fmt.Errorf("failed to save sentences for chunk %s: %w", chunk.ID, err)
+			return StageOutput{}, fmt.Errorf("failed to save sentences: %w", err)
+		}
+	}
+
+	// Batch save images
+	if len(data.Images) > 0 {
+		for _, img := range data.Images {
+			if err := s.imageRepo.Save(ctx, img); err != nil {
+				return StageOutput{}, fmt.Errorf("failed to save image %s: %w", img.ID, err)
+			}
 		}
 	}
 
@@ -136,19 +98,40 @@ func (s *StorageStage) Execute(ctx context.Context, input StageInput) (StageOutp
 		return StageOutput{}, fmt.Errorf("source not found: %s", input.SourceID)
 	}
 
-	source.ChunkCount = len(knowledges)
+	source.ChunkCount = len(data.Knowledges)
+
+	// Merge document-level metadata into source from first knowledge chunk
+	if len(data.Knowledges) > 0 {
+		docMeta := extractDocumentMetadata(data.Knowledges[0].Metadata)
+		if source.Metadata == nil {
+			source.Metadata = make(map[string]any)
+		}
+		for k, v := range docMeta {
+			source.Metadata[k] = v
+		}
+	}
+
 	source.UpdatedAt = time.Now()
 	if err := s.sourceRepo.Update(ctx, source); err != nil {
 		return StageOutput{}, fmt.Errorf("failed to update source: %w", err)
 	}
 
-	return StageOutput{Data: knowledges}, nil
+	return StageOutput{Data: data}, nil
 }
 
-func convertToFloat32(v []float64) []float32 {
-	res := make([]float32, len(v))
-	for i, f := range v {
-		res[i] = float32(f)
+// extractDocumentMetadata filters chunk metadata to only include document-level keys.
+// Chunk-level keys (first_page, last_page, heading_context, embedding, etc.) are excluded
+// to prevent them from leaking into the Source entity.
+func extractDocumentMetadata(docMeta map[string]any) map[string]any {
+	if docMeta == nil {
+		return make(map[string]any)
 	}
-	return res
+
+	result := make(map[string]any)
+	for _, key := range documentMetadataKeys {
+		if val, exists := docMeta[key]; exists {
+			result[key] = val
+		}
+	}
+	return result
 }

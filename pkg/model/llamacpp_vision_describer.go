@@ -33,8 +33,8 @@ func newLlamaCPPVisionDescriber(baseURL, modelName, apiKey string) description.V
 }
 
 type chatCompletionContent struct {
-	Type     string            `json:"type"`
-	Text     string            `json:"text,omitempty"`
+	Type     string               `json:"type"`
+	Text     string               `json:"text,omitempty"`
 	ImageURL *chatCompletionImage `json:"image_url,omitempty"`
 }
 

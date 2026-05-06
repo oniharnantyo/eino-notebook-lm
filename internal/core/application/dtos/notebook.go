@@ -8,10 +8,10 @@ import (
 
 // CreateNotebookRequest represents a request to create a notebook
 type CreateNotebookRequest struct {
-	Title       string    `json:"title" validate:"required,min=1,max=200"`
-	Description string    `json:"description" validate:"max=500"`
-	Content     string    `json:"content"`
-	Tags        []string  `json:"tags" validate:"max=10"`
+	Title       string   `json:"title" validate:"required,min=1,max=200"`
+	Description string   `json:"description" validate:"max=500"`
+	Content     string   `json:"content"`
+	Tags        []string `json:"tags" validate:"max=10"`
 }
 
 // UpdateNotebookRequest represents a request to update a notebook
@@ -38,20 +38,20 @@ type NotebookResponse struct {
 
 // ListNotebooksRequest represents a request to list notebooks
 type ListNotebooksRequest struct {
-	Page   int       `json:"page" validate:"min=1"`
-	Limit  int       `json:"limit" validate:"min=1,max=100"`
-	Status string    `json:"status" validate:"omitempty,oneof=active archived deleted"`
-	Tags   []string  `json:"tags" validate:"max=5"`
-	Query  string    `json:"query" validate:"max=100"`
+	Page   int      `json:"page" validate:"min=1"`
+	Limit  int      `json:"limit" validate:"min=1,max=100"`
+	Status string   `json:"status" validate:"omitempty,oneof=active archived deleted"`
+	Tags   []string `json:"tags" validate:"max=5"`
+	Query  string   `json:"query" validate:"max=100"`
 }
 
 // ListNotebooksResponse represents a paginated list of notebooks
 type ListNotebooksResponse struct {
-	Notebooks []NotebookResponse `json:"notebooks"`
-	Total     int64              `json:"total"`
-	Page      int                `json:"page"`
-	Limit     int                `json:"limit"`
-	TotalPages int               `json:"total_pages"`
+	Notebooks  []NotebookResponse `json:"notebooks"`
+	Total      int64              `json:"total"`
+	Page       int                `json:"page"`
+	Limit      int                `json:"limit"`
+	TotalPages int                `json:"total_pages"`
 }
 
 // ErrorResponse represents an error response

@@ -9,30 +9,30 @@ import (
 
 // ArtifactResponse represents an artifact response
 type ArtifactResponse struct {
-	ID          uuid.UUID              `json:"id"`
-	NotebookID  uuid.UUID              `json:"notebook_id"`
-	Title       string                 `json:"title"`
-	Type        string                 `json:"type"`
-	Status      string                 `json:"status"`
-	Format      string                 `json:"format"`
-	Content     string                 `json:"content,omitempty"`
-	SourceIDs   []uuid.UUID            `json:"source_ids,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	Error       *string                `json:"error,omitempty"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	ID         uuid.UUID              `json:"id"`
+	NotebookID uuid.UUID              `json:"notebook_id"`
+	Title      string                 `json:"title"`
+	Type       string                 `json:"type"`
+	Status     string                 `json:"status"`
+	Format     string                 `json:"format"`
+	Content    string                 `json:"content,omitempty"`
+	SourceIDs  []uuid.UUID            `json:"source_ids,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Error      *string                `json:"error,omitempty"`
+	CreatedAt  time.Time              `json:"created_at"`
+	UpdatedAt  time.Time              `json:"updated_at"`
 }
 
 // ArtifactListResponse represents a lightweight artifact for list responses
 type ArtifactListResponse struct {
-	ID          uuid.UUID `json:"id"`
-	NotebookID  uuid.UUID `json:"notebook_id"`
-	Title       string    `json:"title"`
-	Type        string    `json:"type"`
-	Status      string    `json:"status"`
-	Format      string    `json:"format"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID         uuid.UUID `json:"id"`
+	NotebookID uuid.UUID `json:"notebook_id"`
+	Title      string    `json:"title"`
+	Type       string    `json:"type"`
+	Status     string    `json:"status"`
+	Format     string    `json:"format"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // ListArtifactsRequest represents a request to list artifacts
@@ -46,11 +46,11 @@ type ListArtifactsRequest struct {
 
 // ListArtifactsResponse represents a paginated list of artifacts
 type ListArtifactsResponse struct {
-	Artifacts   []ArtifactListResponse `json:"artifacts"`
-	Total       int64                 `json:"total"`
-	Page        int                   `json:"page"`
-	Limit       int                   `json:"limit"`
-	TotalPages  int                   `json:"total_pages"`
+	Artifacts  []ArtifactListResponse `json:"artifacts"`
+	Total      int64                  `json:"total"`
+	Page       int                    `json:"page"`
+	Limit      int                    `json:"limit"`
+	TotalPages int                    `json:"total_pages"`
 }
 
 // TriggerMindmapRequest represents a request to trigger mindmap generation
