@@ -8,12 +8,13 @@ import (
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
+	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
 func TestSentenceSplittingStage_Execute(t *testing.T) {
 	ctx := context.Background()
-	stage := NewSentenceSplittingStage()
+	stage := NewSentenceSplittingStage(logger.New(logger.LevelInfo, "text"))
 	sourceID := uuid.New()
 
 	t.Run("success with abbreviations and short sentence filtering", func(t *testing.T) {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 )
 
 type mockStage struct {
@@ -27,7 +29,7 @@ func TestIngestionPipeline(t *testing.T) {
 		&mockStage{name: "Stage1", fail: false},
 		&mockStage{name: "Stage2", fail: false},
 	}
-	pipeline := NewIngestionPipeline(stages, 1)
+	pipeline := NewIngestionPipeline(stages, 1, logger.New(logger.LevelInfo, "text"))
 	ctx := context.Background()
 
 	progressChan := pipeline.Ingest(ctx, StageInput{Data: "initial"})
@@ -47,7 +49,7 @@ func TestIngestionPipeline_Failure(t *testing.T) {
 		&mockStage{name: "Stage1", fail: false},
 		&mockStage{name: "Stage2", fail: true},
 	}
-	pipeline := NewIngestionPipeline(stages, 1)
+	pipeline := NewIngestionPipeline(stages, 1, logger.New(logger.LevelInfo, "text"))
 	ctx := context.Background()
 
 	progressChan := pipeline.Ingest(ctx, StageInput{Data: "initial"})
