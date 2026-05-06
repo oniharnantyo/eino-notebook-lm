@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/agent/tools"
 	artifactusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/artifact"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/conversation"
@@ -27,7 +28,9 @@ import (
 	mindmapusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/mindmap"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/notebook"
 	responseusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response/history"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/sentence"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/pipeline"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/config"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/persistence"
@@ -240,23 +243,33 @@ The server can be configured with custom host and port settings.`,
 		conversationUseCase := conversation.NewConversationUseCase(conversationRepo)
 		log.Info("initialized", "usecase", "ConversationUseCase")
 
-		// Create pgvector retriever for RAG (searching in sentences table)
-		pgvectorRetriever, err := pgvectoretriever.NewRetriever(ctx, &pgvectoretriever.Config{
-			Pool:                    dbPool,
-			TableName:               "sentences",
-			Dimension:               cfg.Embedding.Dimension,
-			ReferenceIDColumn:       "knowledge_id", // Sentences reference knowledge chunks
-			AutoCreateBM25Extension: true,
-			AutoCreateBM25Index:     true,
-		})
+		// Initialize specific retrievers for ToolFactory (Agentic RAG)
+		sentencesRetriever, err := pgvectoretriever.NewSentencesRetriever(dbPool, cfg.Embedding.Dimension)
 		if err != nil {
-			log.Warn("failed to create pgvector retriever", "error", err)
+			log.Warn("failed to create sentences retriever", "error", err)
 		} else {
-			log.Info("initialized", "retriever", "pgvector", "table", "sentences")
+			log.Info("initialized", "retriever", "sentences")
 		}
 
+		imagesRetriever, err := pgvectoretriever.NewImagesRetriever(dbPool, cfg.Embedding.Dimension)
+		if err != nil {
+			log.Warn("failed to create images retriever", "error", err)
+		} else {
+			log.Info("initialized", "retriever", "images")
+		}
+
+		knowledgesRetriever, err := pgvectoretriever.NewKnowledgesRetriever(dbPool, cfg.Embedding.Dimension)
+		if err != nil {
+			log.Warn("failed to create knowledges retriever", "error", err)
+		} else {
+			log.Info("initialized", "retriever", "knowledges")
+		}
+
+		// Create ToolFactory for agent tools
+		toolFactory := tools.NewToolFactory(sentencesRetriever, imagesRetriever, knowledgesRetriever, knowledgeRepo, sourceRepo, embedder)
+
 		// Initialize chat model using factory
-		chatModel, err := model.CreateChatModel(ctx, &cfg.Chat)
+		chatModel, err := model.CreateToolCallingChatModel(ctx, &cfg.Chat)
 		if err != nil {
 			log.Warn("failed to initialize chat model", "error", err)
 		} else {
@@ -265,16 +278,16 @@ The server can be configured with custom host and port settings.`,
 
 		// Create response use case with history management configuration
 		var responseUseCase chat.ResponseUseCase
-		if pgvectorRetriever != nil && chatModel != nil && embedder != nil {
+		if sentencesRetriever != nil && chatModel != nil && embedder != nil {
 			// Configure conversation history management
-			historyConfig := &responseusecase.HistoryConfig{
-				Strategy:             responseusecase.HistoryStrategySlidingWindow,
+			historyConfig := &history.HistoryConfig{
+				Strategy:             history.HistoryStrategySlidingWindow,
 				MaxMessages:          10,   // Keep last 10 messages
 				MaxTokens:            4000, // Max ~4000 tokens for history
 				TokenEstimationRatio: 4,    // 1 token ≈ 4 chars
 				SummarizeThreshold:   5,    // Summarize messages older than 5 turns
 			}
-			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, pgvectorRetriever, embedder, chatModel, cfg.Chat.Model, historyConfig)
+			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, sourceRepo, sentencesRetriever, embedder, chatModel, cfg.Chat.Model, historyConfig, toolFactory)
 			log.Info("initialized", "usecase", "ResponseUseCase", "history_strategy", historyConfig.Strategy, "max_messages", historyConfig.MaxMessages)
 		}
 
@@ -377,7 +390,7 @@ The server can be configured with custom host and port settings.`,
 				},
 				Chunking: &kreuzberg.Chunking{
 					MaxCharacters:         1000,
-					Overlap:               200,
+					Overlap:               0,
 					Trim:                  true,
 					ChunkerType:           "markdown",
 					PrependHeadingContext: false,
@@ -416,8 +429,22 @@ The server can be configured with custom host and port settings.`,
 		)
 		log.Info("initialized", "factory", "ContentExtractorFactory")
 
+			// Create pipeline factory for ingestion pipelines
+			pipelineFactory := pipeline.NewPipelineFactory(
+				sourceRepo,
+				knowledgeRepo,
+				sentenceRepo,
+				imageRepo,
+				docParserFactory,
+				embedder,
+				s3Storage,
+				visionDescriber,
+				log,
+			)
+			log.Info("initialized", "factory", "PipelineFactory")
+
 		// Create source usecase with content extraction dependencies
-		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, knowledgeUseCase, sentenceUseCase, imageUseCase, log)
+		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, knowledgeUseCase, sentenceUseCase, imageUseCase, pipelineFactory, log)
 		log.Info("initialized", "usecase", "SourceUseCase")
 
 		// Create artifact usecase
