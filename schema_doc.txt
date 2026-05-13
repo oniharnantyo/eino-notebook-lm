@@ -1,0 +1,1340 @@
+package schema // import "github.com/cloudwego/eino/schema"
+
+Package schema defines the core data structures and utilities shared across all
+Eino components.
+
+# Key Types
+
+Message is the universal unit of communication between users, models, and tools.
+It carries role, text content, multimodal media, tool calls, and response
+metadata. Helper constructors — UserMessage, SystemMessage, AssistantMessage,
+ToolMessage — cover the most common cases.
+
+Document represents a piece of text with a metadata map. Typed accessors (Score,
+SubIndexes, DenseVector, SparseVector, DSLInfo, ExtraInfo) read and write
+well-known metadata keys so pipeline stages can pass structured data without
+coupling to specific struct types.
+
+ToolInfo describes a tool's name, description, and parameter schema. Parameters
+can be declared either as a ParameterInfo map (simple, struct- like) or as a raw
+jsonschema.Schema (full JSON Schema 2020-12 expressiveness). ToolChoice controls
+whether the model must, may, or must not call tools.
+
+# Streaming
+
+StreamReader and StreamWriter are the building blocks for streaming data through
+Eino pipelines. Create a linked pair with Pipe:
+
+    sr, sw := schema.Pipe[*schema.Message](10)
+    go func() {
+    	defer sw.Close()
+    	sw.Send(chunk, nil)
+    }()
+    defer sr.Close()
+    for {
+    	chunk, err := sr.Recv()
+    	if errors.Is(err, io.EOF) { break }
+    }
+
+Important constraints:
+  - A StreamReader is read-once: only one goroutine may call Recv.
+  - Always call Close, even when the loop ends on io.EOF, to release resources.
+  - To give the same stream to multiple consumers, call StreamReader.Copy.
+
+# Four Streaming Paradigms
+
+Eino components and Lambda functions are classified by their input/output
+streaming shape. The framework automatically bridges mismatches:
+
+  - Invoke: non-streaming in, non-streaming out (ping-pong).
+  - Stream: non-streaming in, StreamReader out (server-streaming). ChatModel and
+    Tool support this.
+  - Collect: StreamReader in, non-streaming out (client-streaming). Useful for
+    branch conditions that decide after the first chunk.
+  - Transform: StreamReader in, StreamReader out (bidirectional).
+
+When an upstream node outputs T but a downstream node only accepts
+StreamReader[T], the framework wraps T in a single-chunk StreamReader — this
+is called a "fake stream". It satisfies the interface but does NOT reduce
+time-to-first-chunk. Conversely, when a downstream node only accepts T but the
+upstream outputs StreamReader[T], the framework automatically concatenates the
+stream into a complete T.
+
+Utility functions:
+  - StreamReaderFromArray wraps a slice as a stream (useful in tests).
+  - MergeStreamReaders fans-in multiple streams into one.
+  - MergeNamedStreamReaders like MergeStreamReaders but emits SourceEOF when
+    each named source ends, useful for tracking per-source completion.
+  - StreamReaderWithConvert transforms element types; return ErrNoValue from the
+    convert function to skip an element.
+
+See
+https://www.cloudwego.io/docs/eino/core_modules/chain_and_graph_orchestration/stream_programming_essentials/
+
+VARIABLES
+
+var ErrNoValue = errors.New("no value")
+    ErrNoValue is a sentinel returned from the convert function passed to
+    StreamReaderWithConvert to skip a stream element — the element is dropped
+    and the next one is read without surfacing an error to the caller.
+
+    Use it to filter out empty or irrelevant chunks:
+
+        outStream = schema.StreamReaderWithConvert(s,
+            func(src string) (string, error) {
+                if len(src) == 0 {
+                    return "", schema.ErrNoValue // skip empty chunks
+                }
+                return src, nil
+            })
+
+    DO NOT use ErrNoValue in any other context.
+
+var ErrRecvAfterClosed = errors.New("recv after stream closed")
+    ErrRecvAfterClosed indicates that StreamReader.Recv was unexpectedly called
+    after StreamReader.Close. This error should not occur during normal use of
+    StreamReader.Recv. If it does, please check your application code.
+
+
+FUNCTIONS
+
+func ConcatMessageArray(mas [][]*Message) ([]*Message, error)
+    ConcatMessageArray merges aligned slices of messages into a single slice,
+    concatenating messages at the same index across the input arrays.
+
+func ConcatMessageStream(s *StreamReader[*Message]) (*Message, error)
+    ConcatMessageStream drains a stream of messages and returns a single
+    concatenated message representing the merged content.
+
+func ConcatMessages(msgs []*Message) (*Message, error)
+    ConcatMessages concat messages with the same role and name. It will concat
+    tool calls with the same index. It will return an error if the messages
+    have different roles or names. It's useful for concatenating messages from a
+    stream. e.g.
+
+        msgs := []*Message{}
+        for {
+        	msg, err := stream.Recv()
+        	if errors.Is(err, io.EOF) {
+        		break
+        	}
+        	if err != nil {...}
+        	msgs = append(msgs, msg)
+        }
+
+    concatedMsg, err := ConcatMessages(msgs) // concatedMsg.Content will be full
+    content of all messages
+
+func ConcatToolResults(chunks []*ToolResult) (*ToolResult, error)
+    ConcatToolResults merges multiple ToolResult chunks into a single
+    ToolResult. It collects all ToolOutputParts from the input chunks and merges
+    contiguous text parts within each chunk.
+
+    Merge rules:
+      - Text parts: Contiguous text parts within each chunk are concatenated
+        into a single text part.
+      - Non-text parts (image, audio, video, file): These parts are kept as-is
+        without merging. Each non-text part type can only appear in one chunk;
+        if the same non-text type appears in multiple chunks, an error is
+        returned.
+
+    This function is primarily used in streaming scenarios where tool output is
+    delivered in multiple chunks that need to be merged into a complete result.
+
+    Parameters:
+      - chunks: A slice of ToolResult pointers representing sequential chunks
+        from a stream. Nil chunks and chunks with empty Parts are safely
+        ignored.
+
+    Returns:
+      - *ToolResult: The merged ToolResult containing all content from the
+        chunks. Returns an empty ToolResult if chunks is empty or all chunks are
+        nil/empty.
+      - error: An error if the same non-text part type appears in multiple
+        chunks.
+
+func GetSourceName(err error) (string, bool)
+    GetSourceName extracts the source stream name from a SourceEOF error.
+    It returns the source name and a boolean indicating whether the error was a
+    SourceEOF. If the error is not a SourceEOF, it returns an empty string and
+    false.
+
+func Pipe[T any](cap int) (*StreamReader[T], *StreamWriter[T])
+    Pipe creates a new stream with the given capacity that represented with
+    StreamWriter and StreamReader. The capacity is the maximum number of items
+    that can be buffered in the stream. e.g.
+
+        sr, sw := schema.Pipe[string](3)
+        go func() { // send data
+        	defer sw.Close()
+        	for i := 0; i < 10; i++ {
+        		sw.Send(i, nil)
+        	}
+        }
+
+        defer sr.Close()
+        for {
+        	chunk, err := sr.Recv()
+        	if errors.Is(err, io.EOF) {
+        		break
+        	}
+        	if err != nil {
+        		panic(err)
+        	}
+        	fmt.Println(chunk)
+        }
+
+func Register[T any]()
+    Register registers a type for serialization. This is required for any
+    type you intend to persist in a graph or ADK checkpoint. It automatically
+    determines the type name and is the recommended method for registering new
+    types.
+
+    It is recommended to call this in an `init()` function in the file where the
+    type is declared.
+
+    What to Register:
+      - Top-level types used as state (e.g., structs).
+      - Concrete types that are assigned to interface fields.
+
+    What NOT to Register:
+      - Struct fields with concrete types (e.g., `string`, `int`, other
+        structs). These are inferred via reflection.
+
+    Serialization Rules:
+
+    The serialization behavior is based on Go's standard `encoding/gob` package.
+    See https://pkg.go.dev/encoding/gob for detailed rules.
+      - Only exported struct fields are serialized.
+      - Functions and channels are not supported and will be ignored.
+
+    This function panics if registration fails.
+
+func RegisterName[T any](name string)
+    RegisterName registers a type with a specific name for serialization. This
+    is required for any type you intend to persist in a graph or ADK checkpoint.
+    Use this function to maintain backward compatibility by mapping a type to a
+    previously used name. For new types, `Register` is preferred.
+
+    It is recommended to call this in an `init()` function in the file where the
+    type is declared.
+
+    What to Register:
+      - Top-level types used as state (e.g., structs).
+      - Concrete types that are assigned to interface fields.
+
+    What NOT to Register:
+      - Struct fields with concrete types (e.g., `string`, `int`, other
+        structs). These are inferred via reflection.
+
+    Serialization Rules:
+
+    The serialization behavior is based on Go's standard `encoding/gob` package.
+    See https://pkg.go.dev/encoding/gob for detailed rules.
+      - Only exported struct fields are serialized.
+      - Functions and channels are not supported and will be ignored.
+
+    This function panics if registration fails.
+
+
+TYPES
+
+type ChatMessageAudioURL struct {
+	// URL can either be a traditional URL or a special URL conforming to RFC-2397 (https://www.rfc-editor.org/rfc/rfc2397).
+	// double check with model implementations for detailed instructions on how to use this.
+	URL string `json:"url,omitempty"`
+	URI string `json:"uri,omitempty"`
+
+	// MIMEType is the mime type of the audio, eg. "audio/wav" or "audio/ogg".
+	MIMEType string `json:"mime_type,omitempty"`
+	// Extra is used to store extra information for the audio url.
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    Deprecated: This struct is deprecated as the MultiContent field is
+    deprecated. For the audio input part of the model, use MessageInputAudio.
+    For the audio output part of the model, use MessageOutputAudio. Choose
+    either URL or URI. If supported, URL may embed inline audio data per
+    RFC-2397.
+
+type ChatMessageFileURL struct {
+	URL string `json:"url,omitempty"`
+	URI string `json:"uri,omitempty"`
+
+	// MIMEType is the mime type of the file, eg. "application/pdf", "text/plain".
+	MIMEType string `json:"mime_type,omitempty"`
+	// Name is the name of the file.
+	Name string `json:"name,omitempty"`
+
+	// Extra is used to store extra information for the file url.
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    Deprecated: This struct is deprecated as the MultiContent field is
+    deprecated. For the file input part of the model, use MessageInputFile.
+    Choose either URL or URI.
+
+type ChatMessageImageURL struct {
+	// URL can either be a traditional URL or a special URL conforming to RFC-2397 (https://www.rfc-editor.org/rfc/rfc2397).
+	// double check with model implementations for detailed instructions on how to use this.
+	URL string `json:"url,omitempty"`
+
+	URI string `json:"uri,omitempty"`
+	// Detail is the quality of the image url.
+	Detail ImageURLDetail `json:"detail,omitempty"`
+
+	// MIMEType is the mime type of the image, eg. "image/png".
+	MIMEType string `json:"mime_type,omitempty"`
+	// Extra is used to store extra information for the image url.
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    Deprecated: This struct is deprecated as the MultiContent field is
+    deprecated. For the image input part of the model, use MessageInputImage.
+    For the image output part of the model, use MessageOutputImage. Choose
+    either URL or URI. If your model implementation supports it, URL could embed
+    inline image data as defined in RFC-2397.
+
+type ChatMessagePart struct {
+	// Type is the type of the part, eg. "text", "image_url", "audio_url", "video_url", "file_url".
+	Type ChatMessagePartType `json:"type,omitempty"`
+
+	// Text is the text of the part, it's used when Type is "text".
+	Text string `json:"text,omitempty"`
+
+	// ImageURL is the image url of the part, it's used when Type is "image_url".
+	ImageURL *ChatMessageImageURL `json:"image_url,omitempty"`
+	// AudioURL is the audio url of the part, it's used when Type is "audio_url".
+	AudioURL *ChatMessageAudioURL `json:"audio_url,omitempty"`
+	// VideoURL is the video url of the part, it's used when Type is "video_url".
+	VideoURL *ChatMessageVideoURL `json:"video_url,omitempty"`
+	// FileURL is the file url of the part, it's used when Type is "file_url".
+	FileURL *ChatMessageFileURL `json:"file_url,omitempty"`
+}
+    Deprecated: This struct is deprecated as the MultiContent field is
+    deprecated. For model input, use MessageInputPart. For model output,
+    use MessageOutputPart.
+
+type ChatMessagePartType string
+    ChatMessagePartType is the type of the part in a chat message.
+
+const (
+	// ChatMessagePartTypeText means the part is a text.
+	ChatMessagePartTypeText ChatMessagePartType = "text"
+	// ChatMessagePartTypeImageURL means the part is an image url.
+	ChatMessagePartTypeImageURL ChatMessagePartType = "image_url"
+	// ChatMessagePartTypeAudioURL means the part is an audio url.
+	ChatMessagePartTypeAudioURL ChatMessagePartType = "audio_url"
+	// ChatMessagePartTypeVideoURL means the part is a video url.
+	ChatMessagePartTypeVideoURL ChatMessagePartType = "video_url"
+	// ChatMessagePartTypeFileURL means the part is a file url.
+	ChatMessagePartTypeFileURL ChatMessagePartType = "file_url"
+	// ChatMessagePartTypeReasoning means the part is a reasoning block.
+	ChatMessagePartTypeReasoning ChatMessagePartType = "reasoning"
+)
+type ChatMessageVideoURL struct {
+	// URL can either be a traditional URL or a special URL conforming to RFC-2397 (https://www.rfc-editor.org/rfc/rfc2397).
+	// double check with model implementations for detailed instructions on how to use this.
+	URL string `json:"url,omitempty"`
+	URI string `json:"uri,omitempty"`
+
+	// MIMEType is the mime type of the video, eg. "video/mp4".
+	MIMEType string `json:"mime_type,omitempty"`
+	// Extra is used to store extra information for the video url.
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    Deprecated: This struct is deprecated as the MultiContent field is
+    deprecated. For the video input part of the model, use MessageInputVideo.
+    For the video output part of the model, use MessageOutputVideo. Choose
+    either URL or URI. If supported, URL may embed inline video data per
+    RFC-2397.
+
+type CompletionTokensDetails struct {
+	// ReasoningTokens tokens generated by the model for reasoning.
+	// This is currently supported by OpenAI, Gemini, ARK and Qwen  chat models.
+	// For other models, this field will be 0.
+	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
+}
+
+type ConvertOption func(*convertOptions)
+
+func WithErrWrapper(wrapper func(error) error) ConvertOption
+    WithErrWrapper wraps non-EOF errors from the underlying stream reader
+    during conversion by StreamReaderWithConvert. Errors returned by the convert
+    function itself are not wrapped. If the wrapper returns nil, the errored
+    chunk is skipped and the next chunk is read. If the wrapper returns a
+    non-nil error, that error is surfaced to the caller.
+
+type DataType string
+    DataType is the type of the parameter. It must be one of the following
+    values: "object", "number", "integer", "string", "array", "null", "boolean",
+    which is the same as the type of the parameter in JSONSchema.
+
+const (
+	Object  DataType = "object"
+	Number  DataType = "number"
+	Integer DataType = "integer"
+	String  DataType = "string"
+	Array   DataType = "array"
+	Null    DataType = "null"
+	Boolean DataType = "boolean"
+)
+    Supported JSONSchema data types for tool parameters.
+
+type Document struct {
+	// ID is the unique identifier of the document.
+	ID string `json:"id"`
+	// Content is the content of the document.
+	Content string `json:"content"`
+	// MetaData is the metadata of the document, can be used to store extra information.
+	MetaData map[string]any `json:"meta_data"`
+}
+    Document is a piece of text with a metadata map. It is the shared currency
+    between Loader, Transformer, Indexer, and Retriever components.
+
+    Metadata is an open map[string]any that lets pipeline stages attach typed
+    values to a document without creating a new struct. Well-known keys are
+    managed through typed accessor methods — Score, SubIndexes, DenseVector,
+    SparseVector, DSLInfo, ExtraInfo — so callers never need to reference the
+    raw key strings.
+
+    Transformer implementations should preserve existing metadata and merge
+    new keys rather than replacing the map outright, so provenance information
+    accumulated by earlier stages is not lost.
+
+func (d *Document) DSLInfo() map[string]any
+    DSLInfo returns the dsl info of the document. can use doc.WithDSLInfo() to
+    set the dsl info.
+
+func (d *Document) DenseVector() []float64
+    DenseVector returns the dense vector of the document. can use
+    doc.WithDenseVector() to set the dense vector.
+
+func (d *Document) ExtraInfo() string
+    ExtraInfo returns the extra info of the document. can use
+    doc.WithExtraInfo() to set the extra info.
+
+func (d *Document) Score() float64
+    Score returns the score of the document. can use doc.WithScore() to set the
+    score.
+
+func (d *Document) SparseVector() map[int]float64
+    SparseVector returns the sparse vector of the document, key indices -> value
+    vector. can use doc.WithSparseVector() to set the sparse vector.
+
+func (d *Document) String() string
+    String returns the content of the document.
+
+func (d *Document) SubIndexes() []string
+    SubIndexes returns the sub indexes of the document. can use
+    doc.WithSubIndexes() to set the sub indexes.
+
+func (d *Document) WithDSLInfo(dslInfo map[string]any) *Document
+    WithDSLInfo attaches a domain-specific-language query description to the
+    document. This is consumed by Retriever implementations that support
+    structured queries (e.g., filter expressions) alongside vector search.
+    Use Document.DSLInfo to retrieve it.
+
+func (d *Document) WithDenseVector(vector []float64) *Document
+    WithDenseVector sets the dense vector of the document. can use
+    doc.DenseVector() to get the dense vector.
+
+func (d *Document) WithExtraInfo(extraInfo string) *Document
+    WithExtraInfo sets the extra info of the document. can use doc.ExtraInfo()
+    to get the extra info.
+
+func (d *Document) WithScore(score float64) *Document
+    WithScore sets the relevance score on the document, typically written by
+    a Retriever after ranking results. A higher score means higher relevance.
+    Note: [retriever.WithScoreThreshold] filters by this value, not sort order.
+    Use Document.Score to retrieve it.
+
+func (d *Document) WithSparseVector(sparse map[int]float64) *Document
+    WithSparseVector sets the sparse vector of the document, key indices ->
+    value vector. can use doc.SparseVector() to get the sparse vector.
+
+func (d *Document) WithSubIndexes(indexes []string) *Document
+    WithSubIndexes sets the sub-indexes on the document metadata and returns
+    the document for chaining. Sub-indexes let an Indexer route a document
+    into multiple logical partitions of a vector store simultaneously. Use
+    Document.SubIndexes to retrieve them.
+
+type FormatType uint8
+    FormatType used by MessageTemplate.Format
+
+const (
+	// FString Supported by pyfmt(github.com/slongfield/pyfmt), which is an implementation of https://peps.python.org/pep-3101/.
+	FString FormatType = 0
+	// GoTemplate https://pkg.go.dev/text/template.
+	GoTemplate FormatType = 1
+	// Jinja2 Supported by gonja(github.com/nikolalohinski/gonja), which is a implementation of https://jinja.palletsprojects.com/en/3.1.x/templates/.
+	Jinja2 FormatType = 2
+)
+type FunctionCall struct {
+	// Name is the name of the function to call, it can be used to identify the specific function.
+	Name string `json:"name,omitempty"`
+	// Arguments is the arguments to call the function with, in JSON format.
+	Arguments string `json:"arguments,omitempty"`
+}
+    FunctionCall is the function call in a message. It's used in Assistant
+    Message.
+
+type ImageURLDetail string
+    ImageURLDetail is the detail of the image url.
+
+const (
+	// ImageURLDetailHigh means the high quality image url.
+	ImageURLDetailHigh ImageURLDetail = "high"
+	// ImageURLDetailLow means the low quality image url.
+	ImageURLDetailLow ImageURLDetail = "low"
+	// ImageURLDetailAuto means the auto quality image url.
+	ImageURLDetailAuto ImageURLDetail = "auto"
+)
+type LogProb struct {
+	// Token represents the text of the token, which is a contiguous sequence of characters
+	// (e.g., a word, part of a word, or punctuation) as understood by the tokenization process used by the language model.
+	Token string `json:"token"`
+	// LogProb is the log probability of this token, if it is within the top 20 most likely tokens.
+	// Otherwise, the value `-9999.0` is used to signify that the token is very unlikely.
+	LogProb float64 `json:"logprob"`
+	// Bytes is a list of integers representing the UTF-8 bytes representation of the token.
+	// Useful in instances where characters are represented by multiple tokens and
+	// their byte representations must be combined to generate the correct text
+	// representation. Can be `null` if there is no bytes representation for the token.
+	Bytes []int64 `json:"bytes,omitempty"` // Omitting the field if it is null
+	// TopLogProbs is a list of the most likely tokens and their log probability, at this token position.
+	// In rare cases, there may be fewer than the number of requested top_logprobs returned.
+	TopLogProbs []TopLogProb `json:"top_logprobs"`
+}
+    LogProb represents the probability information for a token.
+
+type LogProbs struct {
+	// Content is a list of message content tokens with log probability information.
+	Content []LogProb `json:"content"`
+}
+    LogProbs is the top-level structure containing the log probability
+    information.
+
+type Message struct {
+	Role RoleType `json:"role"`
+
+	// Content is for user text input and model text output.
+	Content string `json:"content"`
+
+	// if MultiContent is not empty, use this instead of Content
+	// if MultiContent is empty, use Content
+	// Deprecated: Use UserInputMultiContent for user multimodal inputs and AssistantGenMultiContent for model multimodal outputs.
+	MultiContent []ChatMessagePart `json:"multi_content,omitempty"`
+
+	// UserInputMultiContent passes multimodal content provided by the user to the model.
+	UserInputMultiContent []MessageInputPart `json:"user_input_multi_content,omitempty"`
+
+	// AssistantGenMultiContent is for receiving multimodal output from the model.
+	AssistantGenMultiContent []MessageOutputPart `json:"assistant_output_multi_content,omitempty"`
+
+	Name string `json:"name,omitempty"`
+
+	// only for AssistantMessage
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+
+	// only for ToolMessage
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	// only for ToolMessage
+	ToolName string `json:"tool_name,omitempty"`
+
+	ResponseMeta *ResponseMeta `json:"response_meta,omitempty"`
+
+	// ReasoningContent is the thinking process of the model, which will be included when the model returns reasoning content.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+
+	// customized information for model implementation
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    Message denotes the data structure for model input and output, originating
+    from either user input or model return. It supports both text-only and
+    multimodal content.
+
+    For text-only input from a user, use the Content field:
+
+        &schema.Message{
+        	Role:    schema.User,
+        	Content: "What is the capital of France?",
+        }
+
+    For multimodal input from a user, use the UserInputMultiContent field.
+    This allows combining text with other media like images:
+
+        &schema.Message{
+        	Role: schema.User,
+        	UserInputMultiContent: []schema.MessageInputPart{
+        		{Type: schema.ChatMessagePartTypeText, Text: "What is in this image?"},
+        		{Type: schema.ChatMessagePartTypeImageURL, Image: &schema.MessageInputImage{
+        			MessagePartCommon: schema.MessagePartCommon{
+        				URL: toPtr("https://example.com/cat.jpg"),
+        			},
+        			Detail: schema.ImageURLDetailHigh,
+        		}},
+        	},
+        }
+
+    When the model returns multimodal content, it is available in the
+    AssistantGenMultiContent field:
+
+        &schema.Message{
+        	Role: schema.Assistant,
+        	AssistantGenMultiContent: []schema.MessageOutputPart{
+        		{Type: schema.ChatMessagePartTypeText, Text: "Here is the generated image:"},
+        		{Type: schema.ChatMessagePartTypeImage, Image: &schema.MessageOutputImage{
+        			MessagePartCommon: schema.MessagePartCommon{
+        				Base64Data: toPtr("base64_image_binary"),
+        				MIMEType:   "image/png",
+        			},
+        		}},
+        	},
+        }
+
+func AssistantMessage(content string, toolCalls []ToolCall) *Message
+    AssistantMessage represents a message with Role "assistant".
+
+func SystemMessage(content string) *Message
+    SystemMessage represents a message with Role "system".
+
+func ToolMessage(content string, toolCallID string, opts ...ToolMessageOption) *Message
+    ToolMessage represents a message with Role "tool".
+
+func UserMessage(content string) *Message
+    UserMessage represents a message with Role "user".
+
+func (m *Message) Format(_ context.Context, vs map[string]any, formatType FormatType) ([]*Message, error)
+    Format returns the messages after rendering by the given formatType. e.g.
+
+        msg := schema.UserMessage("hello world, {name}")
+        msgs, err := msg.Format(ctx, map[string]any{"name": "eino"}, schema.FString) // <= this will render the content of msg by pyfmt
+        // msgs[0].Content will be "hello world, eino"
+
+func (m *Message) String() string
+    String returns the string representation of the message. e.g.
+
+        msg := schema.UserMessage("hello world")
+        fmt.Println(msg.String()) // Output will be: `user: hello world``
+
+        msg := schema.Message{
+        	Role:    schema.Tool,
+        	Content: "{...}",
+        	ToolCallID: "callxxxx"
+        }
+        fmt.Println(msg.String())
+        Output will be:
+        	tool: {...}
+        	call_id: callxxxx
+
+type MessageInputAudio struct {
+	MessagePartCommon
+}
+    MessageInputAudio is used to represent an audio part in message. Choose
+    either URL or Base64Data.
+
+type MessageInputFile struct {
+	MessagePartCommon
+
+	// Name represents the filename.
+	// Optional.
+	Name string `json:"name,omitempty"`
+}
+    MessageInputFile is used to represent a file part in message. Choose either
+    URL or Base64Data.
+
+type MessageInputImage struct {
+	MessagePartCommon
+
+	// Detail is the quality of the image url.
+	Detail ImageURLDetail `json:"detail,omitempty"`
+}
+    MessageInputImage is used to represent an image part in message. Choose
+    either URL or Base64Data.
+
+type MessageInputPart struct {
+	Type ChatMessagePartType `json:"type"`
+
+	Text string `json:"text,omitempty"`
+
+	// Image is the image input of the part, it's used when Type is "image_url".
+	Image *MessageInputImage `json:"image,omitempty"`
+
+	// Audio  is the audio input of the part, it's used when Type is "audio_url".
+	Audio *MessageInputAudio `json:"audio,omitempty"`
+
+	// Video is the video input of the part, it's used when Type is "video_url".
+	Video *MessageInputVideo `json:"video,omitempty"`
+
+	// File is the file input of the part, it's used when Type is "file_url".
+	File *MessageInputFile `json:"file,omitempty"`
+
+	// Extra is used to store extra information.
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    MessageInputPart represents the input part of message.
+
+type MessageInputVideo struct {
+	MessagePartCommon
+}
+    MessageInputVideo is used to represent a video part in message. Choose
+    either URL or Base64Data.
+
+type MessageJSONParseConfig struct {
+	// parse from content or tool call, default is content.
+	ParseFrom MessageParseFrom `json:"parse_from,omitempty"`
+
+	// parse key path, default is empty.
+	// must be a valid json path expression, eg: field.sub_field
+	ParseKeyPath string `json:"parse_key_path,omitempty"`
+}
+    MessageJSONParseConfig configures JSON parsing behavior for Message.
+
+type MessageJSONParser[T any] struct {
+	ParseFrom    MessageParseFrom
+	ParseKeyPath string
+}
+    MessageJSONParser is a parser that parses a message into an object T,
+    using json unmarshal. eg of parse to single struct:
+
+        config := &MessageJSONParseConfig{
+        	ParseFrom: MessageParseFromToolCall,
+        }
+        parser := NewMessageJSONParser[GetUserParam](config)
+        param, err := parser.Parse(ctx, message)
+
+        eg of parse to slice of struct:
+
+        config := &MessageJSONParseConfig{
+        	ParseFrom: MessageParseFromToolCall,
+        }
+
+    parser := NewMessageJSONParser[GetUserParam](config) param, err :=
+    parser.Parse(ctx, message)
+
+func (p *MessageJSONParser[T]) Parse(ctx context.Context, m *Message) (parsed T, err error)
+    Parse parses a message into an object T.
+
+type MessageOutputAudio struct {
+	MessagePartCommon
+}
+    MessageOutputAudio is used to represent an audio part in message.
+
+type MessageOutputImage struct {
+	MessagePartCommon
+}
+    MessageOutputImage is used to represent an image part in message.
+
+type MessageOutputPart struct {
+	// Type is the type of the part, e.g. "text", "image_url", "audio_url", "video_url".
+	Type ChatMessagePartType `json:"type"`
+
+	// Text is the text of the part, it's used when Type is "text".
+	Text string `json:"text,omitempty"`
+
+	// Image is the image output of the part, used when Type is ChatMessagePartTypeImageURL.
+	Image *MessageOutputImage `json:"image,omitempty"`
+
+	// Audio is the audio output of the part, used when Type is ChatMessagePartTypeAudioURL.
+	Audio *MessageOutputAudio `json:"audio,omitempty"`
+
+	// Video is the video output of the part, used when Type is ChatMessagePartTypeVideoURL.
+	Video *MessageOutputVideo `json:"video,omitempty"`
+
+	// Reasoning contains the reasoning content generated by the model.
+	// Used when Type is ChatMessagePartTypeReasoning.
+	Reasoning *MessageOutputReasoning `json:"reasoning,omitempty"`
+
+	// Extra is used to store extra information.
+	Extra map[string]any `json:"extra,omitempty"`
+
+	// StreamingMeta contains metadata for streaming responses.
+	// This field is typically used at runtime and not serialized.
+	StreamingMeta *MessageStreamingMeta `json:"-"`
+}
+    MessageOutputPart represents a part of an assistant-generated message.
+    It can contain text, or multimedia content like images, audio, or video.
+
+type MessageOutputReasoning struct {
+	// Text is either the thought summary or the raw reasoning text itself.
+	Text string `json:"text,omitempty"`
+
+	// Signature contains encrypted reasoning tokens.
+	// Required by some models when passing reasoning context back in subsequent requests.
+	Signature string `json:"signature,omitempty"`
+}
+    MessageOutputReasoning represents the reasoning content generated by
+    reasoning models. Some models produce reasoning steps before generating the
+    final response. This struct captures that reasoning output.
+
+type MessageOutputVideo struct {
+	MessagePartCommon
+}
+    MessageOutputVideo is used to represent a video part in message.
+
+type MessageParseFrom string
+    MessageParseFrom determines the source of the data to be parsed. default is
+    content (Message.Content).
+
+const (
+	MessageParseFromContent  MessageParseFrom = "content"
+	MessageParseFromToolCall MessageParseFrom = "tool_call"
+)
+    MessageParseFrom indicates the source data used by the parser.
+
+type MessageParser[T any] interface {
+	Parse(ctx context.Context, m *Message) (T, error)
+}
+    MessageParser parses a Message into a strongly typed value.
+
+func NewMessageJSONParser[T any](config *MessageJSONParseConfig) MessageParser[T]
+    NewMessageJSONParser creates a new MessageJSONParser.
+
+type MessagePartCommon struct {
+	// URL is primarily used for HTTP or HTTPS access links.
+	// For data in the format 'data:[<mediatype>][;base64],<data>' (the 'data' URL Schema of RFC-2397 (https://www.rfc-editor.org/rfc/rfc2397)),
+	// it is recommended to use Base64Data and MIMEType fields separately instead.
+	URL *string `json:"url,omitempty"`
+
+	// Base64Data represents the binary data in Base64 encoded string format.
+	Base64Data *string `json:"base64data,omitempty"`
+
+	// MIMEType is the mime type , eg."image/png",""audio/wav" etc.
+	MIMEType string `json:"mime_type,omitempty"`
+
+	// Deprecated: Use MessageOutputPart.Extra or MessageInputPart.Extra to set additional metadata instead.
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    MessagePartCommon represents the common abstract components for input and
+    output of multi-modal types.
+
+type MessageStreamingMeta struct {
+	// Index specifies the index position of this part in the final response.
+	// This is useful for reassembling multiple reasoning/content parts in correct order.
+	Index int `json:"index,omitempty"`
+}
+    MessageStreamingMeta contains metadata for streaming responses. It is used
+    to track position of part when the model outputs multiple parts in a single
+    response.
+
+type MessagesTemplate interface {
+	Format(ctx context.Context, vs map[string]any, formatType FormatType) ([]*Message, error)
+}
+    MessagesTemplate is the interface for messages template. It's used to render
+    a template to a list of messages. e.g.
+
+        chatTemplate := prompt.FromMessages(
+        	schema.SystemMessage("you are eino helper"),
+        	schema.MessagesPlaceholder("history", false), // <= this will use the value of "history" in params
+        )
+        msgs, err := chatTemplate.Format(ctx, params)
+
+func MessagesPlaceholder(key string, optional bool) MessagesTemplate
+    MessagesPlaceholder can render a placeholder to a list of messages in
+    params. e.g.
+
+        placeholder := MessagesPlaceholder("history", false)
+        params := map[string]any{
+        	"history": []*schema.Message{{Role: "user", Content: "what is eino?"}, {Role: "assistant", Content: "eino is a great freamwork to build llm apps"}},
+        	"query": "how to use eino?",
+        }
+        chatTemplate := chatTpl := prompt.FromMessages(
+        	schema.SystemMessage("you are eino helper"),
+        	schema.MessagesPlaceholder("history", false), // <= this will use the value of "history" in params
+        )
+        msgs, err := chatTemplate.Format(ctx, params)
+
+type ParameterInfo struct {
+	// The type of the parameter.
+	Type DataType
+	// The element type of the parameter, only for array.
+	ElemInfo *ParameterInfo
+	// The sub parameters of the parameter, only for object.
+	SubParams map[string]*ParameterInfo
+	// The description of the parameter.
+	Desc string
+	// The enum values of the parameter, only for string.
+	Enum []string
+	// Whether the parameter is required.
+	Required bool
+}
+    ParameterInfo is the information of a parameter. It is used to describe the
+    parameters of a tool.
+
+type ParamsOneOf struct {
+	// Has unexported fields.
+}
+    ParamsOneOf holds a tool's parameter schema using exactly one of two
+    representations. Choose the one that best fits your needs:
+
+     1. NewParamsOneOfByParams — lightweight: describe parameters as a
+        map[string]*ParameterInfo. Covers the most common cases (scalars,
+        arrays, nested objects, enums, required flags).
+
+     2. NewParamsOneOfByJSONSchema — powerful: supply a full *jsonschema.Schema
+        (JSON Schema 2020-12). Required when you need features not expressible
+        via ParameterInfo, such as anyOf, oneOf, or $defs references.
+        [utils.InferTool] generates this form automatically from Go struct tags.
+
+    You must use exactly one constructor — setting both fields is invalid.
+    If ParamsOneOf is nil, the tool takes no input parameters.
+
+func NewParamsOneOfByJSONSchema(s *jsonschema.Schema) *ParamsOneOf
+    NewParamsOneOfByJSONSchema creates a ParamsOneOf with *jsonschema.Schema.
+
+func NewParamsOneOfByParams(params map[string]*ParameterInfo) *ParamsOneOf
+    NewParamsOneOfByParams creates a ParamsOneOf with map[string]*ParameterInfo.
+
+func (p *ParamsOneOf) ToJSONSchema() (*jsonschema.Schema, error)
+    ToJSONSchema parses ParamsOneOf, converts the parameter description that
+    user actually provides, into the format ready to be passed to Model.
+
+type PromptTokenDetails struct {
+	// Cached tokens present in the prompt.
+	CachedTokens int `json:"cached_tokens"`
+}
+    PromptTokenDetails provides a breakdown of prompt token usage.
+
+type ResponseMeta struct {
+	// FinishReason is the reason why the chat response is finished.
+	// It's usually "stop", "length", "tool_calls", "content_filter", "null". This is defined by chat model implementation.
+	FinishReason string `json:"finish_reason,omitempty"`
+	// Usage is the token usage of the chat response, whether usage exists depends on whether the chat model implementation returns.
+	Usage *TokenUsage `json:"usage,omitempty"`
+	// LogProbs is Log probability information.
+	LogProbs *LogProbs `json:"logprobs,omitempty"`
+}
+    ResponseMeta collects meta information about a chat response.
+
+type RoleType string
+    RoleType is the type of the role of a message.
+
+const (
+	// Assistant is the role of an assistant, means the message is returned by ChatModel.
+	Assistant RoleType = "assistant"
+	// User is the role of a user, means the message is a user message.
+	User RoleType = "user"
+	// System is the role of a system, means the message is a system message.
+	System RoleType = "system"
+	// Tool is the role of a tool, means the message is a tool call output.
+	Tool RoleType = "tool"
+)
+type SourceEOF struct {
+	// Has unexported fields.
+}
+    SourceEOF represents an EOF error from a specific source stream.
+    It is only returned by the method Recv() of StreamReader created with
+    MergeNamedStreamReaders when one of its source streams reaches EOF.
+
+func (e *SourceEOF) Error() string
+
+type StreamReader[T any] struct {
+	// Has unexported fields.
+}
+    StreamReader is the consumer side of an Eino stream.
+
+    A StreamReader is read-once: only one goroutine should call Recv, and the
+    reader must be closed exactly once (whether the loop finishes normally or
+    exits early via break or return).
+
+    Typical usage:
+
+        defer sr.Close() // always close, even after io.EOF
+        for {
+            chunk, err := sr.Recv()
+            if errors.Is(err, io.EOF) {
+                break
+            }
+            if err != nil {
+                return err
+            }
+            process(chunk)
+        }
+
+    To fan-out a single stream to N independent consumers, call
+    StreamReader.Copy before any Recv; the original reader becomes unusable
+    after the call.
+
+    StreamReaders are created by Pipe, StreamReaderFromArray,
+    MergeStreamReaders, MergeNamedStreamReaders, and StreamReaderWithConvert.
+
+func InternalMergeNamedStreamReaders[T any](srs []*StreamReader[T], names []string) *StreamReader[T]
+    InternalMergeNamedStreamReaders merges multiple readers with their names
+    into a single multi-stream reader.
+
+func MergeNamedStreamReaders[T any](srs map[string]*StreamReader[T]) *StreamReader[T]
+    MergeNamedStreamReaders merges multiple named StreamReaders into one.
+    Unlike MergeStreamReaders, when a source stream reaches EOF the merged
+    reader emits a SourceEOF error (instead of silently continuing) so you can
+    detect exactly which source finished. Use GetSourceName to retrieve the name
+    from a SourceEOF error. The merged reader itself signals io.EOF only after
+    all named sources are exhausted.
+
+    This is useful when downstream logic must react differently to each source
+    completing — for example, draining one agent's output before proceeding:
+
+        namedStreams := map[string]*schema.StreamReader[string]{
+            "agent_a": srA,
+            "agent_b": srB,
+        }
+        merged := schema.MergeNamedStreamReaders(namedStreams)
+        defer merged.Close()
+        for {
+            chunk, err := merged.Recv()
+            if errors.Is(err, io.EOF) { break }
+            if name, ok := schema.GetSourceName(err); ok {
+                fmt.Printf("%s finished\n", name)
+                continue
+            }
+            if err != nil { return err }
+            process(chunk)
+        }
+
+    Returns nil if srs is empty.
+
+func MergeStreamReaders[T any](srs []*StreamReader[T]) *StreamReader[T]
+    MergeStreamReaders fans in multiple StreamReaders into a single
+    StreamReader. Elements from all source streams are interleaved in arrival
+    order (non-deterministic). The merged reader reaches EOF only after every
+    source stream has been exhausted.
+
+    Callers must still close the merged reader; it propagates the close signal
+    to all underlying sources.
+
+    Use MergeNamedStreamReaders instead when you need to know which source
+    stream ended first (it emits a SourceEOF per-source EOF rather than silently
+    discarding them).
+
+    Returns nil if srs is empty.
+
+func StreamReaderFromArray[T any](arr []T) *StreamReader[T]
+    StreamReaderFromArray creates a StreamReader from a given slice of elements.
+    It takes an array of type T and returns a pointer to a StreamReader[T].
+    This allows for streaming the elements of the array in a controlled manner.
+    eg.
+
+        sr := schema.StreamReaderFromArray([]int{1, 2, 3})
+        defer sr.Close()
+
+        for {
+        	chunk, err := sr.Recv()
+        	if errors.Is(err, io.EOF) {
+        		break
+        	}
+        	if err != nil {
+        		panic(err)
+        	}
+        	fmt.Println(chunk)
+        }
+
+func StreamReaderWithConvert[T, D any](sr *StreamReader[T], convert func(T) (D, error), opts ...ConvertOption) *StreamReader[D]
+    StreamReaderWithConvert returns a new StreamReader[D] that wraps sr and
+    applies convert to every element. The original reader sr must not be used
+    after calling this function.
+
+    Filtering: if convert returns ErrNoValue, the element is silently dropped
+    and the next element is read. This lets you strip empty or irrelevant chunks
+    without surfacing an error to the caller.
+
+    Error wrapping: use WithErrWrapper to wrap non-convert errors (e.g. those
+    arriving from an upstream source) before they reach the caller.
+
+        intReader := schema.StreamReaderFromArray([]int{0, 1, 2, 3})
+        strReader := schema.StreamReaderWithConvert(intReader,
+            func(i int) (string, error) {
+                if i == 0 {
+                    return "", schema.ErrNoValue // skip zero
+                }
+                return fmt.Sprintf("val_%d", i), nil
+            })
+        defer strReader.Close()
+        // Recv yields "val_1", "val_2", "val_3"
+
+func (sr *StreamReader[T]) Close()
+    Close safely closes the StreamReader. It should be called only once,
+    as multiple calls may not work as expected. Notice: always remember to call
+    Close() after using Recv(). e.g.
+
+        defer sr.Close()
+
+        for {
+        	chunk, err := sr.Recv()
+        	if errors.Is(err, io.EOF) {
+        		break
+        	}
+        	if err != nil {
+        		panic(err)
+        	}
+        	fmt.Println(chunk)
+        }
+
+func (sr *StreamReader[T]) Copy(n int) []*StreamReader[T]
+    Copy creates n independent StreamReaders that each receive every element of
+    the original stream. The original StreamReader becomes unusable after Copy.
+
+    Use Copy when two or more pipeline branches need the same stream — for
+    example, when a stream must be fed to both a callback handler and the next
+    node in a graph:
+
+        copies := sr.Copy(2)
+        sr1, sr2 := copies[0], copies[1]
+        defer sr1.Close()
+        defer sr2.Close()
+
+        // sr1 and sr2 independently read the same elements
+
+    n must be at least 1. If n < 2, the original reader is returned unchanged.
+
+func (sr *StreamReader[T]) Recv() (T, error)
+    Recv receives a value from the stream. eg.
+
+        for {
+        	chunk, err := sr.Recv()
+        	if errors.Is(err, io.EOF) {
+        		break
+        	}
+        	if err != nil {
+        		panic(err)
+        	}
+        	fmt.Println(chunk)
+        }
+
+func (sr *StreamReader[T]) SetAutomaticClose()
+    SetAutomaticClose sets the StreamReader to automatically close when it's no
+    longer reachable and ready to be GCed. NOT concurrency safe.
+
+type StreamWriter[T any] struct {
+	// Has unexported fields.
+}
+    StreamWriter the sender of a stream. created by Pipe function. eg.
+
+        sr, sw := schema.Pipe[string](3)
+        go func() { // send data
+        	defer sw.Close()
+        	for i := 0; i < 10; i++ {
+        		sw.Send(i, nil)
+        	}
+        }
+
+func (sw *StreamWriter[T]) Close()
+    Close notify the receiver that the stream sender has finished. The stream
+    receiver will get an error of io.EOF from StreamReader.Recv(). Notice:
+    always remember to call Close() after sending all data. eg.
+
+        defer sw.Close()
+        for i := 0; i < 10; i++ {
+        	sw.Send(i, nil)
+        }
+
+func (sw *StreamWriter[T]) Send(chunk T, err error) (closed bool)
+    Send sends a value to the stream. e.g.
+
+        closed := sw.Send(i, nil)
+        if closed {
+        	// the stream is closed
+        }
+
+type TokenUsage struct {
+	// PromptTokens is the number of prompt tokens, including all the input tokens of this request.
+	PromptTokens int `json:"prompt_tokens"`
+	// PromptTokenDetails is a breakdown of the prompt tokens.
+	PromptTokenDetails PromptTokenDetails `json:"prompt_token_details"`
+	// CompletionTokens is the number of completion tokens.
+	CompletionTokens int `json:"completion_tokens"`
+	// TotalTokens is the total number of tokens.
+	TotalTokens int `json:"total_tokens"`
+	// CompletionTokensDetails is breakdown of completion tokens.
+	CompletionTokensDetails CompletionTokensDetails `json:"completion_token_details"`
+}
+    TokenUsage Represents the token usage of chat model request.
+
+type ToolArgument struct {
+	// Text contains the arguments for the tool call in JSON format.
+	Text string `json:"text,omitempty"`
+}
+    ToolArgument contains the input information for a tool call. It is used to
+    pass tool call arguments to enhanced tools.
+
+type ToolCall struct {
+	// Index is used when there are multiple tool calls in a message.
+	// In stream mode, it's used to identify the chunk of the tool call for merging.
+	Index *int `json:"index,omitempty"`
+	// ID is the id of the tool call, it can be used to identify the specific tool call.
+	ID string `json:"id"`
+	// Type is the type of the tool call, default is "function".
+	Type string `json:"type"`
+	// Function is the function call to be made.
+	Function FunctionCall `json:"function"`
+
+	// Extra is used to store extra information for the tool call.
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    ToolCall is the tool call in a message. It's used in Assistant Message when
+    there are tool calls should be made.
+
+type ToolChoice string
+    ToolChoice controls how the model uses the tools provided to it. Pass as
+    part of the model option via [model.WithToolChoice].
+
+const (
+	// ToolChoiceForbidden instructs the model not to call any tools, even if
+	// tools are bound. The model responds with a plain text message instead.
+	// Corresponds to "none" in OpenAI Chat Completion.
+	ToolChoiceForbidden ToolChoice = "forbidden"
+
+	// ToolChoiceAllowed lets the model decide: it may generate a plain message
+	// or call one or more tools. This is the default when tools are provided.
+	// Corresponds to "auto" in OpenAI Chat Completion.
+	ToolChoiceAllowed ToolChoice = "allowed"
+
+	// ToolChoiceForced requires the model to call at least one tool. Use this
+	// when you want to guarantee structured output via tool calling.
+	// Corresponds to "required" in OpenAI Chat Completion.
+	ToolChoiceForced ToolChoice = "forced"
+)
+type ToolInfo struct {
+	// The unique name of the tool that clearly communicates its purpose.
+	Name string
+	// Used to tell the model how/when/why to use the tool.
+	// You can provide few-shot examples as a part of the description.
+	Desc string
+	// Extra is the extra information for the tool.
+	Extra map[string]any
+
+	// The parameters the functions accepts (different models may require different parameter types).
+	// can be described in two ways:
+	//  - use params: schema.NewParamsOneOfByParams(params)
+	//  - use jsonschema: schema.NewParamsOneOfByJSONSchema(jsonschema)
+	// If is nil, signals that the tool does not need any input parameter
+	*ParamsOneOf
+}
+    ToolInfo describes a tool that can be passed to a ChatModel via
+    [ToolCallingChatModel.WithTools] or [ChatModel.BindTools].
+
+    Name should be concise and unique within the tool set. Desc should explain
+    when and why to use the tool; few-shot examples in Desc significantly
+    improve model accuracy. ParamsOneOf may be nil for tools that take no
+    arguments.
+
+type ToolMessageOption func(*toolMessageOptions)
+    ToolMessageOption defines a option for ToolMessage
+
+func WithToolName(name string) ToolMessageOption
+    WithToolName returns a ToolMessageOption that sets the tool call name.
+
+type ToolOutputAudio struct {
+	MessagePartCommon
+}
+    ToolOutputAudio represents an audio file in tool output. It contains URL or
+    Base64-encoded data along with MIME type information.
+
+type ToolOutputFile struct {
+	MessagePartCommon
+}
+    ToolOutputFile represents a generic file in tool output. It contains URL or
+    Base64-encoded data along with MIME type information.
+
+type ToolOutputImage struct {
+	MessagePartCommon
+}
+    ToolOutputImage represents an image in tool output. It contains URL or
+    Base64-encoded data along with MIME type information.
+
+type ToolOutputPart struct {
+
+	// Type is the type of the part, e.g., "text", "image_url", "audio_url", "video_url".
+	Type ToolPartType `json:"type"`
+
+	// Text is the text content, used when Type is "text".
+	Text string `json:"text,omitempty"`
+
+	// Image is the image content, used when Type is ToolPartTypeImage.
+	Image *ToolOutputImage `json:"image,omitempty"`
+
+	// Audio is the audio content, used when Type is ToolPartTypeAudio.
+	Audio *ToolOutputAudio `json:"audio,omitempty"`
+
+	// Video is the video content, used when Type is ToolPartTypeVideo.
+	Video *ToolOutputVideo `json:"video,omitempty"`
+
+	// File is the file content, used when Type is ToolPartTypeFile.
+	File *ToolOutputFile `json:"file,omitempty"`
+
+	// Extra is used to store extra information.
+	Extra map[string]any `json:"extra,omitempty"`
+}
+    ToolOutputPart represents a part of tool execution output. It supports
+    streaming scenarios through the Index field for chunk merging.
+
+type ToolOutputVideo struct {
+	MessagePartCommon
+}
+    ToolOutputVideo represents a video file in tool output. It contains URL or
+    Base64-encoded data along with MIME type information.
+
+type ToolPartType string
+    ToolPartType defines the type of content in a tool output part. It is used
+    to distinguish between different types of multimodal content returned by
+    tools.
+
+const (
+	// ToolPartTypeText means the part is a text.
+	ToolPartTypeText ToolPartType = "text"
+
+	// ToolPartTypeImage means the part is an image url.
+	ToolPartTypeImage ToolPartType = "image"
+
+	// ToolPartTypeAudio means the part is an audio url.
+	ToolPartTypeAudio ToolPartType = "audio"
+
+	// ToolPartTypeVideo means the part is a video url.
+	ToolPartTypeVideo ToolPartType = "video"
+
+	// ToolPartTypeFile means the part is a file url.
+	ToolPartTypeFile ToolPartType = "file"
+)
+type ToolResult struct {
+	// Parts contains the multimodal output parts. Each part can be a different
+	// type of content, like text, an image, or a file.
+	Parts []ToolOutputPart `json:"parts,omitempty"`
+}
+    ToolResult represents the structured multimodal output from a tool
+    execution. It is used when a tool needs to return more than just a simple
+    string, such as images, files, or other structured data.
+
+func (tr *ToolResult) ToMessageInputParts() ([]MessageInputPart, error)
+    ToMessageInputParts converts ToolOutputPart slice to MessageInputPart slice.
+    This is used when passing tool results as input to the model.
+
+    Parameters:
+      - None (method receiver is *ToolResult)
+
+    Returns:
+      - []MessageInputPart: The converted message input parts that can be used
+        in a Message.
+      - error: An error if conversion fails due to unknown part types or nil
+        content fields.
+
+    Example:
+
+        toolResult := &schema.ToolResult{
+            Parts: []schema.ToolOutputPart{
+                {Type: schema.ToolPartTypeText, Text: "Result text"},
+                {Type: schema.ToolPartTypeImage, Image: &schema.ToolOutputImage{...}},
+            },
+        }
+        inputParts, err := toolResult.ToMessageInputParts()
+
+type TopLogProb struct {
+	// Token represents the text of the token, which is a contiguous sequence of characters
+	// (e.g., a word, part of a word, or punctuation) as understood by the tokenization process used by the language model.
+	Token string `json:"token"`
+	// LogProb is the log probability of this token, if it is within the top 20 most likely tokens.
+	// Otherwise, the value `-9999.0` is used to signify that the token is very unlikely.
+	LogProb float64 `json:"logprob"`
+	// Bytes is a list of integers representing the UTF-8 bytes representation of the token.
+	// Useful in instances where characters are represented by multiple tokens and
+	// their byte representations must be combined to generate the correct text
+	// representation. Can be `null` if there is no bytes representation for the token.
+	Bytes []int64 `json:"bytes,omitempty"`
+}
+    TopLogProb describes a likely token and its log probability at a position.
+

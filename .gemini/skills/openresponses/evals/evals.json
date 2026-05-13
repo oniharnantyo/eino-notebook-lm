@@ -1,0 +1,23 @@
+{
+  "skill_name": "openresponses",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "I want to build an LLM API server that's compatible with the OpenAI Responses API format. It should accept POST /v1/responses, handle both streaming and non-streaming, and work with multiple model providers like Ollama and vLLM. I'm using Go.",
+      "expected_output": "A structured implementation guide for a Go-based OpenResponses-compliant API server covering: request parsing, response formatting (with items, status, usage), SSE streaming setup, and multi-provider abstraction.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "prompt": "How do I implement SSE streaming for my LLM proxy? I need to send structured lifecycle events (not just text deltas) so clients can track when output items start, get content incrementally, and know when everything is done.",
+      "expected_output": "Detailed explanation of the SSE streaming event lifecycle including: response.created, response.output_item.added, response.content_part.added, delta events, done events, response.completed, and [DONE] terminal. With code examples showing proper event ordering and sequence numbers.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I'm building an agent system where the LLM can call tools, get results back, and continue reasoning. How should I structure the request/response cycle so the model can call a function, the client executes it and returns the result, and the model continues?",
+      "expected_output": "Clear explanation of the agentic loop pattern: tool definitions, function_call items with call_id, function_call_output feedback via previous_response_id chaining, and multi-turn tool calling flow with examples.",
+      "files": []
+    }
+  ]
+}

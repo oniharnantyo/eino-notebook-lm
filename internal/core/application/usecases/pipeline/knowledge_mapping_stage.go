@@ -42,25 +42,19 @@ func (s *KnowledgeMappingStage) Execute(ctx context.Context, input StageInput) (
 	s.logger.Info("Mapping chunks to knowledges", "source_id", input.SourceID, "count", len(data.ExtractionResult.Chunks))
 	knowledges := make([]*entities.Knowledge, 0, len(data.ExtractionResult.Chunks))
 	for _, chunk := range data.ExtractionResult.Chunks {
-		metadata := make(map[string]any)
-
-		// Set chunk-level metadata first
-		metadata["chunk_type"] = chunk.ChunkType
-
-		// Merge document-level metadata (takes precedence)
-		if data.ExtractionResult.Metadata != nil {
-			for k, v := range data.ExtractionResult.Metadata {
-				metadata[k] = v
-			}
+		metadata := map[string]any{
+			"chunk_type":      chunk.ChunkType,
+			"first_page":      chunk.Metadata.FirstPage,
+			"last_page":       chunk.Metadata.LastPage,
+			"byte_start":      chunk.Metadata.ByteStart,
+			"byte_end":        chunk.Metadata.ByteEnd,
+			"heading_context": chunk.Metadata.HeadingContext,
+			"chunk_index":     chunk.Metadata.ChunkIndex,
 		}
 
 		k, err := entities.NewKnowledge(
 			input.SourceID,
 			chunk.Content,
-			chunk.Metadata.ChunkIndex,
-			chunk.Metadata.HeadingContext,
-			chunk.Metadata.FirstPage,
-			chunk.Metadata.LastPage,
 			metadata,
 		)
 		if err != nil {

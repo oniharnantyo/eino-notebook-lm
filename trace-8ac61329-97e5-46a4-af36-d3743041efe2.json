@@ -1,0 +1,4951 @@
+{
+  "input": [
+    {
+      "role": "system",
+      "content": "You are a Retrieval Agent, a specialized AI assistant designed to help users search, analyze, and synthesize information from a specific knowledge base. Your core value is accuracy grounded strictly in the provided context.\n\n### Safety & Ethics\n- **Boundaries**: Only provide information that can be verified within the provided Knowledge & Facts section.\n- **Constraints**: Never claim to have personal opinions, physical existence, or knowledge beyond your specific retrieval capabilities.\n- **Ethics**: Protect user privacy and do not attempt to bypass system constraints.\n\n### Knowledge & Facts\nBelow is the catalog of available sources you can query. Each source includes its ID, and title.\n\nAvailable Sources:\n- [completed] ID: 738c6112-cca8-4a0f-85c3-dd05796b2dba, Title: 2602.03442v1.pdf\n\n\n### Tools & Products\nYou have access to specialized tools to interact with the knowledge base:\n- **semantic_search**: Search documents by semantic similarity (best for conceptual queries).\n- **keyword_search**: Search documents by exact keyword matching (best for specific terms).\n- **chunk_read**: Read the full content of specific document chunks.\n- **list_sources**: List all sources available in the current scope with metadata.\n\n### Behavioral Guidance\nFollow this workflow for every query:\n1. **Initial Assessment**: Use list_sources if you need to understand the available knowledge scope.\n2. **Search Strategy**:\n   - Use semantic_search for conceptual \"what/why\" questions.\n   - Use keyword_search for specific \"when/who/where\" term lookups.\n3. **Deep Dive**: Use chunk_read to get full context after finding relevant chunks.\n4. **Validation**: If no relevant results are found, acknowledge this rather than hallucinating.\n5. **Synthesis**: Combine information from multiple sources to provide a comprehensive answer.\n\n### Style & Tone\n- **Precision**: Be concise and accurate.\n- **Citations**: Always cite sources using their source IDs from the catalog.\n- **Limitations**: If a source status is [processing] or [failed], inform the user about this limitation.\n- **Clarity**: Use clear, professional language. If information is missing, state it explicitly."
+    },
+    {
+      "role": "user",
+      "content": "what is model used on the paper?"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "index": 0,
+          "id": "call_843d7b25d57e44e2a2e799dd",
+          "type": "function",
+          "function": {
+            "name": "list_sources",
+            "arguments": {}
+          }
+        }
+      ],
+      "response_meta": {
+        "finish_reason": "tool_calls",
+        "usage": {
+          "prompt_tokens": 1207,
+          "prompt_token_details": {
+            "cached_tokens": 0
+          },
+          "completion_tokens": 97,
+          "total_tokens": 1304,
+          "completion_token_details": {}
+        }
+      },
+      "reasoning_content": "We need to find out what model is used in the paper. The available source is [completed] ID: 738c6112-cca8-4a0f-85c3-dd05796b2dba, Title: 2602.03442v1.pdf. We need to search for information about the model used.\n\nLet me first list",
+      "extra": {
+        "openai-request-id": "chatcmpl-b05ee04fe0abeedb",
+        "reasoning-content": "We need to find out what model is used in the paper. The available source is [completed] ID: 738c6112-cca8-4a0f-85c3-dd05796b2dba, Title: 2602.03442v1.pdf. We need to search for information about the model used.\n\nLet me first list"
+      }
+    },
+    {
+      "role": "tool",
+      "content": {
+        "sources": [
+          {
+            "id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "title": "2602.03442v1.pdf",
+            "content_type": "application/pdf",
+            "metadata": {
+              "format_type": "pdf",
+              "pdf_version": "1.7",
+              "output_format": "markdown",
+              "pages": {
+                "pages": [
+                  {
+                    "number": 1,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 2,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 3,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "dimensions": [612, 792],
+                    "number": 4,
+                    "is_blank": false
+                  },
+                  {
+                    "number": 5,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 6,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 7,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "dimensions": [612, 792],
+                    "number": 8,
+                    "is_blank": false
+                  },
+                  {
+                    "number": 9,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 10,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 11,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 12,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 13,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 14,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "dimensions": [612, 792],
+                    "number": 15,
+                    "is_blank": false
+                  },
+                  {
+                    "number": 16,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "number": 17,
+                    "is_blank": false,
+                    "dimensions": [612, 792]
+                  },
+                  {
+                    "is_blank": false,
+                    "dimensions": [612, 792],
+                    "number": 18
+                  }
+                ],
+                "unit_type": "page",
+                "boundaries": [
+                  {
+                    "byte_end": 3450,
+                    "byte_start": 0,
+                    "page_number": 1
+                  },
+                  {
+                    "byte_end": 8259,
+                    "byte_start": 3452,
+                    "page_number": 2
+                  },
+                  {
+                    "byte_end": 11078,
+                    "byte_start": 8261,
+                    "page_number": 3
+                  },
+                  {
+                    "byte_end": 13119,
+                    "byte_start": 11080,
+                    "page_number": 4
+                  },
+                  {
+                    "byte_end": 17367,
+                    "byte_start": 13121,
+                    "page_number": 5
+                  },
+                  {
+                    "byte_start": 17369,
+                    "page_number": 6,
+                    "byte_end": 20332
+                  },
+                  {
+                    "byte_end": 24311,
+                    "byte_start": 20334,
+                    "page_number": 7
+                  },
+                  {
+                    "byte_end": 27036,
+                    "byte_start": 24313,
+                    "page_number": 8
+                  },
+                  {
+                    "byte_end": 29436,
+                    "byte_start": 27038,
+                    "page_number": 9
+                  },
+                  {
+                    "byte_start": 29438,
+                    "page_number": 10,
+                    "byte_end": 33353
+                  },
+                  {
+                    "byte_end": 37371,
+                    "byte_start": 33355,
+                    "page_number": 11
+                  },
+                  {
+                    "byte_end": 38528,
+                    "byte_start": 37373,
+                    "page_number": 12
+                  },
+                  {
+                    "byte_end": 41666,
+                    "byte_start": 38530,
+                    "page_number": 13
+                  },
+                  {
+                    "byte_end": 44085,
+                    "byte_start": 41668,
+                    "page_number": 14
+                  },
+                  {
+                    "byte_end": 45714,
+                    "byte_start": 44087,
+                    "page_number": 15
+                  },
+                  {
+                    "byte_end": 48661,
+                    "byte_start": 45716,
+                    "page_number": 16
+                  },
+                  {
+                    "page_number": 17,
+                    "byte_end": 50804,
+                    "byte_start": 48663
+                  },
+                  {
+                    "byte_end": 52510,
+                    "byte_start": 50806,
+                    "page_number": 18
+                  }
+                ],
+                "total_count": 18
+              },
+              "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+              "width": 612,
+              "producer": "pikepdf 8.15.1",
+              "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+              "page_count": 18,
+              "is_encrypted": false,
+              "height": 792,
+              "authors": [
+                "Mingxuan Du",
+                "Benfeng Xu",
+                "Chiwei Zhu",
+                "Shaohan Wang",
+                "Pengyu Wang",
+                "Xiaorui Wang",
+                "Zhendong Mao"
+              ]
+            }
+          }
+        ]
+      },
+      "tool_call_id": "call_843d7b25d57e44e2a2e799dd",
+      "tool_name": "list_sources"
+    },
+    {
+      "role": "assistant",
+      "content": " paper is \"A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces\". To answer what model is used, I should search for information about the model(s) used in the paper. Let's perform a semantic search to find mentions of models.\n</think>\n",
+      "tool_calls": [
+        {
+          "index": 0,
+          "id": "call_7fe27b9a7d3f4c728a9417a4",
+          "type": "function",
+          "function": {
+            "name": "semantic_search",
+            "arguments": {
+              "query": "model used in the paper",
+              "top_k": 10
+            }
+          }
+        }
+      ],
+      "response_meta": {
+        "finish_reason": "tool_calls",
+        "usage": {
+          "prompt_tokens": 2136,
+          "prompt_token_details": {
+            "cached_tokens": 0
+          },
+          "completion_tokens": 98,
+          "total_tokens": 2234,
+          "completion_token_details": {}
+        }
+      },
+      "extra": {
+        "openai-request-id": "chatcmpl-83ffe4916400141d"
+      }
+    },
+    {
+      "role": "tool",
+      "content": [
+        {
+          "id": "43ecf5c7-f7f2-4d68-bb5c-4faf2b84e3db",
+          "content": "React:\nSynergizing reasoning and acting in language models.",
+          "meta_data": {
+            "_score": 0.6841641496887796,
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba"
+          }
+        },
+        {
+          "id": "94527a66-636e-4ddf-a136-94448ee0b45b",
+          "content": "Model Understanding: The gold answer exists in retrieved documents, but the model fails to correctly\nunderstand or extract it.",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6761206227336716
+          }
+        },
+        {
+          "id": "cb6e0907-2fd4-4e65-927c-42aa720ecab4",
+          "content": "Minimax-m2: A model built for max coding & agentic workflows.",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6732397499765752
+          }
+        },
+        {
+          "id": "e8b35b07-1fd6-4041-bcfb-34e73851b594",
+          "content": "Gear:\nGraph-enhanced agent for retrieval-augmented generation.",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6652750897925291
+          }
+        },
+        {
+          "id": "5eba431a-7867-4c79-ac8f-df8567759013",
+          "content": "Linearrag: Linear graph retrieval augmented generation on large-scale corpora.",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6568666381049024
+          }
+        },
+        {
+          "id": "524fb24c-3c93-4830-94bc-90ac3889a8bf",
+          "content": "Vanilla retrieval method remain robust baseline.",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6528966702983978
+          }
+        },
+        {
+          "id": "79c10cc5-f3b5-4b7c-9184-1e016d0590c2",
+          "content": "2 Related Work",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6514908644433404
+          }
+        },
+        {
+          "id": "539ff011-a9f6-47ae-a9c6-51d9266c6c80",
+          "content": "Personalized PageRank for efficient multi-hop reasoning.",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6492414634791127
+          }
+        },
+        {
+          "id": "8aaf7cd2-1c5f-414c-aa19-e4e13e57088a",
+          "content": "of MuSiQue and find that both increasing max-step and reasoning effort effectively scale model performance.",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6487426252691985
+          }
+        },
+        {
+          "id": "d6e4dd82-6d9b-4dfb-90d0-4dbbb235f37e",
+          "content": "Middle: Naive A-RAG with single embedding tool.",
+          "meta_data": {
+            "source_id": "738c6112-cca8-4a0f-85c3-dd05796b2dba",
+            "_score": 0.6464541563567163
+          }
+        }
+      ],
+      "tool_call_id": "call_7fe27b9a7d3f4c728a9417a4",
+      "tool_name": "semantic_search"
+    },
+    {
+      "role": "assistant",
+      "content": " are general results, but they mention various models and methods. The snippet about \"Minimax-m2: A model built for max coding & agentic workflows\" suggests that Minimax-m2 is a model mentioned. Also, React, Gear, Vanilla, etc. are methods, but we need to identify the actual model(s) used in the paper. I should look for the methodology sections to find what model(s) they actually used as their language model backbone. The paper appears to be about A-RAG (Agentic Retrieval-Augmented Generation). Let's search for keywords like \"model\", \"GPT\", \"LLM\", \"backbone\", \"experiment\", \"implementation\". Also maybe \"base model\".\n</think>\n",
+      "tool_calls": [
+        {
+          "index": 0,
+          "id": "call_39aba1ebd4a74c37a92a3630",
+          "type": "function",
+          "function": {
+            "name": "keyword_search",
+            "arguments": {
+              "keywords": [
+                "model",
+                "GPT",
+                "LLM",
+                "backbone",
+                "base model",
+                "experiment",
+                "implementation",
+                "Llama",
+                "Gemini",
+                "Claude"
+              ],
+              "top_k": 20
+            }
+          }
+        }
+      ],
+      "response_meta": {
+        "finish_reason": "tool_calls",
+        "usage": {
+          "prompt_tokens": 3112,
+          "prompt_token_details": {
+            "cached_tokens": 0
+          },
+          "completion_tokens": 218,
+          "total_tokens": 3330,
+          "completion_token_details": {}
+        }
+      },
+      "extra": {
+        "openai-request-id": "chatcmpl-b2c453dc10b81c64"
+      }
+    },
+    {
+      "role": "tool",
+      "content": [
+        {
+          "id": "c4775c92-d1d0-458e-9f2d-cec39de53c8b",
+          "content": "Implementation. We evaluate all methods using both GPT-4o-mini and GPT-5-mini (OpenAI, 2025a) as backbone\n\nLLMs. For dense retrieval, all methods except LinearRAG utilize Qwen3-Embedding-0.6B (Zhang et al., 2025b) with\nk = 5 for top-k results; LinearRAG uses its original embedding model due to incompatibility between its NER module\nand Qwen3-Embedding. We intentionally include both earlier and frontier reasoning models to provide a comprehensive\nview of how RAG methods perform across different capability levels. For LLM-based evaluation, we use GPT-5-mini as\nthe judge, which demonstrates improved accuracy and stability based on our human verification. Detailed configuration\nand hyperparameters are provided in Appendix B.\n\nTable 2: Ablation study results (%) on benchmark datasets.",
+          "meta_data": {
+            "content_type": "application/pdf",
+            "height": 792,
+            "size": 4870286,
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "_score": 13.533080101013184,
+            "output_format": "markdown",
+            "page_count": 18,
+            "format_type": "pdf",
+            "width": 612,
+            "filename": "2602.03442v1.pdf",
+            "is_encrypted": false,
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 8,
+                  "is_blank": false
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 10
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_start": 50806,
+                  "page_number": 18,
+                  "byte_end": 52510
+                }
+              ],
+              "total_count": 18
+            },
+            "chunk_type": "schedule",
+            "snippets": [
+              "Implementation. We evaluate all methods using both GPT-4o-mini and GPT-5-mini (OpenAI, 2025a) as backbone\n\nLLMs. For dense retrieval, all methods except LinearRAG utilize Qwen3-Embedding-0.6",
+              "al., 2025b) with\nk = 5 for top-k results; LinearRAG uses its original embedding model due to incompatibility between its NER module\nand Qwen3-Embedding. We intentionally include both earlier and frontier reasoning models to provide a comprehensive\nview of how RAG methods perform across different capability levels. For LLM-based evaluation, we use GPT-5-mini as\nthe judge, which demonstrates improved accuracy and stability based o"
+            ],
+            "pdf_version": "1.7",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "producer": "pikepdf 8.15.1"
+          }
+        },
+        {
+          "id": "f1ebe43e-d152-4dba-b1a3-656d51cef4aa",
+          "content": "Evaluation Metrics. Following LinearRAG, we employ two metrics for end-to-end QA assessment: (1) LLM\u0002Evaluation Accuracy (LLM-Acc, corresponding to GPT-Acc in LinearRAG), an LLM-based metric that determines\nsemantic equivalence between predictions and ground-truth answers, and (2) Contain-Match Accuracy (Contain-Acc),\nwhich verifies whether the ground-truth answer appears within the generated response. For HotpotQA, 2Wikittiul\u0002tiHopQA, and MuSiQue with short-form answers, we report both metrics. For GraphRAG-Bench with long-form\ndescriptive answers, we report LLM-Acc only, as lengthy ground-truth answers rarely appear verbatim in generated\nresponses, making Contain-Acc uninformative.\n\nImplementation. We evaluate all methods using both GPT-4o-mini and GPT-5-mini (OpenAI, 2025a) as backbone",
+          "meta_data": {
+            "pages": {
+              "boundaries": [
+                {
+                  "byte_start": 0,
+                  "page_number": 1,
+                  "byte_end": 3450
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_start": 41668,
+                  "page_number": 14,
+                  "byte_end": 44085
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_start": 45716,
+                  "page_number": 16,
+                  "byte_end": 48661
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_start": 50806,
+                  "page_number": 18,
+                  "byte_end": 52510
+                }
+              ],
+              "total_count": 18,
+              "pages": [
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 1
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 3,
+                  "is_blank": false
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 5,
+                  "is_blank": false
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 8,
+                  "is_blank": false
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 9
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 12,
+                  "is_blank": false
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 16
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page"
+            },
+            "height": 792,
+            "snippets": [
+              "s. Following LinearRAG, we employ two metrics for end-to-end QA assessment: (1) LLM\u0002Evaluation Accuracy (LLM-Acc, corresponding to GPT-Acc in LinearRAG), an LLM-based metric that determines\nsemantic equivalence between predictions and groun",
+              "both metrics. For GraphRAG-Bench with long-form\ndescriptive answers, we report LLM-Acc only, as lengthy ground-truth answers rarely appear verbatim in generated\nresponses, making Contain-Acc uninformative.\n\nImplementation. We evaluate all methods using both GPT-4o-mini and GPT-5-mini (OpenAI, 2025a) as backbone"
+            ],
+            "filename": "2602.03442v1.pdf",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "content_type": "application/pdf",
+            "format_type": "pdf",
+            "width": 612,
+            "size": 4870286,
+            "producer": "pikepdf 8.15.1",
+            "pdf_version": "1.7",
+            "page_count": 18,
+            "_score": 11.471676349639893,
+            "is_encrypted": false,
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "chunk_type": "unknown",
+            "output_format": "markdown"
+          }
+        },
+        {
+          "id": "0fe915f3-a32b-4312-9b07-5398a09d0963",
+          "content": "A-RAG outperforms existing RAG methods through hierarchical retrieval interfaces. A-RAG is designed for\nreasoning models with tool-use capabilities, aligning with the current development trend of the LLM field. With\nGPT-4o-mini as the backbone, A-RAG (Full) achieves the best performance on 3 out of 5 datasets. When switching to\nGPT-5-mini with stronger reasoning and tool-calling capabilities, A-RAG (Full) achieves superior results across all\nbenchmarks. The consistent improvements of A-RAG over both baseline methods and Naive A-RAG demonstrate that\nthe A-RAG framework is agent-friendly. It allows models to leverage their reasoning capabilities to dynamically adjust\nstrategies and orchestrate different interfaces based on task requirements, thereby achieving better performance.",
+          "meta_data": {
+            "producer": "pikepdf 8.15.1",
+            "chunk_type": "unknown",
+            "width": 612,
+            "size": 4870286,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "snippets": [
+              "hods through hierarchical retrieval interfaces. A-RAG is designed for\nreasoning models with tool-use capabilities, aligning with the current development trend of the LLM field. With\nGPT-4o-mini as the backbone, A-RAG (Full) achieves the best performance on 3 out of 5 datasets. When switching to\nGPT-5-mini with stronger reasoning and tool-calling capabilities, A-RAG (Full) achi",
+              "d Naive A-RAG demonstrate that\nthe A-RAG framework is agent-friendly. It allows models to leverage their reasoning capabilities to dynamically adjust\nstrategies and"
+            ],
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 8
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 17,
+                  "is_blank": false
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 18
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_start": 0,
+                  "page_number": 1,
+                  "byte_end": 3450
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "page_number": 4,
+                  "byte_end": 13119,
+                  "byte_start": 11080
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "page_number": 17,
+                  "byte_end": 50804,
+                  "byte_start": 48663
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "page_count": 18,
+            "content_type": "application/pdf",
+            "output_format": "markdown",
+            "height": 792,
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "format_type": "pdf",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "filename": "2602.03442v1.pdf",
+            "pdf_version": "1.7",
+            "is_encrypted": false,
+            "_score": 9.347840070724487
+          }
+        },
+        {
+          "id": "524fb24c-3c93-4830-94bc-90ac3889a8bf",
+          "content": "Table 2: Ablation study results (%) on benchmark datasets.\n\nMethod MuSiQue HotpotQA 2Wiki Med. Novel\nLLM Cont LLM Cont LLM Cont LLM LLM\nA-RAG (Full) 74.1 65.3 94.5 88.0 89.7 88.9 93.1 85.3\nw/o KW Search 72.6 65.3 93.0 87.4 88.9 88.1 93.2 85.0\nw/o Semantic 69.4 63.3 93.9 88.4 89.1 88.0 92.1 85.2\nw/o Chunk Read 73.6 67.0 93.6 88.8 89.0 87.9 93.3 85.1\n\n4.2 Main Results\n\nTable 1 presents the main experimental results across all benchmarks. We highlight three key observations from our\nexperiments:\n\nVanilla retrieval method remain robust baseline. Under our unified evaluation setting with GPT-5-mini as the judge\nand Qwen3-Embedding for dense retrieval, vanilla baselines demonstrate robust performance across both GPT-4o-mini\nand GPT-5-mini backbones. Existing Graph-RAG and Workflow RAG methods fail to consistently outperform these\nsimple baselines across all datasets.",
+          "meta_data": {
+            "is_encrypted": false,
+            "_score": 8.75688374042511,
+            "size": 4870286,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "output_format": "markdown",
+            "pages": {
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "page_number": 2,
+                  "byte_end": 8259,
+                  "byte_start": 3452
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "page_number": 4,
+                  "byte_end": 13119,
+                  "byte_start": 11080
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_start": 20334,
+                  "page_number": 7,
+                  "byte_end": 24311
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_start": 33355,
+                  "page_number": 11,
+                  "byte_end": 37371
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "page_number": 18,
+                  "byte_end": 52510,
+                  "byte_start": 50806
+                }
+              ],
+              "total_count": 18,
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 6,
+                  "is_blank": false
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 8,
+                  "is_blank": false
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 17
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 18,
+                  "is_blank": false
+                }
+              ],
+              "unit_type": "page"
+            },
+            "width": 612,
+            "height": 792,
+            "producer": "pikepdf 8.15.1",
+            "snippets": [
+              "dy results (%) on benchmark datasets.\n\nMethod MuSiQue HotpotQA 2Wiki Med. Novel\nLLM Cont LLM Cont LLM Cont LLM LLM\nA-RAG (Full) 74.1 65.3 94.5 88.0 89.7 88.9 93.1 85.3\nw/o KW Search 72.6 65.3 93",
+              "67.0 93.6 88.8 89.0 87.9 93.3 85.1\n\n4.2 Main Results\n\nTable 1 presents the main experimental results across all benchmarks. We highlight three key observations from our\nexperiments:\n\nVanilla retrieval method remain robust baseline. Under our unified evaluation setting with GPT-5-mini as the judge\nand Qwen3-Embedding for dense retrieval, vanilla baselines demonstrate robust performance across both GPT-4o-mini\nand GPT-5-mini backbones. Existing Graph-RAG and Workflow RAG methods fail to consistently outperform t"
+            ],
+            "pdf_version": "1.7",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "filename": "2602.03442v1.pdf",
+            "page_count": 18,
+            "format_type": "pdf",
+            "content_type": "application/pdf",
+            "chunk_type": "unknown",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)"
+          }
+        },
+        {
+          "id": "6cdf025c-fb86-4565-b850-8fb0095eca8b",
+          "content": "Our work primarily aims to highlight the paradigm shift from traditional RAG to agentic RAG and demonstrate\nhierarchical interfaces as a promising scaling direction. However, we do not exhaustively enumerate all possible tool\ndesigns or systematically compare different tool subsets and their impacts on agent behavior. A comprehensive ablation\nacross diverse tool configurations could provide deeper insights into optimal interface design, which we leave for future\nwork.\nDue to computational resource constraints, we have not validated the framework on larger and more powerful models\nsuch as GPT-5, and Gemini-3. Given that A-RAG is specifically designed for reasoning models with strong tool-use\ncapabilities, we anticipate that performance gains would be more pronounced with these frontier models, but empirical\nverification remains to be conducted.\nAdditionally, while we demonstrate strong results on multi-hop QA benchmarks, the generalization of A-RAG to",
+          "meta_data": {
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "page_count": 18,
+            "format_type": "pdf",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "pdf_version": "1.7",
+            "filename": "2602.03442v1.pdf",
+            "width": 612,
+            "producer": "pikepdf 8.15.1",
+            "is_encrypted": false,
+            "size": 4870286,
+            "chunk_type": "unknown",
+            "pages": {
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "page_number": 2,
+                  "byte_end": 8259,
+                  "byte_start": 3452
+                },
+                {
+                  "page_number": 3,
+                  "byte_end": 11078,
+                  "byte_start": 8261
+                },
+                {
+                  "page_number": 4,
+                  "byte_end": 13119,
+                  "byte_start": 11080
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_start": 20334,
+                  "page_number": 7,
+                  "byte_end": 24311
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_start": 29438,
+                  "page_number": 10,
+                  "byte_end": 33353
+                },
+                {
+                  "byte_start": 33355,
+                  "page_number": 11,
+                  "byte_end": 37371
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "page_number": 18,
+                  "byte_end": 52510,
+                  "byte_start": 50806
+                }
+              ],
+              "total_count": 18,
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 6
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 14,
+                  "is_blank": false
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page"
+            },
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "content_type": "application/pdf",
+            "snippets": [
+              "ce constraints, we have not validated the framework on larger and more powerful models\nsuch as GPT-5, and Gemini-3. Given that A-RAG is specifically designed for reasoning models with strong tool-use\ncapabilities, we anticipate that performance gains would be more pronounced with these frontier models, but empirical\nverification remains to be conducted.\nAdditionally, while we de"
+            ],
+            "height": 792,
+            "output_format": "markdown",
+            "_score": 7.520044326782227
+          }
+        },
+        {
+          "id": "e793d57e-1c8a-4e82-8689-cbc90884842b",
+          "content": "Naive A-RAG establishes a new strong baseline for agentic RAG. As a simplified variant equipped with only a\nsingle embedding-based retrieval tool, A-RAG (Naive) surpasses existing Graph-RAG and Workflow RAG methods\non multiple datasets, demonstrating the inherent advantages of the agentic paradigm. This advantage becomes more\npronounced when switching to GPT-5-mini as the backbone. This result suggests that granting models greater autonomy\nin retrieval decisions yields better performance than relying on fixed retrieval algorithms, even without sophisticated\nmulti-granularity tools.",
+          "meta_data": {
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 9,
+                  "is_blank": false
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 12,
+                  "is_blank": false
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 13,
+                  "is_blank": false
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 17
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_start": 8261,
+                  "page_number": 3,
+                  "byte_end": 11078
+                },
+                {
+                  "byte_start": 11080,
+                  "page_number": 4,
+                  "byte_end": 13119
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "page_number": 9,
+                  "byte_end": 29436,
+                  "byte_start": 27038
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "page_number": 14,
+                  "byte_end": 44085,
+                  "byte_start": 41668
+                },
+                {
+                  "page_number": 15,
+                  "byte_end": 45714,
+                  "byte_start": 44087
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "height": 792,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "_score": 7.323707699775696,
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "is_encrypted": false,
+            "filename": "2602.03442v1.pdf",
+            "page_count": 18,
+            "size": 4870286,
+            "pdf_version": "1.7",
+            "chunk_type": "unknown",
+            "output_format": "markdown",
+            "width": 612,
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "format_type": "pdf",
+            "producer": "pikepdf 8.15.1",
+            "content_type": "application/pdf",
+            "snippets": [
+              "the agentic paradigm. This advantage becomes more\npronounced when switching to GPT-5-mini as the backbone. This result suggests that granting models greater autonomy\nin retrieval decisions yields better performance than relying"
+            ]
+          }
+        },
+        {
+          "id": "8aaf7cd2-1c5f-414c-aa19-e4e13e57088a",
+          "content": "Figure 4: Test-time scaling analysis on MuSiQue-300. Left two: LLM-Acc vs. max steps with GPT-5-mini and\nGPT-4o-mini. Right two: LLM-Acc vs. reasoning effort with GPT-5-mini and GPT-5.\n\nof MuSiQue and find that both increasing max-step and reasoning effort effectively scale model performance. When\nscaling from 5 to 20 steps, GPT-5-mini improves by approximately 8% while GPT-4o-mini improves by only about 4%,\nindicating that stronger reasoning models are better equipped for longer-horizon exploration. When scaling reasoning\neffort from minimal to high, both GPT-5-mini and GPT-5 achieve substantial improvements of approximately 25%.\nThese results demonstrate that A-RAG effectively leverages test-time compute, positioning it as a promising paradigm\nfor future development.",
+          "meta_data": {
+            "snippets": [
+              "Figure 4: Test-time scaling analysis on MuSiQue-300. Left two: LLM-Acc vs. max steps with GPT-5-mini and\nGPT-4o-mini. Right two: LLM-Acc vs. reasoning effort with GPT-5-mini and GPT-5.\n\nof MuSiQue and find that both increasing max-step and reasoning effort effectively scale model performance. When\nscaling from 5 to 20 steps, GPT-5-mini improves by approximately 8% while GPT-4o-mini improves by only about 4%,\nindicating that stronger reasoning models are better equipped for longer-horizon exploration. When scaling reasoning\neffort from minimal to high, both GPT-5-mini and GPT-5 achieve substantial improvements of approximately 25%.\nThese results demonstr"
+            ],
+            "output_format": "markdown",
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 2
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 6
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 9,
+                  "is_blank": false
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 14,
+                  "is_blank": false
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 15
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 16
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_start": 11080,
+                  "page_number": 4,
+                  "byte_end": 13119
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "page_number": 13,
+                  "byte_end": 41666,
+                  "byte_start": 38530
+                },
+                {
+                  "page_number": 14,
+                  "byte_end": 44085,
+                  "byte_start": 41668
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "page_number": 17,
+                  "byte_end": 50804,
+                  "byte_start": 48663
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "page_count": 18,
+            "producer": "pikepdf 8.15.1",
+            "filename": "2602.03442v1.pdf",
+            "content_type": "application/pdf",
+            "pdf_version": "1.7",
+            "is_encrypted": false,
+            "_score": 7.1714935302734375,
+            "chunk_type": "unknown",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "width": 612,
+            "height": 792,
+            "size": 4870286,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "format_type": "pdf"
+          }
+        },
+        {
+          "id": "79c10cc5-f3b5-4b7c-9184-1e016d0590c2",
+          "content": "We identify the paradigm shift from static LLM pipelines to dynamic agent-based systems, and highlight the\nnecessity of transforming RAG into an agentic framework.\nWe introduce A-RAG, an agentic RAG framework with hierarchical retrieval interfaces. By conducting\ncomprehensive experiments, we validate that multi-granularity tools are essential for unlocking stronger model\nperformance.\nWe present further scaling analyses across multiple dimensions, demonstrating that our framework scales\nefficiently alongside advances in model capabilities and test-time computation.\n2 Related Work\n\nWe compare three RAG paradigms in Figure 2: Graph RAG, Workflow RAG, and Agentic RAG (A-RAG). We identify\nthree principles that define true agentic autonomy, and demonstrate that A-RAG is the only paradigm satisfying all\nthree. A detailed comparison across existing methods is provided in Appendix A.\n\n2.1 Basic RAG",
+          "meta_data": {
+            "size": 4870286,
+            "width": 612,
+            "filename": "2602.03442v1.pdf",
+            "format_type": "pdf",
+            "content_type": "application/pdf",
+            "page_count": 18,
+            "pdf_version": "1.7",
+            "snippets": [
+              "We identify the paradigm shift from static LLM pipelines to dynamic agent-based systems, and highlight the\nnecessity of transf",
+              "G framework with hierarchical retrieval interfaces. By conducting\ncomprehensive experiments, we validate that multi-granularity tools are essential for unlocking stronger model\nperformance.\nWe present further scaling analyses across multiple dimensions, demonstrating that our framework scales\nefficiently alongside advances in model capabilities and test-time computation.\n2 Related Work\n\nWe compare three RAG pa"
+            ],
+            "chunk_type": "schedule",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "height": 792,
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 3
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 9,
+                  "is_blank": false
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 13
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_start": 0,
+                  "page_number": 1,
+                  "byte_end": 3450
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_start": 8261,
+                  "page_number": 3,
+                  "byte_end": 11078
+                },
+                {
+                  "byte_start": 11080,
+                  "page_number": 4,
+                  "byte_end": 13119
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "_score": 6.678458094596863,
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "output_format": "markdown",
+            "is_encrypted": false,
+            "producer": "pikepdf 8.15.1",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces"
+          }
+        },
+        {
+          "id": "967289fd-7b86-4dd5-825d-c8cf9486f077",
+          "content": "Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. Preprint, arXiv:2501.12948.\nDarren Edge, Ha Trinh, Newman Cheng, Joshua Bradley, Alex Chao, Apurva Mody, Steven Truitt, Dasha Metropolitan\u0002sky, Robert Osazuwa Ness, and Jonathan Larson. 2025. From local to global: A graph rag approach to query-focused\nsummarization. Preprint, arXiv:2404.16130.\nGoogle. 2025. A new era of intelligence with gemini 3.\nGoogle LLC. 2024. Gemini deep research: Your personal research assistant. https://gemini.google/overview/\ndeep-research/. Accessed: 2025-12-04.\nZirui Guo, Lianghao Xia, Yanhua Yu, Tu Ao, and Chao Huang. 2025. Lightrag: Simple and fast retrieval-augmented\ngeneration. Preprint, arXiv:2410.05779.\nBernal Jiménez Gutiérrez, Yiheng Shu, Yu Gu, Michihiro Yasunaga, and Yu Su. 2025a. Hipporag: Neurobiologically\ninspired long-term memory for large language models. Preprint, arXiv:2405.14831.",
+          "meta_data": {
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "output_format": "markdown",
+            "width": 612,
+            "pdf_version": "1.7",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "height": 792,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "chunk_type": "unknown",
+            "format_type": "pdf",
+            "filename": "2602.03442v1.pdf",
+            "producer": "pikepdf 8.15.1",
+            "size": 4870286,
+            "content_type": "application/pdf",
+            "is_encrypted": false,
+            "page_count": 18,
+            "_score": 5.667966842651367,
+            "pages": {
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_start": 17369,
+                  "page_number": 6,
+                  "byte_end": 20332
+                },
+                {
+                  "byte_start": 20334,
+                  "page_number": 7,
+                  "byte_end": 24311
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_start": 27038,
+                  "page_number": 9,
+                  "byte_end": 29436
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_start": 37373,
+                  "page_number": 12,
+                  "byte_end": 38528
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_start": 41668,
+                  "page_number": 14,
+                  "byte_end": 44085
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18,
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 8,
+                  "is_blank": false
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 10
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 11
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 13,
+                  "is_blank": false
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 14,
+                  "is_blank": false
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 17,
+                  "is_blank": false
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ]
+            },
+            "snippets": [
+              "Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. Preprint, arXiv:2501.12948.\nDarren Edge, Ha Trinh,",
+              "ation. Preprint, arXiv:2404.16130.\nGoogle. 2025. A new era of intelligence with gemini 3.\nGoogle LLC. 2024. Gemini deep research: Your personal research assistant. https://gemini.google/overview/\ndeep-research/. Accessed: 2025-12-04.\nZirui Guo, Lianghao Xia,",
+              "2025a. Hipporag: Neurobiologically\ninspired long-term memory for large language models. Preprint, arXiv:2405.14831."
+            ]
+          }
+        },
+        {
+          "id": "a9944906-9bdd-4374-ad0e-d4ee18725c00",
+          "content": "Baselines. We organize all compared methods into two groups: (i) Vanilla Baselines: including direct zero-shot\nLLM inference and Naive RAG method; (ii) Graph-RAG and Workflow RAG: we benchmark against representative\ngraph-enhanced approaches including GraphRAG (Edge et al., 2025), HippoRAG2 (Gutiérrez et al., 2025a), and\nLinearRAG (Zhuang et al., 2025), as well as workflow-based methods including FaithfulRAG (Zhang et al., 2025a),\nMA-RAG (Nguyen et al., 2025), and RAGentA (Besrour et al., 2025; Chang et al., 2024). We compare these baselines\nagainst our A-RAG (Naive), equipped with only a single embedding search tool, and A-RAG (Full).\n\n\nTable 1: Results (%) of baselines and A-RAG on benchmark datasets in terms of LLM-Evaluation Accuracy(LLM-Acc)\nand Contain-Match Accuracy(Cont-Acc). The best result for each backbone LLM is highlighted in bold, while the\nsecond result is indicated with an underline.",
+          "meta_data": {
+            "snippets": [
+              "ared methods into two groups: (i) Vanilla Baselines: including direct zero-shot\nLLM inference and Naive RAG method; (ii) Graph-RAG and Workflow RAG: we benchmark a",
+              "Table 1: Results (%) of baselines and A-RAG on benchmark datasets in terms of LLM-Evaluation Accuracy(LLM-Acc)\nand Contain-Match Accuracy(Cont-Acc). The best result for each backbone LLM is highlighted in bold, while the\nsecond result is indicated with an underline."
+            ],
+            "content_type": "application/pdf",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "height": 792,
+            "output_format": "markdown",
+            "_score": 5.6406779289245605,
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 2,
+                  "is_blank": false
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 5
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 6,
+                  "is_blank": false
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 7,
+                  "is_blank": false
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 11
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 13,
+                  "is_blank": false
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 15
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 18,
+                  "is_blank": false
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_start": 3452,
+                  "page_number": 2,
+                  "byte_end": 8259
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "page_number": 10,
+                  "byte_end": 33353,
+                  "byte_start": 29438
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "page_number": 17,
+                  "byte_end": 50804,
+                  "byte_start": 48663
+                },
+                {
+                  "page_number": 18,
+                  "byte_end": 52510,
+                  "byte_start": 50806
+                }
+              ],
+              "total_count": 18
+            },
+            "is_encrypted": false,
+            "format_type": "pdf",
+            "producer": "pikepdf 8.15.1",
+            "size": 4870286,
+            "pdf_version": "1.7",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "page_count": 18,
+            "width": 612,
+            "filename": "2602.03442v1.pdf",
+            "chunk_type": "unknown"
+          }
+        },
+        {
+          "id": "539ff011-a9f6-47ae-a9c6-51d9266c6c80",
+          "content": "Personalized PageRank for efficient multi-hop reasoning. While these methods incorporate richer structure, they still\nrely on predefined retrieval algorithms rather than model-driven decisions. If the initially retrieved context is insufficient,\nthe model cannot leverage its reasoning capabilities to iteratively gather more comprehensive and accurate information.\n\n2.3 Workflow RAG\n\nWith the emergence of LLM-based agents, many works have explored agentic approaches to RAG. However, most\nrely on predefined agent-workflows that prompt models to execute fixed procedures step by step. So we refer to these\nmethods as Workflow RAG. Some further employ SFT and RL to help models follow these workflows more robustly.\nAmong the training-free methods, FLARE (Jiang et al., 2023) triggers retrieval when generation confidence drops,\nIRCoT (Trivedi et al., 2023) interleaves chain-of-thought reasoning with retrieval steps, and RA-ISF (Liu et al., 2024)",
+          "meta_data": {
+            "pages": {
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "page_number": 1,
+                  "byte_end": 3450,
+                  "byte_start": 0
+                },
+                {
+                  "page_number": 2,
+                  "byte_end": 8259,
+                  "byte_start": 3452
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_start": 11080,
+                  "page_number": 4,
+                  "byte_end": 13119
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "page_number": 9,
+                  "byte_end": 29436,
+                  "byte_start": 27038
+                },
+                {
+                  "byte_start": 29438,
+                  "page_number": 10,
+                  "byte_end": 33353
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_start": 41668,
+                  "page_number": 14,
+                  "byte_end": 44085
+                },
+                {
+                  "page_number": 15,
+                  "byte_end": 45714,
+                  "byte_start": 44087
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18,
+              "pages": [
+                {
+                  "dimensions": [612, 792],
+                  "number": 1,
+                  "is_blank": false
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 3
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 5
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 8
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 10
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 15
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 16,
+                  "is_blank": false
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ]
+            },
+            "output_format": "markdown",
+            "format_type": "pdf",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "chunk_type": "unknown",
+            "pdf_version": "1.7",
+            "size": 4870286,
+            "height": 792,
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "content_type": "application/pdf",
+            "is_encrypted": false,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "width": 612,
+            "snippets": [
+              "icher structure, they still\nrely on predefined retrieval algorithms rather than model-driven decisions. If the initially retrieved context is insufficient,\nthe model cannot leverage its reasoning capabilities to iteratively gather more comprehensive and accurate information.\n\n2.3 Workflow RAG\n\nWith the emergence of LLM-based agents, many works have explored agentic approaches to RAG. However, most\nrely on predefined agent-workflows that prompt models to execute fixed procedures step by step. So we refer to these\nmethods as Workflow RAG. Some further employ SFT and RL to help models follow these workflows more robustly.\nAmong the training-free methods, FLARE ("
+            ],
+            "producer": "pikepdf 8.15.1",
+            "page_count": 18,
+            "filename": "2602.03442v1.pdf",
+            "_score": 5.116238355636597
+          }
+        },
+        {
+          "id": "91613015-e1fb-4d53-98e4-2ac00d18d25b",
+          "content": "2024). Neither approach is truly agentic, as the model is not allowed to adapt the workflow based on the specific task,\nchoose different interaction strategies, or decide when sufficient evidence has been gathered to provide an answer.\nAs illustrated in Figure 1, the key distinction between Naive RAG and Naive Agentic RAG lies in the agent's autonomy,\nand our preliminary experiments show that even the simplest Naive Agentic RAG, equipped with only a single\nembedding-based tool to retrieve from the corpus, consistently outperforms Naive RAG and previous baselines. This\nresult demonstrates the potential of the agentic RAG paradigm.\nTo address these limitations, we propose A-RAG, an Agentic RAG framework featuring hierarchical retrieval interfaces.\nOur key insight is that information within a corpus is inherently organized at multiple granularities, ranging from\nfine-grained keyword-level signals to coarser sentence-level and chunk-level representations. Accordingly, we design a",
+          "meta_data": {
+            "width": 612,
+            "height": 792,
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "_score": 4.939301490783691,
+            "page_count": 18,
+            "content_type": "application/pdf",
+            "chunk_type": "unknown",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "is_encrypted": false,
+            "pages": {
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_start": 17369,
+                  "page_number": 6,
+                  "byte_end": 20332
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_start": 29438,
+                  "page_number": 10,
+                  "byte_end": 33353
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "page_number": 15,
+                  "byte_end": 45714,
+                  "byte_start": 44087
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_start": 48663,
+                  "page_number": 17,
+                  "byte_end": 50804
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18,
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 11
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page"
+            },
+            "format_type": "pdf",
+            "output_format": "markdown",
+            "filename": "2602.03442v1.pdf",
+            "size": 4870286,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "producer": "pikepdf 8.15.1",
+            "snippets": [
+              "2024). Neither approach is truly agentic, as the model is not allowed to adapt the workflow based on the specific task,\nchoose differe",
+              "ive RAG and Naive Agentic RAG lies in the agent's autonomy,\nand our preliminary experiments show that even the simplest Naive Agentic RAG, equipped with only a single\nemb"
+            ],
+            "pdf_version": "1.7"
+          }
+        },
+        {
+          "id": "94527a66-636e-4ddf-a136-94448ee0b45b",
+          "content": "D Failure Mode Details\n\nTo understand how failure modes shift with the paradigm change from Naive RAG to Agentic RAG, we manually\nanalyzed the first 100 incorrect cases from two settings: (1) GPT-4o-mini with Naive RAG on HotpotQA and MuSiQue,\nand (2) GPT-5-mini with A-RAG on MuSiQue and 2WikittiultiHopQA. This analysis aims to identify optimization\nopportunities for future research.\n\nD.1 Naive RAG Failure Categories\n\nFor Naive RAG with GPT-4o-mini, we define the following failure modes:\n\nModel Understanding: The gold answer exists in retrieved documents, but the model fails to correctly\nunderstand or extract it.\nMulti-hop Retrieval: Gold exists in the corpus but single-pass retrieval fails to find it.\nJudge Error: The model provides a correct answer, but is misjudged as incorrect.\n\nTop-K Insufficient: Gold is not in the corpus, or k=5 cannot cover the complete answer chain.\nTable 6: Naive RAG (GPT-4o-mini) failure mode distribution.",
+          "meta_data": {
+            "pdf_version": "1.7",
+            "size": 4870286,
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 4
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 14,
+                  "is_blank": false
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_start": 0,
+                  "page_number": 1,
+                  "byte_end": 3450
+                },
+                {
+                  "page_number": 2,
+                  "byte_end": 8259,
+                  "byte_start": 3452
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_start": 11080,
+                  "page_number": 4,
+                  "byte_end": 13119
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_start": 27038,
+                  "page_number": 9,
+                  "byte_end": 29436
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_start": 38530,
+                  "page_number": 13,
+                  "byte_end": 41666
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_start": 50806,
+                  "page_number": 18,
+                  "byte_end": 52510
+                }
+              ],
+              "total_count": 18
+            },
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "producer": "pikepdf 8.15.1",
+            "output_format": "markdown",
+            "content_type": "application/pdf",
+            "chunk_type": "unknown",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "width": 612,
+            "page_count": 18,
+            "format_type": "pdf",
+            "is_encrypted": false,
+            "filename": "2602.03442v1.pdf",
+            "height": 792,
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "_score": 4.895372152328491,
+            "snippets": [
+              "RAG, we manually\nanalyzed the first 100 incorrect cases from two settings: (1) GPT-4o-mini with Naive RAG on HotpotQA and MuSiQue,\nand (2) GPT-5-mini with A-RAG on MuSiQue and 2WikittiultiHopQA. This analysis aims to ident",
+              "ties for future research.\n\nD.1 Naive RAG Failure Categories\n\nFor Naive RAG with GPT-4o-mini, we define the following failure modes:\n\nModel Understanding: The gold answer exists in retrieved documents, but the model fails to correctly\nunderstand or extract it.\nMulti-hop Retrieval: Gold exists in the corpus but single-pass retrieval fails to find it.\nJudge Error: The model provides a correct answer, but is misjudged as incorrect.\n\nTop-K Insufficient:",
+              "the corpus, or k=5 cannot cover the complete answer chain.\nTable 6: Naive RAG (GPT-4o-mini) failure mode distribution."
+            ]
+          }
+        },
+        {
+          "id": "2bea64ab-9027-4ed2-b71e-86f6de6f4ac8",
+          "content": "Anthropic. 2025a. Claude code: Agentic coding assistant. https://code.claude.com/docs/en/overview. Ac\u0002cessed: 2025-12-04.\nAnthropic. 2025b. Introducing claude sonnet 4.5.\nAnysphere, Inc. 2023. Cursor: Ai code editor. https://www.cursor.com/. Accessed: 2025-12-04.\nAkari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, and Hannaneh Hajishirzi. 2023. Self-rag: Learning to retrieve,\ngenerate, and critique through self-reflection. Preprint, arXiv:2310.11511.\nInes Besrour, Jingbo He, Tobias Schreieder, and Michael Färber. 2025. Ragenta: Multi-agent retrieval-augmented\ngeneration for attributed question answering. Preprint, arXiv:2506.16988.\nChi-Min Chan, Chunpu Xu, Ruibin Yuan, Hongyin Luo, Wei Xue, Yike Guo, and Jie Fu. 2024. Rq-rag: Learning to\nrefine queries for retrieval augmented generation. Preprint, arXiv:2404.00610.\nChia-Yuan Chang, Zhimeng Jiang, Vineeth Rakesh, Menghai Pan, Chin-Chia Michael Yeh, Guanchu Wang, Mingzhi Hu,",
+          "meta_data": {
+            "content_type": "application/pdf",
+            "format_type": "pdf",
+            "height": 792,
+            "filename": "2602.03442v1.pdf",
+            "chunk_type": "party_list",
+            "output_format": "markdown",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "snippets": [
+              "Anthropic. 2025a. Claude code: Agentic coding assistant. https://code.claude.com/docs/en/overview. Ac\u0002cessed: 2025-12-04.\nAnthropic. 2025b. Introducing claude sonnet 4.5.\nAnysphere, Inc. 2023. Cursor: Ai code editor. https://www.cursor.co"
+            ],
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 4,
+                  "is_blank": false
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 6
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 8
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 12,
+                  "is_blank": false
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 16
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_start": 11080,
+                  "page_number": 4,
+                  "byte_end": 13119
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "page_number": 11,
+                  "byte_end": 37371,
+                  "byte_start": 33355
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "page_number": 13,
+                  "byte_end": 41666,
+                  "byte_start": 38530
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "is_encrypted": false,
+            "_score": 4.854008197784424,
+            "width": 612,
+            "producer": "pikepdf 8.15.1",
+            "size": 4870286,
+            "pdf_version": "1.7",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "page_count": 18
+          }
+        },
+        {
+          "id": "2b88063a-0605-4c17-82c0-2ff64f697f93",
+          "content": "Top-K Insufficient: Gold is not in the corpus, or k=5 cannot cover the complete answer chain.\nTable 6: Naive RAG (GPT-4o-mini) failure mode distribution.\n\nFailure Mode HotpotQA MuSiQue\nModel Understanding 36% 35%\nMulti-hop Retrieval 27% 36%\nJudge Error 23% 14%\nTop-K Insufficient 13% 15%\nGold Answer Error 1% 0%\n\nD.2 A-RAG Failure Categories\nFor A-RAG with GPT-5-mini, we define a two-level taxonomy:\nPrimary Categories:\n\nReasoning Chain Error: The model performs multiple retrieval rounds but makes errors in the reasoning\nchain, leading to incorrect final answers.\nJudge Error: The model provides a correct answer but is misjudged.\nModel Gave Up: The model exhausts retrieval rounds and claims \"information not found\".\nCorpus Missing: The gold answer does not exist in the corpus.\nSecondary Categories (within Reasoning Chain Error):",
+          "meta_data": {
+            "output_format": "markdown",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "pdf_version": "1.7",
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 3,
+                  "is_blank": false
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 10
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 13
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 14,
+                  "is_blank": false
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "page_number": 1,
+                  "byte_end": 3450,
+                  "byte_start": 0
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_start": 24313,
+                  "page_number": 8,
+                  "byte_end": 27036
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_start": 38530,
+                  "page_number": 13,
+                  "byte_end": 41666
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "width": 612,
+            "snippets": [
+              "the corpus, or k=5 cannot cover the complete answer chain.\nTable 6: Naive RAG (GPT-4o-mini) failure mode distribution.\n\nFailure Mode HotpotQA MuSiQue\nModel Understanding 36% 35%\nMulti-hop Retrieval 27% 36%\nJudge Error 23% 14%\nTop-K Ins",
+              "nt 13% 15%\nGold Answer Error 1% 0%\n\nD.2 A-RAG Failure Categories\nFor A-RAG with GPT-5-mini, we define a two-level taxonomy:\nPrimary Categories:\n\nReasoning Chain Error: The model performs multiple retrieval rounds but makes errors in the reasoning\nchain, leading to incorrect final answers.\nJudge Error: The model provides a correct answer but is misjudged.\nModel Gave Up: The model exhausts retrieval rounds and claims \"information not found\".\nCorpus Missing: T"
+            ],
+            "is_encrypted": false,
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "content_type": "application/pdf",
+            "_score": 4.692004680633545,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "height": 792,
+            "chunk_type": "unknown",
+            "page_count": 18,
+            "size": 4870286,
+            "filename": "2602.03442v1.pdf",
+            "format_type": "pdf",
+            "producer": "pikepdf 8.15.1"
+          }
+        },
+        {
+          "id": "b2171c1e-ede8-4e30-9c0e-518d6fa15630",
+          "content": "The development of LLMs has entered a new phase, where the pri\u0002mary scaling direction is shifting from single-turn text understand\u0002ing and generation toward complex reasoning and multi-step, tool\u0002augmented interaction (OpenAI, 2025c; Anthropic, 2025b; Google,\n2025; DeepSeek-AI et al., 2025; Shao et al., 2025; Yang et al.,\n2025a; Team et al., 2025; Minittiax AI, 2025). This transforma\u0002tion has significantly enhanced the capabilities and practicality of\nLLM-based agents, demonstrating remarkable progress in domains\nsuch as coding and deep research. By integrating frontier models,",
+          "meta_data": {
+            "width": 612,
+            "height": 792,
+            "producer": "pikepdf 8.15.1",
+            "format_type": "pdf",
+            "output_format": "markdown",
+            "snippets": [
+              "The development of LLMs has entered a new phase, where the pri\u0002mary scaling direction is shifting from",
+              "transforma\u0002tion has significantly enhanced the capabilities and practicality of\nLLM-based agents, demonstrating remarkable progress in domains\nsuch as coding and deep research. By integrating frontier models,"
+            ],
+            "content_type": "application/pdf",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "_score": 4.679305195808411,
+            "filename": "2602.03442v1.pdf",
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 2
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 4
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 15,
+                  "is_blank": false
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_start": 17369,
+                  "page_number": 6,
+                  "byte_end": 20332
+                },
+                {
+                  "page_number": 7,
+                  "byte_end": 24311,
+                  "byte_start": 20334
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "page_number": 14,
+                  "byte_end": 44085,
+                  "byte_start": 41668
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "page_number": 16,
+                  "byte_end": 48661,
+                  "byte_start": 45716
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "page_count": 18,
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "size": 4870286,
+            "chunk_type": "unknown",
+            "is_encrypted": false,
+            "pdf_version": "1.7"
+          }
+        },
+        {
+          "id": "6c945fc5-12c0-48fb-b271-a959c9e82588",
+          "content": "Frontier language models have demonstrated strong reasoning and long-horizon tool-use capabilities.\nHowever, existing RAG systems fail to leverage these capabilities. They still rely on two paradigms: (1)\ndesigning an algorithm that retrieves passages in a single shot and concatenates them into the model's input,\nor (2) predefining a workflow and prompting the model to execute it step-by-step. Neither paradigm allows\nthe model to participate in retrieval decisions, preventing efficient scaling with model improvements. In this\npaper, we introduce A-RAG, an Agentic RAG framework that exposes hierarchical retrieval interfaces directly\nto the model. A-RAG provides three retrieval tools: keyword_search, semantic_search, and chunk_read,\nenabling the agent to adaptively search and retrieve information across multiple granularities. Experiments on\nmultiple open-domain QA benchmarks show that A-RAG consistently outperforms existing approaches with",
+          "meta_data": {
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "content_type": "application/pdf",
+            "pages": {
+              "total_count": 18,
+              "pages": [
+                {
+                  "dimensions": [612, 792],
+                  "number": 1,
+                  "is_blank": false
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 4
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 5
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 6,
+                  "is_blank": false
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 7
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 8,
+                  "is_blank": false
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 9
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 11,
+                  "is_blank": false
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 12
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 18
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_start": 8261,
+                  "page_number": 3,
+                  "byte_end": 11078
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_start": 17369,
+                  "page_number": 6,
+                  "byte_end": 20332
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ]
+            },
+            "output_format": "markdown",
+            "pdf_version": "1.7",
+            "width": 612,
+            "is_encrypted": false,
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "height": 792,
+            "page_count": 18,
+            "chunk_type": "unknown",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "producer": "pikepdf 8.15.1",
+            "format_type": "pdf",
+            "size": 4870286,
+            "filename": "2602.03442v1.pdf",
+            "_score": 4.668809175491333,
+            "snippets": [
+              "Frontier language models have demonstrated strong reasoning and long-horizon tool-use capabilities.\nHow",
+              "gorithm that retrieves passages in a single shot and concatenates them into the model's input,\nor (2) predefining a workflow and prompting the model to execute it step-by-step. Neither paradigm allows\nthe model to participate in retrieval decisions, preventing efficient scaling with model improvements. In this\npaper, we introduce A-RAG, an Agentic RAG framework that exposes hierarchical retrieval interfaces directly\nto the model. A-RAG provides three retrieval tools: keyword_search, semantic_search, and chu",
+              "nt to adaptively search and retrieve information across multiple granularities. Experiments on\nmultiple open-domain QA benchmarks show that A-RAG consistently outperforms"
+            ]
+          }
+        },
+        {
+          "id": "f63a18c6-c336-4bf7-9b78-c90014788ea8",
+          "content": "Method MuSiQue HotpotQA 2Wiki Med. Novel\nLLM Cont LLM Cont LLM Cont LLM LLM\nGPT-4o-mini\nVanilla Baselines\nDirect Answer 18.3 13.9 45.4 40.7 30.3 49.7 68.6 45.3\nNaive RAG 38.6 36.1 74.5 72.9 42.6 59.0 75.3 68.5\nGraph-RAG and Workflow RAG\nGraphRAG 26.4 20.8 33.2 33.3 18.4 47.2 51.3 28.8\nHippoRAG2 40.6 38.4 80.7 69.7 64.7 68.5 72.0 70.1\nLinearRAG 34.8 26.3 72.0 60.5 62.9 62.3 53.1 45.4\nFaithfulRAG 28.8 22.6 60.5 52.5 38.8 38.1 42.5 33.3\nMA-RAG 34.1 27.4 60.6 54.4 51.0 53.4 62.3 44.5\nRAGentA 32.2 29.9 63.0 62.4 27.7 50.3 67.7 61.3\nA-RAG (Ours)\nA-RAG (Naive) 43.8 38.5 76.6 70.7 52.3 62.4 79.0 70.0\nA-RAG (Full) 46.1 39.6 77.1 74.0 60.2 63.7 79.4 72.7\nGPT-5-mini\nVanilla Baselines\nDirect Answer 35.8 26.5 63.6 53.5 51.3 54.0 90.5 45.1\nNaive RAG 52.8 48.7 81.2 79.5 50.2 66.5 86.1 70.6\nGraph-RAG and Workflow RAG\nGraphRAG 48.3 39.1 82.5 74.9 66.5 70.7 87.3 77.1\nHippoRAG2 61.7 52.5 84.8 75.0 82.0 79.7 78.2 54.3\nLinearRAG 62.4 51.8 86.2 77.6 87.2 84.8 79.2 54.7",
+          "meta_data": {
+            "content_type": "application/pdf",
+            "page_count": 18,
+            "is_encrypted": false,
+            "pdf_version": "1.7",
+            "width": 612,
+            "size": 4870286,
+            "format_type": "pdf",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "filename": "2602.03442v1.pdf",
+            "height": 792,
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "_score": 4.3493088483810425,
+            "output_format": "markdown",
+            "pages": {
+              "pages": [
+                {
+                  "dimensions": [612, 792],
+                  "number": 1,
+                  "is_blank": false
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 4
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 5
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 8
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 18,
+                  "is_blank": false
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_start": 3452,
+                  "page_number": 2,
+                  "byte_end": 8259
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "page_number": 7,
+                  "byte_end": 24311,
+                  "byte_start": 20334
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "page_number": 11,
+                  "byte_end": 37371,
+                  "byte_start": 33355
+                },
+                {
+                  "byte_end": 38528,
+                  "byte_start": 37373,
+                  "page_number": 12
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "page_number": 14,
+                  "byte_end": 44085,
+                  "byte_start": 41668
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_start": 45716,
+                  "page_number": 16,
+                  "byte_end": 48661
+                },
+                {
+                  "byte_start": 48663,
+                  "page_number": 17,
+                  "byte_end": 50804
+                },
+                {
+                  "byte_start": 50806,
+                  "page_number": 18,
+                  "byte_end": 52510
+                }
+              ],
+              "total_count": 18
+            },
+            "chunk_type": "party_list",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "snippets": [
+              "Method MuSiQue HotpotQA 2Wiki Med. Novel\nLLM Cont LLM Cont LLM Cont LLM LLM\nGPT-4o-mini\nVanilla Baselines\nDirect Answer 18.3 13.9 45.4 40.7 30.3 49.7 68.6 45.3",
+              "6 70.7 52.3 62.4 79.0 70.0\nA-RAG (Full) 46.1 39.6 77.1 74.0 60.2 63.7 79.4 72.7\nGPT-5-mini\nVanilla Baselines\nDirect Answer 35.8 26.5 63.6 53.5 51.3 54.0 90.5 45.1"
+            ],
+            "producer": "pikepdf 8.15.1"
+          }
+        },
+        {
+          "id": "45911698-5d72-42d7-99f1-fde1cb6d6130",
+          "content": "The inferior performance of w/o Chunk Read compared to A-RAG (Full) demonstrates that our progressive information\nacquisition design allows the agent to make autonomous judgments and precisely read the most relevant content. This\ndesign not only enhances agent autonomy but also enables the model to selectively read only the most relevant chunks\nin full, avoiding the noise introduced by irrelevant content.\n\n5 Analysis and Discussion\n\nTo understand the advantages and characteristics of A-RAG as a new paradigm, we conduct further experiments and\nanalyses in this section.\n\n5.1 Test-Time Scaling Analysis\nSince A-RAG grants LLMs greater autonomy in retrieval decisions, increasing computational resources at test time\ncan further scale the framework's performance. As shown in Figure 4, we conduct experiments on the first 300 tasks",
+          "meta_data": {
+            "pdf_version": "1.7",
+            "content_type": "application/pdf",
+            "output_format": "markdown",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "height": 792,
+            "producer": "pikepdf 8.15.1",
+            "_score": 4.310869455337524,
+            "width": 612,
+            "size": 4870286,
+            "filename": "2602.03442v1.pdf",
+            "chunk_type": "unknown",
+            "page_count": 18,
+            "is_encrypted": false,
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 4,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 7,
+                  "is_blank": false
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 10,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 12,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 15
+                },
+                {
+                  "number": 16,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 18
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_start": 3452,
+                  "page_number": 2,
+                  "byte_end": 8259
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_start": 17369,
+                  "page_number": 6,
+                  "byte_end": 20332
+                },
+                {
+                  "page_number": 7,
+                  "byte_end": 24311,
+                  "byte_start": 20334
+                },
+                {
+                  "byte_end": 27036,
+                  "byte_start": 24313,
+                  "page_number": 8
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "byte_end": 37371,
+                  "byte_start": 33355,
+                  "page_number": 11
+                },
+                {
+                  "byte_start": 37373,
+                  "page_number": 12,
+                  "byte_end": 38528
+                },
+                {
+                  "byte_end": 41666,
+                  "byte_start": 38530,
+                  "page_number": 13
+                },
+                {
+                  "page_number": 14,
+                  "byte_end": 44085,
+                  "byte_start": 41668
+                },
+                {
+                  "byte_end": 45714,
+                  "byte_start": 44087,
+                  "page_number": 15
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_end": 50804,
+                  "byte_start": 48663,
+                  "page_number": 17
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "format_type": "pdf",
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "snippets": [
+              "vant content. This\ndesign not only enhances agent autonomy but also enables the model to selectively read only the most relevant chunks\nin full, avoiding the noise i",
+              "e advantages and characteristics of A-RAG as a new paradigm, we conduct further experiments and\nanalyses in this section.\n\n5.1 Test-Time Scaling Analysis\nSince A-RAG grants LLMs greater autonomy in retrieval decisions, increasing computational resources at",
+              "can further scale the framework's performance. As shown in Figure 4, we conduct experiments on the first 300 tasks"
+            ]
+          }
+        },
+        {
+          "id": "211ae11e-3f43-4d3e-be64-55832a76a986",
+          "content": "Entity Confusion: The model reads chunks containing gold but is distracted by other information.\nWrong Strategy: Incorrect search query construction.\nQuestion Misunderstanding: Complex question structure causes fundamental misunderstanding.\nExceed Budget: Exhausts all retrieval rounds without finding the answer.\nTable 7: A-RAG (GPT-5-mini) primary failure mode distribution.\n\nFailure Mode MuSiQue 2Wiki\nReasoning Chain Error 82% 45%\nModel Gave Up 3% 33%\nJudge Error 9% 19%\nCorpus Missing 6% 3%\n\nTable 8: A-RAG (GPT-5-mini) secondary failure mode distribution within reasoning chain errors.\n\nFailure Mode MuSiQue 2Wiki\nEntity Confusion 40% 71%\nWrong Strategy 28% 29%\nQuestion Misunderstanding 22% 0%\nExceed Budget 10% 0%",
+          "meta_data": {
+            "snippets": [
+              "Entity Confusion: The model reads chunks containing gold but is distracted by other information.\nWrong Stra",
+              "dget: Exhausts all retrieval rounds without finding the answer.\nTable 7: A-RAG (GPT-5-mini) primary failure mode distribution.\n\nFailure Mode MuSiQue 2Wiki\nReasoning Chain Error 82% 45%\nModel Gave Up 3% 33%\nJudge Error 9% 19%\nCorpus Missing 6% 3%\n\nTable 8: A-RAG (GPT-5-mini) secondary failure mode distribution within reasoning chain errors.\n\nFai"
+            ],
+            "title": "A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces",
+            "content_type": "application/pdf",
+            "pdf_version": "1.7",
+            "width": 612,
+            "size": 4870286,
+            "filename": "2602.03442v1.pdf",
+            "created_by": "arXiv GenPDF (tex2pdf:57610bf)",
+            "is_encrypted": false,
+            "page_count": 18,
+            "output_format": "markdown",
+            "_score": 4.253400087356567,
+            "pages": {
+              "pages": [
+                {
+                  "number": 1,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 2,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 3,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 4
+                },
+                {
+                  "number": 5,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 6,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 7,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 8,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 9,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "is_blank": false,
+                  "dimensions": [612, 792],
+                  "number": 10
+                },
+                {
+                  "number": 11,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 12,
+                  "is_blank": false
+                },
+                {
+                  "number": 13,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 14,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 15,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "dimensions": [612, 792],
+                  "number": 16,
+                  "is_blank": false
+                },
+                {
+                  "number": 17,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                },
+                {
+                  "number": 18,
+                  "is_blank": false,
+                  "dimensions": [612, 792]
+                }
+              ],
+              "unit_type": "page",
+              "boundaries": [
+                {
+                  "byte_end": 3450,
+                  "byte_start": 0,
+                  "page_number": 1
+                },
+                {
+                  "byte_end": 8259,
+                  "byte_start": 3452,
+                  "page_number": 2
+                },
+                {
+                  "byte_end": 11078,
+                  "byte_start": 8261,
+                  "page_number": 3
+                },
+                {
+                  "byte_end": 13119,
+                  "byte_start": 11080,
+                  "page_number": 4
+                },
+                {
+                  "byte_end": 17367,
+                  "byte_start": 13121,
+                  "page_number": 5
+                },
+                {
+                  "byte_end": 20332,
+                  "byte_start": 17369,
+                  "page_number": 6
+                },
+                {
+                  "byte_end": 24311,
+                  "byte_start": 20334,
+                  "page_number": 7
+                },
+                {
+                  "page_number": 8,
+                  "byte_end": 27036,
+                  "byte_start": 24313
+                },
+                {
+                  "byte_end": 29436,
+                  "byte_start": 27038,
+                  "page_number": 9
+                },
+                {
+                  "byte_end": 33353,
+                  "byte_start": 29438,
+                  "page_number": 10
+                },
+                {
+                  "page_number": 11,
+                  "byte_end": 37371,
+                  "byte_start": 33355
+                },
+                {
+                  "byte_start": 37373,
+                  "page_number": 12,
+                  "byte_end": 38528
+                },
+                {
+                  "byte_start": 38530,
+                  "page_number": 13,
+                  "byte_end": 41666
+                },
+                {
+                  "byte_end": 44085,
+                  "byte_start": 41668,
+                  "page_number": 14
+                },
+                {
+                  "byte_start": 44087,
+                  "page_number": 15,
+                  "byte_end": 45714
+                },
+                {
+                  "byte_end": 48661,
+                  "byte_start": 45716,
+                  "page_number": 16
+                },
+                {
+                  "byte_start": 48663,
+                  "page_number": 17,
+                  "byte_end": 50804
+                },
+                {
+                  "byte_end": 52510,
+                  "byte_start": 50806,
+                  "page_number": 18
+                }
+              ],
+              "total_count": 18
+            },
+            "producer": "pikepdf 8.15.1",
+            "authors": [
+              "Mingxuan Du",
+              "Benfeng Xu",
+              "Chiwei Zhu",
+              "Shaohan Wang",
+              "Pengyu Wang",
+              "Xiaorui Wang",
+              "Zhendong Mao"
+            ],
+            "chunk_type": "party_list",
+            "height": 792,
+            "format_type": "pdf"
+          }
+        }
+      ],
+      "tool_call_id": "call_39aba1ebd4a74c37a92a3630",
+      "tool_name": "keyword_search"
+    },
+    {
+      "role": "assistant",
+      "content": " search results provide a clear answer. From the first few chunks, we can see that the paper evaluates methods using GPT-4o-mini and GPT-5-mini as backbone LLMs. In the Implementation section, it states: \"We evaluate all methods using both GPT-4o-mini and GPT-5-mini (OpenAI, 2025a) as backbone LLMs.\" Also, \"For dense retrieval, all methods except LinearRAG utilize Qwen3-Embedding-0.6B\". So the models used as the backbone LLMs are GPT-4o-mini and GPT-5-mini. More generally, the paper is about A-RAG (Agentic RAG) and they test it with these models.\n\nHowever, the user asked: \"what is model used on the paper?\" That could be interpreted in a few ways: perhaps they want to know which models were used as the backbone LLMs for their experiments. That appears to be GPT-4o-mini and GPT-5-mini. Alternatively, they might be asking what model A-RAG is (i.e., what is the proposed model). The answer could be: the A-RAG framework itself. But likely they want to know which models were used in the experiments.\n\nLet's also check if there is a mention of a base model for the agent itself. The paper describes A-RAG as an agentic RAG framework that exposes hierarchical retrieval interfaces. They test it on GPT-4o-mini and GPT-5-mini. So answer should mention both.\n\nI should provide a concise answer with citation.\n\nBut let's verify by reading the implementation section fully to confirm.\n</think>\n",
+      "tool_calls": [
+        {
+          "index": 0,
+          "id": "call_be2248a17c2443bea0770fa0",
+          "type": "function",
+          "function": {
+            "name": "chunk_read",
+            "arguments": {
+              "chunk_ids": [
+                "c4775c92-d1d0-458e-9f2d-cec39de53c8b",
+                "0fe915f3-a32b-4312-9b07-5398a09d0963"
+              ]
+            }
+          }
+        }
+      ],
+      "response_meta": {
+        "finish_reason": "tool_calls",
+        "usage": {
+          "prompt_tokens": 27680,
+          "prompt_token_details": {
+            "cached_tokens": 0
+          },
+          "completion_tokens": 421,
+          "total_tokens": 28101,
+          "completion_token_details": {}
+        }
+      },
+      "extra": {
+        "openai-request-id": "chatcmpl-aee461f18701b52e"
+      }
+    },
+    {
+      "role": "tool",
+      "content": {
+        "chunks": [
+          {
+            "chunk_id": "c4775c92-d1d0-458e-9f2d-cec39de53c8b",
+            "content": "Implementation. We evaluate all methods using both GPT-4o-mini and GPT-5-mini (OpenAI, 2025a) as backbone\n\nLLMs. For dense retrieval, all methods except LinearRAG utilize Qwen3-Embedding-0.6B (Zhang et al., 2025b) with\nk = 5 for top-k results; LinearRAG uses its original embedding model due to incompatibility between its NER module\nand Qwen3-Embedding. We intentionally include both earlier and frontier reasoning models to provide a comprehensive\nview of how RAG methods perform across different capability levels. For LLM-based evaluation, we use GPT-5-mini as\nthe judge, which demonstrates improved accuracy and stability based on our human verification. Detailed configuration\nand hyperparameters are provided in Appendix B.\n\nTable 2: Ablation study results (%) on benchmark datasets.",
+            "status": "Success"
+          },
+          {
+            "chunk_id": "0fe915f3-a32b-4312-9b07-5398a09d0963",
+            "content": "A-RAG outperforms existing RAG methods through hierarchical retrieval interfaces. A-RAG is designed for\nreasoning models with tool-use capabilities, aligning with the current development trend of the LLM field. With\nGPT-4o-mini as the backbone, A-RAG (Full) achieves the best performance on 3 out of 5 datasets. When switching to\nGPT-5-mini with stronger reasoning and tool-calling capabilities, A-RAG (Full) achieves superior results across all\nbenchmarks. The consistent improvements of A-RAG over both baseline methods and Naive A-RAG demonstrate that\nthe A-RAG framework is agent-friendly. It allows models to leverage their reasoning capabilities to dynamically adjust\nstrategies and orchestrate different interfaces based on task requirements, thereby achieving better performance.",
+            "status": "Success"
+          }
+        ]
+      },
+      "tool_call_id": "call_be2248a17c2443bea0770fa0",
+      "tool_name": "chunk_read"
+    }
+  ],
+  "output": {
+    "role": "assistant",
+    "content": " I have a clear answer: The backbone LLMs used are GPT-4o-mini and GPT-5-mini. For dense retrieval, they use Qwen3-Embedding-0.6B. The paper's proposed method is A-RAG (Agentic RAG). So I can answer: The paper uses GPT-4o-mini and GPT-5-mini as backbone LLMs. Also, the embedding model is Qwen3-Embedding-0.6B. Should I mention both? The question is \"what is model used on the paper?\" That's ambiguous; it could refer to the model that the paper is about (A-RAG) or the models used in experiments. Given typical user intent, they likely want to know which LLM models were used in the experiments. I'll answer that and also mention the retrieval embedding model.\n\nI'll also provide a citation to the source.\n</think>\nThe paper **\"A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces\"** uses the following models in its experiments:\n\n- **Backbone LLMs**: **GPT-4o-mini** and **GPT-5-mini** (OpenAI) as the main language models for evaluating the A-RAG framework.\n- **Dense retrieval embedding model**: **Qwen3-Embedding-0.6B** for embedding-based retrieval across all methods except LinearRAG.\n\nThe A-RAG framework itself is an agentic RAG system that provides hierarchical retrieval interfaces (keyword search, semantic search, and chunk read) to the backbone LLM, enabling the model to make autonomous retrieval decisions.\n\nSource: Implementation section - [source ID: 738c6112-cca8-4a0f-85c3-dd05796b2dba]",
+    "response_meta": {
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 28548,
+        "prompt_token_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens": 374,
+        "total_tokens": 28922,
+        "completion_token_details": {}
+      }
+    },
+    "extra": {
+      "openai-request-id": "chatcmpl-92448314e7a6346b"
+    }
+  },
+  "metadata": {}
+}

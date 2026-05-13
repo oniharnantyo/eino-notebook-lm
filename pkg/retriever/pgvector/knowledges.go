@@ -19,8 +19,8 @@ package pgvector
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/cloudwego/eino/components/retriever"
 	"github.com/cloudwego/eino/schema"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -81,55 +81,6 @@ func NewKnowledgesRetriever(pool *pgxpool.Pool, dimension int) (*KnowledgesRetri
 	}, nil
 }
 
-// Retrieve retrieves the most relevant knowledge documents for the given query.
-//
-// This method implements the retriever.Retriever interface. It performs hybrid
-// search combining BM25 (keyword) and vector (semantic) search using Reciprocal
-// Rank Fusion (RRF) to merge results from the knowledges table.
-//
-// Implements: retriever.Retriever
-func (r *KnowledgesRetriever) Retrieve(ctx context.Context, query string, opts ...retriever.Option) ([]*schema.Document, error) {
-	defaultTopK := 5
-	defaultScoreThreshold := 0.0
-	commonOpts := retriever.GetCommonOptions(&retriever.Options{
-		TopK:           &defaultTopK,
-		ScoreThreshold: &defaultScoreThreshold,
-	}, opts...)
-
-	topK := 5
-	if commonOpts.TopK != nil {
-		topK = *commonOpts.TopK
-	}
-
-	var queryVector []float64
-	if commonOpts.Embedding != nil {
-		embeddings, err := commonOpts.Embedding.EmbedStrings(ctx, []string{query})
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate query embedding: %w", err)
-		}
-		if len(embeddings) > 0 && len(embeddings[0]) > 0 {
-			queryVector = embeddings[0]
-		}
-	}
-
-	documents, err := r.inner.HybridRetrieve(ctx, "knowledges", query, queryVector, topK)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute hybrid search on knowledges: %w", err)
-	}
-
-	if commonOpts.ScoreThreshold != nil {
-		var filtered []*schema.Document
-		for _, doc := range documents {
-			if doc.Score() >= *commonOpts.ScoreThreshold {
-				filtered = append(filtered, doc)
-			}
-		}
-		return filtered, nil
-	}
-
-	return documents, nil
-}
-
 // SemanticSearch performs vector similarity search on the knowledges table.
 //
 // This method searches for knowledge documents that are semantically similar to the query
@@ -145,19 +96,33 @@ func (r *KnowledgesRetriever) SemanticSearch(ctx context.Context, queryVector []
 	return r.inner.SemanticSearch(ctx, "knowledges", queryVector, topK)
 }
 
-// KeywordSearch performs BM25 keyword search on the knowledges table.
-//
-// This method searches for knowledge documents using keyword matching with BM25 scoring
-// through the pg_textsearch extension.
+// KeywordSearch performs BM25 keyword search on the knowledges table and attaches
+// KWIC (Keyword-In-Context) snippets to each document's metadata.
 //
 // Parameters:
 //   - ctx: Context for the operation
-//   - query: Keyword query string
+//   - query: Space-separated keyword query string for BM25 matching
+//   - keywords: Individual keywords used for KWIC snippet extraction
 //   - topK: Maximum number of results to return
 //
-// Returns knowledge documents ordered by BM25 score (highest first).
-func (r *KnowledgesRetriever) KeywordSearch(ctx context.Context, query string, topK int) ([]*schema.Document, error) {
-	return r.inner.KeywordSearch(ctx, "knowledges", query, topK)
+// Returns knowledge documents with KWIC snippets in metadata, ordered by BM25 score.
+func (r *KnowledgesRetriever) KeywordSearch(ctx context.Context, keywords []string, topK int) ([]*schema.Document, error) {
+	query := strings.Join(keywords, " ")
+
+	docs, err := r.inner.KeywordSearch(ctx, "knowledges", query, topK, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, doc := range docs {
+		snippets := ExtractKeywordContexts(doc.Content, keywords, 80)
+		if len(snippets) == 0 {
+			snippets = []string{"[BM25 semantic match - no direct keyword occurrences found]"}
+		}
+		doc.MetaData["snippets"] = snippets
+	}
+
+	return docs, nil
 }
 
 // GetPool returns the underlying PostgreSQL connection pool.

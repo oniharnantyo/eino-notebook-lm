@@ -17,7 +17,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/agent/tools"
+	agent "github.com/oniharnantyo/eino-notebook/internal/core/application/agent/retrieval"
+	retrievalTools "github.com/oniharnantyo/eino-notebook/internal/core/application/agent/retrieval/tools"
 	artifactusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/artifact"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/conversation"
@@ -27,10 +28,10 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/knowledge"
 	mindmapusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/mindmap"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/notebook"
+	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/pipeline"
 	responseusecase "github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response/history"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/sentence"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/pipeline"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/config"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/persistence"
@@ -243,8 +244,8 @@ The server can be configured with custom host and port settings.`,
 		conversationUseCase := conversation.NewConversationUseCase(conversationRepo)
 		log.Info("initialized", "usecase", "ConversationUseCase")
 
-		// Initialize specific retrievers for ToolFactory (Agentic RAG)
-		sentencesRetriever, err := pgvectoretriever.NewSentencesRetriever(dbPool, cfg.Embedding.Dimension)
+		// Initialize specific retrievers for agent tools
+		sentencesRetriever, err := pgvectoretriever.NewSentencesRetriever(dbPool, cfg.Embedding.Dimension, embedder)
 		if err != nil {
 			log.Warn("failed to create sentences retriever", "error", err)
 		} else {
@@ -265,9 +266,6 @@ The server can be configured with custom host and port settings.`,
 			log.Info("initialized", "retriever", "knowledges")
 		}
 
-		// Create ToolFactory for agent tools
-		toolFactory := tools.NewToolFactory(sentencesRetriever, imagesRetriever, knowledgesRetriever, knowledgeRepo, sourceRepo, embedder)
-
 		// Initialize chat model using factory
 		chatModel, err := model.CreateToolCallingChatModel(ctx, &cfg.Chat)
 		if err != nil {
@@ -278,7 +276,16 @@ The server can be configured with custom host and port settings.`,
 
 		// Create response use case with history management configuration
 		var responseUseCase chat.ResponseUseCase
-		if sentencesRetriever != nil && chatModel != nil && embedder != nil {
+		if sentencesRetriever != nil && chatModel != nil && embedder != nil && knowledgesRetriever != nil && imagesRetriever != nil {
+			// Create static tools (reusable across requests)
+			keywordSearchTool := retrievalTools.NewKeywordSearchTool(knowledgesRetriever)
+			semanticSearchTool := retrievalTools.NewSemanticSearchTool(sentencesRetriever)
+			imageSearchTool := retrievalTools.NewImageSearchTool(imagesRetriever)
+
+			// Create retrieval agent with static tools
+			retrievalAgent := agent.NewRetrievalAgent(chatModel, keywordSearchTool, semanticSearchTool, imageSearchTool)
+			log.Info("initialized", "agent", "RetrievalAgent", "static_tools", 3)
+
 			// Configure conversation history management
 			historyConfig := &history.HistoryConfig{
 				Strategy:             history.HistoryStrategySlidingWindow,
@@ -287,7 +294,7 @@ The server can be configured with custom host and port settings.`,
 				TokenEstimationRatio: 4,    // 1 token ≈ 4 chars
 				SummarizeThreshold:   5,    // Summarize messages older than 5 turns
 			}
-			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, sourceRepo, sentencesRetriever, embedder, chatModel, cfg.Chat.Model, historyConfig, toolFactory)
+			responseUseCase = responseusecase.NewResponseUseCase(notebookRepo, conversationRepo, sourceRepo, embedder, chatModel, cfg.Chat.Model, historyConfig, retrievalAgent, knowledgeRepo)
 			log.Info("initialized", "usecase", "ResponseUseCase", "history_strategy", historyConfig.Strategy, "max_messages", historyConfig.MaxMessages)
 		}
 
@@ -429,19 +436,19 @@ The server can be configured with custom host and port settings.`,
 		)
 		log.Info("initialized", "factory", "ContentExtractorFactory")
 
-			// Create pipeline factory for ingestion pipelines
-			pipelineFactory := pipeline.NewPipelineFactory(
-				sourceRepo,
-				knowledgeRepo,
-				sentenceRepo,
-				imageRepo,
-				docParserFactory,
-				embedder,
-				s3Storage,
-				visionDescriber,
-				log,
-			)
-			log.Info("initialized", "factory", "PipelineFactory")
+		// Create pipeline factory for ingestion pipelines
+		pipelineFactory := pipeline.NewPipelineFactory(
+			sourceRepo,
+			knowledgeRepo,
+			sentenceRepo,
+			imageRepo,
+			docParserFactory,
+			embedder,
+			s3Storage,
+			visionDescriber,
+			log,
+		)
+		log.Info("initialized", "factory", "PipelineFactory")
 
 		// Create source usecase with content extraction dependencies
 		sourceUseCase := source.NewSourceUseCase(sourceRepo, notebookRepo, contentExtractorFactory, docParserFactory, knowledgeUseCase, sentenceUseCase, imageUseCase, pipelineFactory, log)

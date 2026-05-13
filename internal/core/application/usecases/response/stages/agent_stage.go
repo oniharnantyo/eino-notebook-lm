@@ -2,87 +2,294 @@ package stages
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/cloudwego/eino/adk"
-	"github.com/cloudwego/eino/components/model"
-	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/agent"
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/agent/tools"
+	agent "github.com/oniharnantyo/eino-notebook/internal/core/application/agent/retrieval"
+	retrievalTools "github.com/oniharnantyo/eino-notebook/internal/core/application/agent/retrieval/tools"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
-// AgentStage handles the agent-based response generation
 type AgentStage struct {
-	chatModel   model.ToolCallingChatModel
-	sourceRepo  repositories.SourceRepository
-	toolFactory *tools.ToolFactory
+	retrievalAgent *agent.RetrievalAgent
+	sourceRepo     repositories.SourceRepository
+	knowledgeRepo  repositories.KnowledgeRepository
 }
 
-// NewAgentStage creates a new AgentStage
-func NewAgentStage(chatModel model.ToolCallingChatModel, sourceRepo repositories.SourceRepository, toolFactory *tools.ToolFactory) *AgentStage {
+func NewAgentStage(retrievalAgent *agent.RetrievalAgent, sourceRepo repositories.SourceRepository, knowledgeRepo repositories.KnowledgeRepository) *AgentStage {
 	return &AgentStage{
-		chatModel:   chatModel,
-		sourceRepo:  sourceRepo,
-		toolFactory: toolFactory,
+		retrievalAgent: retrievalAgent,
+		sourceRepo:     sourceRepo,
+		knowledgeRepo:  knowledgeRepo,
 	}
 }
 
-// Execute runs the agent
-func (s *AgentStage) Execute(ctx context.Context, input *schema.Message, sourceIDs []uuid.UUID, tools []any) (GenerationOutput, error) {
-	// Build source catalog for agent grounding
+func (s *AgentStage) Execute(ctx context.Context, input *schema.Message, sourceIDs []uuid.UUID) (GenerationOutput, error) {
 	catalog, err := agent.BuildCatalog(ctx, s.sourceRepo, sourceIDs)
 	if err != nil {
 		return GenerationOutput{}, fmt.Errorf("failed to build source catalog: %w", err)
 	}
 
-	// Create agent instance
-	// Need to cast []any to []tool.BaseTool
-	var agentTools []tool.BaseTool
-	for _, t := range tools {
-		if bt, ok := t.(tool.BaseTool); ok {
-			agentTools = append(agentTools, bt)
-		}
-	}
+	listSourcesTool := retrievalTools.NewListSourcesTool(s.sourceRepo, sourceIDs)
+	chunkReadTool := retrievalTools.NewChunkReadTool(s.knowledgeRepo, nil)
 
-	ag, err := agent.NewRetrievalAgent(ctx, s.chatModel, agentTools)
+	ag, err := s.retrievalAgent.Invoke(ctx, listSourcesTool, chunkReadTool)
 	if err != nil {
 		return GenerationOutput{}, fmt.Errorf("failed to create agent: %w", err)
 	}
 
-	// Create ADK Runner
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{
 		Agent:           ag,
 		EnableStreaming: true,
+		CheckPointStore: ,
 	})
 
-	// Run agent
-	// Pass catalog via session values - ADK will replace {catalog} in BaseAgentInstruction
-	iter := runner.Query(ctx, input.Content, adk.WithSessionValues(map[string]any{"catalog": catalog}))
+	iter := runner.Run(ctx, input.Content, adk.WithSessionValues(map[string]any{"catalog": catalog}))
 
-	// Use a pipe to create a stream reader
 	pr, pw := schema.Pipe[*schema.Message](10)
 
 	go func() {
 		defer pw.Close()
+		parser := &thinkingParser{}
 		for {
 			event, ok := iter.Next()
 			if !ok {
 				break
 			}
-			_, msg, err := mapAgentEventToSSE(event)
-			if err != nil {
-				// Handle error
-				break
+			if event.Err != nil {
+				_ = pw.Send(nil, event.Err)
+				return
 			}
-			if msg != nil {
-				_ = pw.Send(msg, nil) // Send accepts (message, error)
+
+			if event.Output != nil && event.Output.MessageOutput != nil {
+				mv := event.Output.MessageOutput
+
+				if mv.IsStreaming && mv.MessageStream != nil {
+					stream := mv.MessageStream
+					defer stream.Close()
+
+					for {
+						chunk, err := stream.Recv()
+						if err != nil {
+							if err.Error() == "EOF" || err.Error() == "nil stream" {
+								break
+							}
+							_ = pw.Send(nil, err)
+							return
+						}
+
+						chunkJson, _ := json.Marshal(chunk)
+						fmt.Println(string(chunkJson))
+
+						if chunk == nil {
+							continue
+						}
+
+						if chunk.Role == schema.Tool {
+							continue
+						}
+
+						if len(chunk.ToolCalls) > 0 {
+							_ = pw.Send(chunk, nil)
+							continue
+						}
+
+						if err := processChunk(chunk, pw, parser); err != nil {
+							_ = pw.Send(nil, err)
+							return
+						}
+					}
+				} else {
+					_, msg, err := mapAgentEventToSSE(event)
+					if err != nil {
+						_ = pw.Send(nil, err)
+						break
+					}
+
+					if msg != nil && msg.Role == schema.Tool {
+						continue
+					}
+
+					if msg != nil && len(msg.ToolCalls) > 0 {
+						_ = pw.Send(msg, nil)
+						continue
+					}
+
+					if msg != nil && (msg.Content != "" || msg.ReasoningContent != "") {
+						if msg.Content != "" {
+							reasoning, content := parser.Process(msg.Content)
+							if reasoning != "" {
+								_ = pw.Send(&schema.Message{
+									Role:             msg.Role,
+									ReasoningContent: reasoning,
+									Extra:            msg.Extra,
+								}, nil)
+							}
+							if content != "" {
+								_ = pw.Send(&schema.Message{
+									Role:    msg.Role,
+									Content: content,
+									Extra:   msg.Extra,
+								}, nil)
+							}
+						} else {
+							_ = pw.Send(msg, nil)
+						}
+					}
+				}
 			}
 		}
 	}()
 
 	return GenerationOutput{Stream: pr}, nil
+}
+
+func processChunk(chunk *schema.Message, pw *schema.StreamWriter[*schema.Message], parser *thinkingParser) error {
+	if len(chunk.AssistantGenMultiContent) > 0 {
+		return processMultimodalContent(chunk, pw, parser)
+	}
+
+	if chunk.ReasoningContent != "" {
+		_ = pw.Send(&schema.Message{
+			Role:             chunk.Role,
+			ReasoningContent: chunk.ReasoningContent,
+			Extra:            chunk.Extra,
+		}, nil)
+	}
+
+	if chunk.Content != "" {
+		reasoning, content := parser.Process(chunk.Content)
+		if reasoning != "" {
+			_ = pw.Send(&schema.Message{
+				Role:             chunk.Role,
+				ReasoningContent: reasoning,
+				Extra:            chunk.Extra,
+			}, nil)
+		}
+		if content != "" {
+			_ = pw.Send(&schema.Message{
+				Role:    chunk.Role,
+				Content: content,
+				Extra:   chunk.Extra,
+			}, nil)
+		}
+		return nil
+	}
+
+	return nil
+}
+
+func processMultimodalContent(chunk *schema.Message, pw *schema.StreamWriter[*schema.Message], parser *thinkingParser) error {
+	for _, part := range chunk.AssistantGenMultiContent {
+		switch part.Type {
+		case schema.ChatMessagePartTypeText:
+			if part.Text != "" {
+				reasoning, content := parser.Process(part.Text)
+				if reasoning != "" {
+					_ = pw.Send(&schema.Message{
+						Role:             chunk.Role,
+						ReasoningContent: reasoning,
+						Extra:            chunk.Extra,
+					}, nil)
+				}
+				if content != "" {
+					_ = pw.Send(&schema.Message{
+						Role:    chunk.Role,
+						Content: content,
+						Extra:   chunk.Extra,
+					}, nil)
+				}
+			}
+
+		case schema.ChatMessagePartTypeReasoning:
+			continue
+
+		case schema.ChatMessagePartTypeImageURL, schema.ChatMessagePartTypeAudioURL, schema.ChatMessagePartTypeVideoURL:
+			_ = pw.Send(&schema.Message{
+				Role:                     chunk.Role,
+				AssistantGenMultiContent: []schema.MessageOutputPart{part},
+			}, nil)
+
+		default:
+			_ = pw.Send(&schema.Message{
+				Role:                     chunk.Role,
+				AssistantGenMultiContent: []schema.MessageOutputPart{part},
+			}, nil)
+		}
+	}
+	return nil
+}
+
+type thinkingParser struct {
+	inReasoning bool
+	buffer      string
+}
+
+func (p *thinkingParser) Process(text string) (reasoning string, content string) {
+	fullText := p.buffer + text
+	p.buffer = ""
+
+	for len(fullText) > 0 {
+		if !p.inReasoning {
+			idx := findStartTag(fullText, "nungs")
+			if idx == -1 {
+				partialIdx := findPartialStartTag(fullText, "nungen")
+				if partialIdx != -1 {
+					content += fullText[:partialIdx]
+					p.buffer = fullText[partialIdx:]
+					return reasoning, content
+				}
+				content += fullText
+				return reasoning, content
+			}
+
+			content += fullText[:idx]
+			p.inReasoning = true
+			fullText = fullText[idx+len("nungen"):]
+		} else {
+			idx := findStartTag(fullText, "nungen")
+			if idx == -1 {
+				partialIdx := findPartialStartTag(fullText, "nungen")
+				if partialIdx != -1 {
+					reasoning += fullText[:partialIdx]
+					p.buffer = fullText[partialIdx:]
+					return reasoning, content
+				}
+				reasoning += fullText
+				return reasoning, content
+			}
+
+			reasoning += fullText[:idx]
+			p.inReasoning = false
+			fullText = fullText[idx+len("nungen"):]
+		}
+	}
+
+	return reasoning, content
+}
+
+func findStartTag(text, tag string) int {
+	for i := 0; i <= len(text)-len(tag); i++ {
+		if text[i:i+len(tag)] == tag {
+			return i
+		}
+	}
+	return -1
+}
+
+func findPartialStartTag(text, tag string) int {
+	for i := 1; i < len(tag); i++ {
+		suffixLen := i
+		if len(text) < suffixLen {
+			suffixLen = len(text)
+		}
+		if text[len(text)-suffixLen:] == tag[:suffixLen] {
+			return len(text) - suffixLen
+		}
+	}
+	return -1
 }

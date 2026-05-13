@@ -118,6 +118,42 @@ type Message struct {
 
 func (m *Message) GetItemType() string { return "message" }
 
+// ReasoningItem represents a reasoning output item
+type ReasoningItem struct {
+	ID      string             `json:"id"`
+	Type    string             `json:"type"`   // "reasoning"
+	Status  string             `json:"status"` // "in_progress", "completed"
+	Summary []ReasoningSummary `json:"summary,omitempty"`
+	Content []ReasoningContent `json:"content,omitempty"`
+}
+
+func (r *ReasoningItem) GetItemType() string { return "reasoning" }
+
+// ReasoningSummary represents a summary text in reasoning
+type ReasoningSummary struct {
+	Type string `json:"type"` // "summary_text"
+	Text string `json:"text"`
+}
+
+// ReasoningContent represents content in reasoning
+type ReasoningContent struct {
+	Type string `json:"type"` // "output_text"
+	Text string `json:"text"`
+}
+
+func (r *ReasoningContent) GetContentType() string { return "output_text" }
+
+// FunctionCallItem represents a function call output item
+type FunctionCallItem struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`   // "function_call"
+	Status    string `json:"status"` // "in_progress", "completed"
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+func (f *FunctionCallItem) GetItemType() string { return "function_call" }
+
 type ContentPart interface {
 	GetContentType() string
 }
@@ -144,6 +180,25 @@ type RefusalContent struct {
 }
 
 func (r *RefusalContent) GetContentType() string { return "refusal" }
+
+// ToolCallContent represents a tool call in the response
+type ToolCallContent struct {
+	Type       string              `json:"type"` // "tool_call"
+	ID         string              `json:"id"`
+	ToolCallID string              `json:"tool_call_id,omitempty"`
+	Name       string              `json:"name"`
+	Arguments  string              `json:"arguments,omitempty"`
+	Status     string              `json:"status,omitempty"` // "in_progress", "completed"
+	Error      *ToolCallError      `json:"error,omitempty"`
+}
+
+func (t *ToolCallContent) GetContentType() string { return "tool_call" }
+
+// ToolCallError represents an error in tool call execution
+type ToolCallError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
 
 // Usage statistics
 type Usage struct {
@@ -330,4 +385,52 @@ type TopLogProb struct {
 	Token   string  `json:"token"`
 	Logprob float64 `json:"logprob"`
 	Bytes   []int   `json:"bytes"`
+}
+
+type ResponseReasoningDeltaEvent struct {
+	Type           string `json:"type"` // "response.reasoning.delta"
+	SequenceNumber int    `json:"sequence_number"`
+	ItemID         string `json:"item_id"`
+	OutputIndex    int    `json:"output_index"`
+	ContentIndex   int    `json:"content_index"`
+	Delta          string `json:"delta"`
+}
+
+func (r *ResponseReasoningDeltaEvent) GetEventType() string { return "response.reasoning.delta" }
+
+type ResponseReasoningDoneEvent struct {
+	Type           string `json:"type"` // "response.reasoning.done"
+	SequenceNumber int    `json:"sequence_number"`
+	ItemID         string `json:"item_id"`
+	OutputIndex    int    `json:"output_index"`
+	ContentIndex   int    `json:"content_index"`
+	Text           string `json:"text"`
+}
+
+func (r *ResponseReasoningDoneEvent) GetEventType() string { return "response.reasoning.done" }
+
+type ResponseFunctionCallArgumentsDeltaEvent struct {
+	Type           string `json:"type"` // "response.function_call_arguments.delta"
+	SequenceNumber int    `json:"sequence_number"`
+	ItemID         string `json:"item_id"`
+	OutputIndex    int    `json:"output_index"`
+	ContentIndex   int    `json:"content_index"`
+	Delta          string `json:"delta"`
+}
+
+func (r *ResponseFunctionCallArgumentsDeltaEvent) GetEventType() string {
+	return "response.function_call_arguments.delta"
+}
+
+type ResponseFunctionCallArgumentsDoneEvent struct {
+	Type           string `json:"type"` // "response.function_call_arguments.done"
+	SequenceNumber int    `json:"sequence_number"`
+	ItemID         string `json:"item_id"`
+	OutputIndex    int    `json:"output_index"`
+	ContentIndex   int    `json:"content_index"`
+	Arguments      string `json:"arguments"`
+}
+
+func (r *ResponseFunctionCallArgumentsDoneEvent) GetEventType() string {
+	return "response.function_call_arguments.done"
 }

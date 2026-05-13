@@ -20,16 +20,12 @@ type Knowledge struct {
 }
 
 // NewKnowledge creates a new knowledge entity (chunk).
-func NewKnowledge(sourceID uuid.UUID, content string, chunkIndex int, headingContext map[string]any, firstPage, lastPage int, metadata map[string]any) (*Knowledge, error) {
+func NewKnowledge(sourceID uuid.UUID, content string, metadata map[string]any) (*Knowledge, error) {
 	return &Knowledge{
-		ID:             uuid.New(),
-		SourceID:       sourceID,
-		Content:        content,
-		ChunkIndex:     chunkIndex,
-		HeadingContext: headingContext,
-		FirstPage:      firstPage,
-		LastPage:       lastPage,
-		Metadata:       metadata,
-		CreatedAt:      time.Now(),
+		ID:        uuid.New(),
+		SourceID:  sourceID,
+		Content:   content,
+		Metadata:  metadata,
+		CreatedAt: time.Now(),
 	}, nil
 }

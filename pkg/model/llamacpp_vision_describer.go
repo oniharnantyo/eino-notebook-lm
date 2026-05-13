@@ -32,37 +32,6 @@ func newLlamaCPPVisionDescriber(baseURL, modelName, apiKey string) description.V
 	}
 }
 
-type chatCompletionContent struct {
-	Type     string               `json:"type"`
-	Text     string               `json:"text,omitempty"`
-	ImageURL *chatCompletionImage `json:"image_url,omitempty"`
-}
-
-type chatCompletionImage struct {
-	URL string `json:"url"`
-}
-
-type chatCompletionMessage struct {
-	Role    string      `json:"role"`
-	Content interface{} `json:"content"`
-}
-
-type chatCompletionRequest struct {
-	Model    string                  `json:"model"`
-	Messages []chatCompletionMessage `json:"messages"`
-}
-
-type chatCompletionResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Error *struct {
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
-}
-
 func (l *llamacppVisionDescriber) Describe(ctx context.Context, image []byte, mimeType string, ocrText string) (string, error) {
 	prompt := "Provide a detailed description of this image. "
 	if ocrText != "" {

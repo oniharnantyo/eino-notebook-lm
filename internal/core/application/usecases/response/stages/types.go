@@ -1,19 +1,8 @@
 package stages
 
 import (
-	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 )
-
-// ToolPreparation
-type ToolPreparationInput struct {
-	SourceIDs   []string
-	SourceTypes []string
-}
-
-type ToolPreparationOutput struct {
-	Tools []tool.BaseTool
-}
 
 // Generation
 type GenerationOutput struct {

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cloudwego/eino/components/retriever"
 	"github.com/cloudwego/eino/schema"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -72,55 +71,6 @@ func NewImagesRetriever(pool *pgxpool.Pool, dimension int) (*ImagesRetriever, er
 	}, nil
 }
 
-// Retrieve retrieves the most relevant image documents for the given query.
-//
-// This method implements the retriever.Retriever interface. It performs hybrid
-// search combining BM25 (keyword) and vector (semantic) search using Reciprocal
-// Rank Fusion (RRF) to merge results from the images table.
-//
-// Implements: retriever.Retriever
-func (r *ImagesRetriever) Retrieve(ctx context.Context, query string, opts ...retriever.Option) ([]*schema.Document, error) {
-	defaultTopK := 5
-	defaultScoreThreshold := 0.0
-	commonOpts := retriever.GetCommonOptions(&retriever.Options{
-		TopK:           &defaultTopK,
-		ScoreThreshold: &defaultScoreThreshold,
-	}, opts...)
-
-	topK := 5
-	if commonOpts.TopK != nil {
-		topK = *commonOpts.TopK
-	}
-
-	var queryVector []float64
-	if commonOpts.Embedding != nil {
-		embeddings, err := commonOpts.Embedding.EmbedStrings(ctx, []string{query})
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate query embedding: %w", err)
-		}
-		if len(embeddings) > 0 && len(embeddings[0]) > 0 {
-			queryVector = embeddings[0]
-		}
-	}
-
-	documents, err := r.inner.HybridRetrieve(ctx, "images", query, queryVector, topK)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute hybrid search on images: %w", err)
-	}
-
-	if commonOpts.ScoreThreshold != nil {
-		var filtered []*schema.Document
-		for _, doc := range documents {
-			if doc.Score() >= *commonOpts.ScoreThreshold {
-				filtered = append(filtered, doc)
-			}
-		}
-		return filtered, nil
-	}
-
-	return documents, nil
-}
-
 // SemanticSearch performs vector similarity search on the images table.
 //
 // This method searches for images that are semantically similar to the query
@@ -148,7 +98,8 @@ func (r *ImagesRetriever) SemanticSearch(ctx context.Context, queryVector []floa
 //
 // Returns image documents ordered by BM25 score (highest first).
 func (r *ImagesRetriever) KeywordSearch(ctx context.Context, query string, topK int) ([]*schema.Document, error) {
-	return r.inner.KeywordSearch(ctx, "images", query, topK)
+	// Use scoreThreshold of 0 (no filtering) for backward compatibility
+	return r.inner.KeywordSearch(ctx, "images", query, topK, 0)
 }
 
 // GetPool returns the underlying PostgreSQL connection pool.

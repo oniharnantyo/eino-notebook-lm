@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cloudwego/eino/components/retriever"
+	"github.com/cloudwego/eino/components/embedding"
 	"github.com/cloudwego/eino/schema"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -42,7 +42,8 @@ import (
 //
 // This adapter will be removed in a future release.
 type SentencesRetriever struct {
-	inner *UnifiedRetriever
+	inner    *UnifiedRetriever
+	embedder embedding.Embedder
 }
 
 // NewSentencesRetriever creates a new SentencesRetriever with the given configuration.
@@ -58,12 +59,15 @@ type SentencesRetriever struct {
 //   - dimension: Dimension of the vector embeddings (must match the embedding model)
 //
 // Returns an error if the pool is nil or dimension is invalid.
-func NewSentencesRetriever(pool *pgxpool.Pool, dimension int) (*SentencesRetriever, error) {
+func NewSentencesRetriever(pool *pgxpool.Pool, dimension int, embedder embedding.Embedder) (*SentencesRetriever, error) {
 	if pool == nil {
 		return nil, fmt.Errorf("connection pool cannot be nil")
 	}
 	if dimension <= 0 {
 		return nil, fmt.Errorf("dimension must be positive, got %d", dimension)
+	}
+	if embedder == nil {
+		return nil, fmt.Errorf("embedder cannot be nil")
 	}
 
 	config := &UnifiedConfig{
@@ -79,72 +83,43 @@ func NewSentencesRetriever(pool *pgxpool.Pool, dimension int) (*SentencesRetriev
 	}
 
 	return &SentencesRetriever{
-		inner: inner,
+		inner:    inner,
+		embedder: embedder,
 	}, nil
 }
 
-// Retrieve retrieves the most relevant sentence documents for the given query.
+// SemanticSearch performs semantic similarity search on the sentences table.
 //
-// This method implements the retriever.Retriever interface. It performs hybrid
-// search combining BM25 (keyword) and vector (semantic) search using Reciprocal
-// Rank Fusion (RRF) to merge results from the sentences table.
-//
-// Implements: retriever.Retriever
-func (r *SentencesRetriever) Retrieve(ctx context.Context, query string, opts ...retriever.Option) ([]*schema.Document, error) {
-	defaultTopK := 5
-	defaultScoreThreshold := 0.0
-	commonOpts := retriever.GetCommonOptions(&retriever.Options{
-		TopK:           &defaultTopK,
-		ScoreThreshold: &defaultScoreThreshold,
-	}, opts...)
-
-	topK := 5
-	if commonOpts.TopK != nil {
-		topK = *commonOpts.TopK
-	}
-
-	var queryVector []float64
-	if commonOpts.Embedding != nil {
-		embeddings, err := commonOpts.Embedding.EmbedStrings(ctx, []string{query})
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate query embedding: %w", err)
-		}
-		if len(embeddings) > 0 && len(embeddings[0]) > 0 {
-			queryVector = embeddings[0]
-		}
-	}
-
-	documents, err := r.inner.HybridRetrieve(ctx, "sentences", query, queryVector, topK)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute hybrid search on sentences: %w", err)
-	}
-
-	if commonOpts.ScoreThreshold != nil {
-		var filtered []*schema.Document
-		for _, doc := range documents {
-			if doc.Score() >= *commonOpts.ScoreThreshold {
-				filtered = append(filtered, doc)
-			}
-		}
-		return filtered, nil
-	}
-
-	return documents, nil
-}
-
-// SemanticSearch performs vector similarity search on the sentences table.
-//
-// This method searches for sentences that are semantically similar to the query
-// vector using pgvector cosine distance.
+// This method embeds the query string using the configured embedder, then performs
+// vector similarity search using pgvector cosine distance.
 //
 // Parameters:
 //   - ctx: Context for the operation
-//   - queryVector: Vector embedding of the query (dimension must match config)
+//   - query: Natural language query string
 //   - topK: Maximum number of results to return
 //
 // Returns sentence documents ordered by similarity (closest first).
-func (r *SentencesRetriever) SemanticSearch(ctx context.Context, queryVector []float64, topK int) ([]*schema.Document, error) {
-	return r.inner.SemanticSearch(ctx, "sentences", queryVector, topK)
+func (r *SentencesRetriever) SemanticSearch(ctx context.Context, query string, topK int) ([]*schema.Document, error) {
+	vecs, err := r.embedder.EmbedStrings(ctx, []string{query})
+	if err != nil {
+		return nil, fmt.Errorf("failed to embed query: %w", err)
+	}
+	if len(vecs) == 0 || len(vecs[0]) == 0 {
+		return nil, fmt.Errorf("embedder returned empty vector for query")
+	}
+
+	docs, err := r.inner.SemanticSearch(ctx, "sentences", vecs[0], topK)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, doc := range docs {
+		if len(doc.Content) > 200 {
+			doc.Content = doc.Content[:200] + "..."
+		}
+	}
+
+	return docs, nil
 }
 
 // KeywordSearch performs BM25 keyword search on the sentences table.
@@ -159,7 +134,8 @@ func (r *SentencesRetriever) SemanticSearch(ctx context.Context, queryVector []f
 //
 // Returns sentence documents ordered by BM25 score (highest first).
 func (r *SentencesRetriever) KeywordSearch(ctx context.Context, query string, topK int) ([]*schema.Document, error) {
-	return r.inner.KeywordSearch(ctx, "sentences", query, topK)
+	// Use scoreThreshold of 0 (no filtering) for backward compatibility
+	return r.inner.KeywordSearch(ctx, "sentences", query, topK, 0)
 }
 
 // GetPool returns the underlying PostgreSQL connection pool.

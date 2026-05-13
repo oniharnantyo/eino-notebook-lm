@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"psql postgresql://postgres:postgres:localhost:5432/eino_notebook -c \\\"SELECT \\n  response_id,\\n  notebook_id,\\n  model,\\n  jsonb_array_length(messages) as total_messages,\\n  (SELECT COUNT(...",
+  "error": "Exit code 2\npsql: error: invalid integer value \"postgres:localhost:5432\" for connection option \"port\"",
+  "timestamp": "2026-05-13T14:22:53.343Z",
+  "retry_count": 2
+}

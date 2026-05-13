@@ -32,15 +32,20 @@ func (s *DocumentToKnowledgeStage) Execute(ctx context.Context, input StageInput
 
 	knowledges := make([]*entities.Knowledge, len(data.Documents))
 	for i, doc := range data.Documents {
+		// Build metadata map with chunk-level info and document metadata
+		metadata := make(map[string]any)
+		metadata["chunk_index"] = i
+
+		// Merge document metadata (takes precedence)
+		for k, v := range doc.MetaData {
+			metadata[k] = v
+		}
+
 		// Create knowledge entity with document content and metadata
 		k, err := entities.NewKnowledge(
 			input.SourceID,
 			doc.Content,
-			i, // Use array index as chunk index
-			nil, // Heading context - not available in standard pipeline
-			0,   // First page - not available in standard pipeline
-			0,   // Last page - not available in standard pipeline
-			doc.MetaData, // Carry over all metadata including embeddings
+			metadata,
 		)
 		if err != nil {
 			return StageOutput{}, fmt.Errorf("failed to create knowledge entity: %w", err)

@@ -1,0 +1,23 @@
+filename: "{{.InterfaceName | snakecase}}.go"
+structname: "Mock{{.InterfaceName}}"
+packages:
+  github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories:
+    config:
+      dir: "internal/mocks/repositories"
+      pkgname: "repositories"
+    interfaces:
+      SourceRepository:
+      KnowledgeRepository:
+      NotebookRepository:
+      ConversationRepository:
+      ArtifactRepository:
+      SentenceRepository:
+      ImageRepository:
+      UserRepository:
+      CacheRepository:
+  github.com/cloudwego/eino/components/model:
+    config:
+      dir: "internal/mocks/models"
+      pkgname: "models"
+    interfaces:
+      ToolCallingChatModel:

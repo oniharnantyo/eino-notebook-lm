@@ -14,21 +14,12 @@ import (
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
-type mockToolPrepStage struct {
-	mock.Mock
-}
-
-func (m *mockToolPrepStage) Execute(ctx context.Context, input stages.ToolPreparationInput) (stages.ToolPreparationOutput, error) {
-	args := m.Called(ctx, input)
-	return args.Get(0).(stages.ToolPreparationOutput), args.Error(1)
-}
-
 type mockAgentStage struct {
 	mock.Mock
 }
 
-func (m *mockAgentStage) Execute(ctx context.Context, input *schema.Message, sourceIDs []uuid.UUID, tools []any) (stages.GenerationOutput, error) {
-	args := m.Called(ctx, input, sourceIDs, tools)
+func (m *mockAgentStage) Execute(ctx context.Context, input *schema.Message, sourceIDs []uuid.UUID) (stages.GenerationOutput, error) {
+	args := m.Called(ctx, input, sourceIDs)
 	return args.Get(0).(stages.GenerationOutput), args.Error(1)
 }
 
@@ -47,11 +38,10 @@ func (m *mockHistoryStage) Save(ctx context.Context, input stages.HistorySaveInp
 }
 
 func TestResponsePipeline_Execute_Success(t *testing.T) {
-	mockToolPrep := new(mockToolPrepStage)
 	mockAgent := new(mockAgentStage)
 	mockHistory := new(mockHistoryStage)
 
-	pipeline := NewResponsePipeline(mockToolPrep, mockAgent, mockHistory)
+	pipeline := NewResponsePipeline(mockAgent, mockHistory)
 
 	ctx := context.Background()
 	notebookID := "nb1"
@@ -61,8 +51,7 @@ func TestResponsePipeline_Execute_Success(t *testing.T) {
 	}
 
 	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
-	mockToolPrep.On("Execute", ctx, mock.Anything).Return(stages.ToolPreparationOutput{}, nil)
-	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything, mock.Anything).Return(stages.GenerationOutput{
+	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything).Return(stages.GenerationOutput{
 		Stream: nil,
 	}, nil)
 	mockHistory.On("Save", mock.Anything, mock.Anything).Return(nil).Maybe()
@@ -71,16 +60,14 @@ func TestResponsePipeline_Execute_Success(t *testing.T) {
 
 	assert.NoError(t, err)
 	mockHistory.AssertExpectations(t)
-	mockToolPrep.AssertExpectations(t)
 	mockAgent.AssertExpectations(t)
 }
 
 func TestResponsePipeline_Execute_HistoryFailure(t *testing.T) {
-	mockToolPrep := new(mockToolPrepStage)
 	mockAgent := new(mockAgentStage)
 	mockHistory := new(mockHistoryStage)
 
-	pipeline := NewResponsePipeline(mockToolPrep, mockAgent, mockHistory)
+	pipeline := NewResponsePipeline(mockAgent, mockHistory)
 
 	ctx := context.Background()
 	req := &dtos.ResponseRequest{Input: "hello"}
@@ -93,41 +80,42 @@ func TestResponsePipeline_Execute_HistoryFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "history stage failed")
 }
 
-func TestResponsePipeline_Execute_ToolPrepFailure(t *testing.T) {
-	mockToolPrep := new(mockToolPrepStage)
-	mockAgent := new(mockAgentStage)
-	mockHistory := new(mockHistoryStage)
-
-	pipeline := NewResponsePipeline(mockToolPrep, mockAgent, mockHistory)
-
-	ctx := context.Background()
-	req := &dtos.ResponseRequest{Input: "hello"}
-
-	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
-	mockToolPrep.On("Execute", ctx, mock.Anything).Return(stages.ToolPreparationOutput{}, errors.New("tool prep error"))
-
-	_, _, err := pipeline.Execute(ctx, req, "system", "model")
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "tool prep stage failed")
-}
-
 func TestResponsePipeline_Execute_GenerationFailure(t *testing.T) {
-	mockToolPrep := new(mockToolPrepStage)
 	mockAgent := new(mockAgentStage)
 	mockHistory := new(mockHistoryStage)
 
-	pipeline := NewResponsePipeline(mockToolPrep, mockAgent, mockHistory)
+	pipeline := NewResponsePipeline(mockAgent, mockHistory)
 
 	ctx := context.Background()
 	req := &dtos.ResponseRequest{Input: "hello"}
 
 	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
-	mockToolPrep.On("Execute", ctx, mock.Anything).Return(stages.ToolPreparationOutput{}, nil)
-	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything, mock.Anything).Return(stages.GenerationOutput{}, errors.New("agent error"))
+	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything).Return(stages.GenerationOutput{}, errors.New("agent error"))
 
 	_, _, err := pipeline.Execute(ctx, req, "system", "model")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "agent stage failed")
+}
+
+func TestResponsePipeline_Execute_InvalidSourceID(t *testing.T) {
+	mockAgent := new(mockAgentStage)
+	mockHistory := new(mockHistoryStage)
+
+	pipeline := NewResponsePipeline(mockAgent, mockHistory)
+
+	ctx := context.Background()
+	notebookID := "nb1"
+	req := &dtos.ResponseRequest{
+		NotebookID: &notebookID,
+		Input:      "hello",
+		SourceIDs:  []string{"invalid-uuid"},
+	}
+
+	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
+
+	_, _, err := pipeline.Execute(ctx, req, "system", "model")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid source ID")
 }

@@ -25,7 +25,6 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/sync/errgroup"
 )
 
 // TableConfig holds configuration for a specific table type.
@@ -84,12 +83,12 @@ func NewUnifiedRetriever(config *UnifiedConfig) (*UnifiedRetriever, error) {
 func (r *UnifiedRetriever) registerDefaultTables() {
 	r.tables["knowledges"] = TableConfig{
 		Name:       "knowledges",
-		BM25Index:  "public.knowledges_bm25_idx",
+		BM25Index:  "public.idx_knowledges_content_bm25",
 		JoinClause: "",
 	}
 	r.tables["sentences"] = TableConfig{
 		Name:       "sentences",
-		BM25Index:  "public.sentences_bm25_idx",
+		BM25Index:  "public.idx_sentences_content_bm25",
 		JoinClause: "",
 	}
 	r.tables["images"] = TableConfig{
@@ -134,12 +133,18 @@ func (r *UnifiedRetriever) SemanticSearch(
 			r.config.Dimension, len(queryVector))
 	}
 
+	idCol := "id"
+	if tableType == "sentences" {
+		idCol = "knowledge_id"
+	}
+
 	query := fmt.Sprintf(`
-		SELECT id, content, metadata, embedding %s $1 AS distance
+		SELECT %s AS id, content, metadata, embedding %s $1 AS distance
 		FROM %s
 		ORDER BY embedding %s $1
 		LIMIT $2
 	`,
+		idCol,
 		DistanceCosine.operator(),
 		tableConfig.Name,
 		DistanceCosine.operator(),
@@ -201,6 +206,7 @@ func (r *UnifiedRetriever) KeywordSearch(
 	tableType string,
 	query string,
 	topK int,
+	scoreThreshold float64,
 ) ([]*schema.Document, error) {
 	tableConfig, err := r.GetTableConfig(tableType)
 	if err != nil {
@@ -209,19 +215,36 @@ func (r *UnifiedRetriever) KeywordSearch(
 
 	escapedQuery := strings.ReplaceAll(query, "'", "''")
 
-	bm25Query := fmt.Sprintf(`
-		SELECT id, content, metadata, content <@> '%s' AS bm25_score
-		FROM %s
-		WHERE content <@> to_bm25query('%s', '%s') < 0
-		ORDER BY content <@> '%s'
-		LIMIT $1
-	`,
-		escapedQuery,
-		tableConfig.Name,
-		escapedQuery,
-		tableConfig.BM25Index,
-		escapedQuery,
-	)
+	var bm25Query string
+	if scoreThreshold < 0 {
+		// Use WHERE clause with explicit to_bm25query() for threshold filtering
+		bm25Query = fmt.Sprintf(`
+			SELECT id, content, metadata, content <@> '%s' AS bm25_score
+			FROM %s
+			WHERE content <@> to_bm25query('%s', '%s') < %.2f
+			ORDER BY content <@> '%s'
+			LIMIT $1
+		`,
+			escapedQuery,
+			tableConfig.Name,
+			escapedQuery,
+			tableConfig.BM25Index,
+			scoreThreshold,
+			escapedQuery,
+		)
+	} else {
+		// No threshold - use implicit query syntax for better performance
+		bm25Query = fmt.Sprintf(`
+			SELECT id, content, metadata, content <@> '%s' AS bm25_score
+			FROM %s
+			ORDER BY content <@> '%s'
+			LIMIT $1
+		`,
+			escapedQuery,
+			tableConfig.Name,
+			escapedQuery,
+		)
+	}
 
 	rows, err := r.pool.Query(ctx, bm25Query, topK)
 	if err != nil {
@@ -273,269 +296,28 @@ func (r *UnifiedRetriever) KeywordSearch(
 	return documents, nil
 }
 
-// HybridRetrieve performs hybrid retrieval using RRF fusion of semantic and keyword search.
-func (r *UnifiedRetriever) HybridRetrieve(
-	ctx context.Context,
-	tableType string,
-	query string,
-	queryVector []float64,
-	topK int,
-) ([]*schema.Document, error) {
-	tableConfig, err := r.GetTableConfig(tableType)
-	if err != nil {
-		return nil, err
-	}
-
-	k := r.config.DefaultK
-	if k <= 0 {
-		k = 60
-	}
-
-	candidatesK := r.config.DefaultTopK
-	if candidatesK <= 0 {
-		candidatesK = 20
-	}
-
-	g, egCtx := errgroup.WithContext(ctx)
-
-	vectorRanked := make(chan []RankedDocument, 1)
-	bm25Ranked := make(chan []RankedDocument, 1)
-
-	g.Go(func() error {
-		defer close(vectorRanked)
-		results, err := r.semanticSearchRanked(egCtx, tableConfig, queryVector, candidatesK)
-		if err != nil {
-			return fmt.Errorf("vector search failed: %w", err)
-		}
-		vectorRanked <- results
-		return nil
-	})
-
-	g.Go(func() error {
-		defer close(bm25Ranked)
-		results, err := r.keywordSearchRanked(egCtx, tableConfig, query, candidatesK)
-		if err != nil {
-			return fmt.Errorf("keyword search failed: %w", err)
-		}
-		bm25Ranked <- results
-		return nil
-	})
-
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-
-	vResults := <-vectorRanked
-	bResults := <-bm25Ranked
-
-	rrfScores := MergeByRRF(k, vResults, bResults)
-	rankedResults := SortByScore(rrfScores)
-	topNResults := TopN(rankedResults, topK)
-
-	documents, err := r.rankedListToDocuments(ctx, tableConfig, topNResults)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert ranked results to documents: %w", err)
-	}
-
-	slog.Info("unified_hybrid_retrieve",
-		"table_type", tableType,
-		"table", tableConfig.Name,
-		"rrf_k", k,
-		"candidates_k", candidatesK,
-		"top_k", topK,
-		"results", len(documents),
-	)
-
-	return documents, nil
-}
-
-// semanticSearchRanked performs semantic search and returns ranked documents.
-func (r *UnifiedRetriever) semanticSearchRanked(
-	ctx context.Context,
-	tableConfig TableConfig,
-	queryVector []float64,
-	topK int,
-) ([]RankedDocument, error) {
-	if len(queryVector) != r.config.Dimension {
-		return nil, fmt.Errorf("query vector dimension mismatch: expected %d, got %d",
-			r.config.Dimension, len(queryVector))
-	}
-
-	query := fmt.Sprintf(`
-		SELECT id
-		FROM %s
-		ORDER BY embedding %s $1
-		LIMIT $2
-	`,
-		tableConfig.Name,
-		DistanceCosine.operator(),
-	)
-
-	vecStr := vectorToString(queryVector)
-	rows, err := r.pool.Query(ctx, query, vecStr, topK)
-	if err != nil {
-		return nil, fmt.Errorf("vector search query failed: %w", err)
-	}
-	defer rows.Close()
-
-	var results []RankedDocument
-	rank := 1
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("failed to scan vector row: %w", err)
-		}
-		results = append(results, RankedDocument{
-			ID:   id,
-			Rank: rank,
-		})
-		rank++
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("vector row iteration error: %w", err)
-	}
-
-	return results, nil
-}
-
-// keywordSearchRanked performs keyword search and returns ranked documents.
-func (r *UnifiedRetriever) keywordSearchRanked(
-	ctx context.Context,
-	tableConfig TableConfig,
-	query string,
-	topK int,
-) ([]RankedDocument, error) {
-	escapedQuery := strings.ReplaceAll(query, "'", "''")
-
-	bm25Query := fmt.Sprintf(`
-		SELECT id
-		FROM %s
-		WHERE content <@> to_bm25query('%s', '%s') < 0
-		ORDER BY content <@> '%s'
-		LIMIT $1
-	`,
-		tableConfig.Name,
-		escapedQuery,
-		tableConfig.BM25Index,
-		escapedQuery,
-	)
-
-	rows, err := r.pool.Query(ctx, bm25Query, topK)
-	if err != nil {
-		return nil, fmt.Errorf("keyword search query failed: %w", err)
-	}
-	defer rows.Close()
-
-	var results []RankedDocument
-	rank := 1
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("failed to scan keyword row: %w", err)
-		}
-		results = append(results, RankedDocument{
-			ID:   id,
-			Rank: rank,
-		})
-		rank++
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("keyword row iteration error: %w", err)
-	}
-
-	return results, nil
-}
-
-// rankedListToDocuments converts ranked document IDs to full schema.Document objects.
-func (r *UnifiedRetriever) rankedListToDocuments(
-	ctx context.Context,
-	tableConfig TableConfig,
-	ranked []RankedDocumentWithScore,
-) ([]*schema.Document, error) {
-	if len(ranked) == 0 {
-		return []*schema.Document{}, nil
-	}
-
-	ids := make([]string, len(ranked))
-	for i, r := range ranked {
-		ids[i] = r.ID
-	}
-
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
-	}
-
-	query := fmt.Sprintf(`
-		SELECT id, content, metadata
-		FROM %s
-		WHERE id IN (%s)
-	`,
-		tableConfig.Name,
-		strings.Join(placeholders, ", "),
-	)
-
-	rows, err := r.pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch documents: %w", err)
-	}
-	defer rows.Close()
-
-	scoreMap := make(map[string]float64)
-	for _, r := range ranked {
-		scoreMap[r.ID] = r.Score
-	}
-
-	docMap := make(map[string]*schema.Document)
-	for rows.Next() {
-		var id, content string
-		var metadataJSONB []byte
-
-		if err := rows.Scan(&id, &content, &metadataJSONB); err != nil {
-			return nil, fmt.Errorf("failed to scan document row: %w", err)
-		}
-
-		doc := &schema.Document{
-			ID:       id,
-			Content:  content,
-			MetaData: make(map[string]any),
-		}
-
-		if metadataJSONB != nil {
-			var metadata map[string]any
-			if err := json.Unmarshal(metadataJSONB, &metadata); err == nil {
-				for k, v := range metadata {
-					doc.MetaData[k] = v
-				}
-			}
-		}
-
-		if score, ok := scoreMap[id]; ok {
-			doc.WithScore(score)
-		}
-
-		docMap[id] = doc
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("document row iteration error: %w", err)
-	}
-
-	documents := make([]*schema.Document, 0, len(ranked))
-	for _, r := range ranked {
-		if doc, ok := docMap[r.ID]; ok {
-			documents = append(documents, doc)
-		}
-	}
-
-	return documents, nil
-}
-
 // GetPool returns the underlying connection pool.
 func (r *UnifiedRetriever) GetPool() *pgxpool.Pool {
 	return r.pool
+}
+
+// vectorToString converts a float64 slice to a string representation for PostgreSQL.
+func vectorToString(vector []float64) string {
+	if len(vector) == 0 {
+		return "[]"
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(vector)*8 + 2) // Pre-allocate approximate capacity
+
+	builder.WriteString("[")
+	for i, v := range vector {
+		if i > 0 {
+			builder.WriteString(",")
+		}
+		builder.WriteString(fmt.Sprintf("%g", v))
+	}
+	builder.WriteString("]")
+
+	return builder.String()
 }

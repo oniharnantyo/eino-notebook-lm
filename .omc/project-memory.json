@@ -1,9 +1,17 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1776438258495,
+  "lastScanned": 1778600870967,
   "projectRoot": "/Users/oniharnantyo/projects/eino-notebook",
   "techStack": {
     "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
       {
         "name": "Go",
         "version": null,
@@ -46,29 +54,25 @@
       "docs",
       "scripts"
     ],
-    "gitBranches": null
+    "gitBranches": {
+      "defaultBranch": "master",
+      "branchingStrategy": null
+    }
   },
   "customNotes": [],
   "directoryMap": {
-    "_bmad": {
-      "path": "_bmad",
-      "purpose": null,
-      "fileCount": 0,
-      "lastAccessed": 1776438258474,
-      "keyFiles": []
-    },
     "_bmad-output": {
       "path": "_bmad-output",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1776438258477,
+      "lastAccessed": 1778600870942,
       "keyFiles": []
     },
     "bin": {
       "path": "bin",
       "purpose": "Executable scripts",
       "fileCount": 1,
-      "lastAccessed": 1776438258478,
+      "lastAccessed": 1778600870943,
       "keyFiles": [
         "eino-notebook"
       ]
@@ -77,14 +81,14 @@
       "path": "build",
       "purpose": "Build output",
       "fileCount": 0,
-      "lastAccessed": 1776438258478,
+      "lastAccessed": 1778600870953,
       "keyFiles": []
     },
     "cmd": {
       "path": "cmd",
       "purpose": null,
       "fileCount": 4,
-      "lastAccessed": 1776438258479,
+      "lastAccessed": 1778600870954,
       "keyFiles": [
         "config.go",
         "root.go",
@@ -96,7 +100,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 4,
-      "lastAccessed": 1776438258480,
+      "lastAccessed": 1778600870954,
       "keyFiles": [
         "API_KNOWLEDGE_CREATION.md",
         "ARCHITECTURE.md",
@@ -108,14 +112,14 @@
       "path": "internal",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1776438258480,
+      "lastAccessed": 1778600870955,
       "keyFiles": []
     },
     "migrations": {
       "path": "migrations",
       "purpose": "Database migrations",
-      "fileCount": 21,
-      "lastAccessed": 1776438258482,
+      "fileCount": 29,
+      "lastAccessed": 1778600870955,
       "keyFiles": [
         "000001_initial_schema.down.sql",
         "000001_initial_schema.up.sql",
@@ -128,7 +132,7 @@
       "path": "openspec",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1776438258482,
+      "lastAccessed": 1778600870956,
       "keyFiles": [
         "config.yaml"
       ]
@@ -137,14 +141,21 @@
       "path": "pkg",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1776438258483,
+      "lastAccessed": 1778600870956,
       "keyFiles": []
     },
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 0,
-      "lastAccessed": 1776438258484,
+      "lastAccessed": 1778600870957,
+      "keyFiles": []
+    },
+    "internal/mocks": {
+      "path": "internal/mocks",
+      "purpose": "Mock data",
+      "fileCount": 0,
+      "lastAccessed": 1778600870959,
       "keyFiles": []
     }
   },
@@ -156,15 +167,21 @@
       "type": "file"
     },
     {
+      "path": "cmd/serve.go",
+      "accessCount": 32,
+      "lastAccessed": 1778668509465,
+      "type": "file"
+    },
+    {
       "path": "internal/core/application/usecases/image/usecase.go",
       "accessCount": 31,
       "lastAccessed": 1776443496561,
       "type": "file"
     },
     {
-      "path": "cmd/serve.go",
-      "accessCount": 18,
-      "lastAccessed": 1776444393634,
+      "path": "internal/core/application/usecases/response/response_usecase.go",
+      "accessCount": 11,
+      "lastAccessed": 1778668518604,
       "type": "file"
     },
     {
@@ -180,6 +197,12 @@
       "type": "file"
     },
     {
+      "path": "pkg/model/chat_factory.go",
+      "accessCount": 9,
+      "lastAccessed": 1778639736971,
+      "type": "file"
+    },
+    {
       "path": "",
       "accessCount": 8,
       "lastAccessed": 1776440372749,
@@ -187,20 +210,38 @@
     },
     {
       "path": "internal/infrastructure/config/config.go",
-      "accessCount": 7,
-      "lastAccessed": 1776439305137,
+      "accessCount": 8,
+      "lastAccessed": 1778640314682,
       "type": "file"
     },
     {
-      "path": "pkg/model/chat_factory.go",
-      "accessCount": 5,
-      "lastAccessed": 1776439418092,
+      "path": "migrations/000010_refactor_knowledge_ingestion.up.sql",
+      "accessCount": 6,
+      "lastAccessed": 1778512581406,
       "type": "file"
     },
     {
       "path": "migrations/000011_alter_embedding_dimension_to_2048.up.sql",
       "accessCount": 5,
       "lastAccessed": 1776440372667,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000001_initial_schema.up.sql",
+      "accessCount": 5,
+      "lastAccessed": 1778512459012,
+      "type": "file"
+    },
+    {
+      "path": "migrations/000012_add_bm25_fulltext_search.up.sql",
+      "accessCount": 5,
+      "lastAccessed": 1778513447199,
+      "type": "file"
+    },
+    {
+      "path": "pkg/retriever/pgvector/retriever.go",
+      "accessCount": 5,
+      "lastAccessed": 1778552424226,
       "type": "file"
     },
     {
@@ -216,21 +257,9 @@
       "type": "file"
     },
     {
-      "path": "migrations/000001_initial_schema.up.sql",
-      "accessCount": 3,
-      "lastAccessed": 1776440360365,
-      "type": "file"
-    },
-    {
-      "path": "migrations/000010_refactor_knowledge_ingestion.up.sql",
-      "accessCount": 3,
-      "lastAccessed": 1776440360417,
-      "type": "file"
-    },
-    {
-      "path": "migrations/000012_add_bm25_fulltext_search.up.sql",
-      "accessCount": 3,
-      "lastAccessed": 1776440537636,
+      "path": "internal/core/domain/entities/knowledge.go",
+      "accessCount": 4,
+      "lastAccessed": 1778598062060,
       "type": "file"
     },
     {
@@ -264,12 +293,6 @@
       "type": "file"
     },
     {
-      "path": "pkg/retriever/pgvector/retriever.go",
-      "accessCount": 2,
-      "lastAccessed": 1776440360524,
-      "type": "file"
-    },
-    {
       "path": "internal/core/application/usecases/sentence/usecase.go",
       "accessCount": 2,
       "lastAccessed": 1776441086719,
@@ -282,27 +305,33 @@
       "type": "file"
     },
     {
+      "path": "internal/infrastructure/persistence/sentence.go",
+      "accessCount": 2,
+      "lastAccessed": 1778512351613,
+      "type": "file"
+    },
+    {
+      "path": "internal/core/domain/repositories/knowledge.go",
+      "accessCount": 2,
+      "lastAccessed": 1778512423426,
+      "type": "file"
+    },
+    {
+      "path": "go.mod",
+      "accessCount": 2,
+      "lastAccessed": 1778601053221,
+      "type": "file"
+    },
+    {
       "path": "internal/core/domain/entities/source.go",
       "accessCount": 1,
       "lastAccessed": 1776264584418,
       "type": "file"
     },
     {
-      "path": "internal/core/domain/entities/knowledge.go",
-      "accessCount": 1,
-      "lastAccessed": 1776264584496,
-      "type": "file"
-    },
-    {
       "path": "internal/core/application/usecases/extractor/file_extractor.go",
       "accessCount": 1,
       "lastAccessed": 1776264584568,
-      "type": "file"
-    },
-    {
-      "path": "internal/core/domain/repositories/knowledge.go",
-      "accessCount": 1,
-      "lastAccessed": 1776265267610,
       "type": "file"
     },
     {
@@ -384,12 +413,6 @@
       "type": "directory"
     },
     {
-      "path": "internal/core/application/usecases/response/response_usecase.go",
-      "accessCount": 1,
-      "lastAccessed": 1776351054348,
-      "type": "file"
-    },
-    {
       "path": "openspec/changes/split-chat-embedding-config-llamacpp/design.md",
       "accessCount": 1,
       "lastAccessed": 1776351426185,
@@ -426,21 +449,9 @@
       "type": "directory"
     },
     {
-      "path": "internal/infrastructure/persistence/sentence.go",
-      "accessCount": 1,
-      "lastAccessed": 1776439187046,
-      "type": "file"
-    },
-    {
       "path": "internal/infrastructure/persistence/utils.go",
       "accessCount": 1,
       "lastAccessed": 1776439195558,
-      "type": "file"
-    },
-    {
-      "path": "go.mod",
-      "accessCount": 1,
-      "lastAccessed": 1776439305197,
       "type": "file"
     },
     {

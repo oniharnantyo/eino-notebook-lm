@@ -74,7 +74,7 @@ func (f *pipelineFactory) Create(contentExtractor extractor.ContentExtractor, co
 func (f *pipelineFactory) createKreuzbergPipeline(contentExtractor extractor.ContentExtractor) *IngestionPipeline {
 	stages := []Stage{
 		NewExtractionStage(contentExtractor),
-		NewKnowledgeMappingStage(),
+		NewKnowledgeMappingStage(f.logger),
 		NewSentenceSplittingStage(),
 		NewEmbeddingStage(f.embedder),
 		NewImageProcessingStage(f.s3Storage, f.visionDescriber, f.embedder, f.logger),

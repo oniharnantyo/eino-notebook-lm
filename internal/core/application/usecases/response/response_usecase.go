@@ -8,10 +8,9 @@ import (
 
 	"github.com/cloudwego/eino/components/embedding"
 	"github.com/cloudwego/eino/components/model"
-	"github.com/cloudwego/eino/components/retriever"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/oniharnantyo/eino-notebook/internal/core/application/agent/tools"
+	agent "github.com/oniharnantyo/eino-notebook/internal/core/application/agent/retrieval"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/chat"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response/history"
@@ -25,7 +24,6 @@ type responseUseCase struct {
 	notebookRepo     repositories.NotebookRepository
 	conversationRepo repositories.ConversationRepository
 	sourceRepo       repositories.SourceRepository
-	retriever        retriever.Retriever
 	embedder         embedding.Embedder
 	chatModel        model.BaseChatModel
 	defaultModel     string
@@ -37,15 +35,14 @@ func NewResponseUseCase(
 	notebookRepo repositories.NotebookRepository,
 	conversationRepo repositories.ConversationRepository,
 	sourceRepo repositories.SourceRepository,
-	retriever retriever.Retriever,
 	embedder embedding.Embedder,
 	chatModel model.ToolCallingChatModel,
 	defaultModel string,
 	historyConfig *history.HistoryConfig,
-	toolFactory *tools.ToolFactory,
+	retrievalAgent *agent.RetrievalAgent,
+	knowledgeRepo repositories.KnowledgeRepository,
 ) chat.ResponseUseCase {
-	toolStage := stages.NewToolPreparationStage(toolFactory)
-	agentStage := stages.NewAgentStage(chatModel, sourceRepo, toolFactory)
+	agentStage := stages.NewAgentStage(retrievalAgent, sourceRepo, knowledgeRepo)
 	historyManager := history.NewHistoryManager(historyConfig)
 	histStage := stages.NewHistoryStage(historyManager, conversationRepo)
 
@@ -53,17 +50,15 @@ func NewResponseUseCase(
 		notebookRepo:     notebookRepo,
 		conversationRepo: conversationRepo,
 		sourceRepo:       sourceRepo,
-		retriever:        retriever,
 		embedder:         embedder,
 		chatModel:        chatModel,
 		defaultModel:     defaultModel,
 		historyManager:   historyManager,
-		pipeline:         NewResponsePipeline(toolStage, agentStage, histStage),
+		pipeline:         NewResponsePipeline(agentStage, histStage),
 	}
 }
 
 func (uc *responseUseCase) Stream(ctx context.Context, req *dtos.ResponseRequest) (*schema.StreamReader[*schema.Message], *sse.StreamMeta, error) {
-	// Validate notebook if provided
 	_, err := uc.validateNotebook(ctx, req)
 	if err != nil {
 		return nil, nil, err
@@ -83,11 +78,8 @@ func (uc *responseUseCase) Stream(ctx context.Context, req *dtos.ResponseRequest
 		CreatedAt:  time.Now().Unix(),
 	}
 
-	onSave := func(accumulatedText string) {
-		respMsg := &schema.Message{
-			Role:    schema.Assistant,
-			Content: accumulatedText,
-		}
+	onSave := func(accumulated *AccumulatedMessage) {
+		respMsg := accumulated.GetFullMessage()
 
 		userInput := ""
 		if req.Input != nil {
@@ -109,7 +101,6 @@ func (uc *responseUseCase) Stream(ctx context.Context, req *dtos.ResponseRequest
 			RawInput:           req.Input,
 		}
 
-		// Use a background context for saving since the request might be finished
 		_ = uc.pipeline.historyStage.Save(context.Background(), saveInput)
 	}
 
@@ -117,7 +108,6 @@ func (uc *responseUseCase) Stream(ctx context.Context, req *dtos.ResponseRequest
 
 	return sr, meta, nil
 }
-
 
 func (uc *responseUseCase) validateNotebook(ctx context.Context, req *dtos.ResponseRequest) (*appuuid.UUID, error) {
 	if req.NotebookID == nil || *req.NotebookID == "" {
@@ -139,5 +129,3 @@ func (uc *responseUseCase) validateNotebook(ctx context.Context, req *dtos.Respo
 
 	return &notebookID, nil
 }
-
-

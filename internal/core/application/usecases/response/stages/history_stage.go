@@ -69,11 +69,11 @@ func (s *HistoryStage) Save(ctx context.Context, input HistorySaveInput) error {
 	// Build the complete message history: previous history + current user input + assistant response
 	storedMessages := make([]*entities.StoredMessage, 0)
 
-	// 1. Add previous history
+	// 1. Add previous history - preserve full structure
 	for _, msg := range input.History {
 		storedMessages = append(storedMessages, &entities.StoredMessage{
 			Role:      string(msg.Role),
-			Content:   msg.Content,
+			Content:   entities.MessageToStoredContent(msg),
 			Extra:     msg.Extra,
 			Timestamp: time.Now().Unix(),
 		})
@@ -86,10 +86,10 @@ func (s *HistoryStage) Save(ctx context.Context, input HistorySaveInput) error {
 		Timestamp: time.Now().Unix(),
 	})
 
-	// 3. Add assistant response
+	// 3. Add assistant response - preserve full structure (tool calls, multimodal, etc.)
 	storedMessages = append(storedMessages, &entities.StoredMessage{
 		Role:      string(input.ResponseMessage.Role),
-		Content:   input.ResponseMessage.Content,
+		Content:   entities.MessageToStoredContent(input.ResponseMessage),
 		Extra:     input.ResponseMessage.Extra,
 		Timestamp: time.Now().Unix(),
 	})
