@@ -33,6 +33,7 @@ import (
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response/history"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/sentence"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/source"
+	"github.com/oniharnantyo/eino-notebook/internal/adk/middleware"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/config"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/persistence"
 	"github.com/oniharnantyo/eino-notebook/internal/infrastructure/storage"
@@ -285,6 +286,11 @@ The server can be configured with custom host and port settings.`,
 			// Create retrieval agent with static tools
 			retrievalAgent := agent.NewRetrievalAgent(chatModel, keywordSearchTool, semanticSearchTool, imageSearchTool)
 			log.Info("initialized", "agent", "RetrievalAgent", "static_tools", 3)
+
+			// Create conversation memory middleware
+			conversationMemoryMiddleware := middleware.NewConversationMemory(conversationRepo, log)
+			retrievalAgent.WithMiddlewares(conversationMemoryMiddleware)
+			log.Info("initialized", "middleware", "ConversationMemory")
 
 			// Configure conversation history management
 			historyConfig := &history.HistoryConfig{

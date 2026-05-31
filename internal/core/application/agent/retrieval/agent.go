@@ -12,6 +12,7 @@ import (
 type RetrievalAgent struct {
 	model       model.ToolCallingChatModel
 	staticTools []tool.BaseTool
+	middlewares []adk.ChatModelAgentMiddleware
 }
 
 func NewRetrievalAgent(
@@ -21,7 +22,14 @@ func NewRetrievalAgent(
 	return &RetrievalAgent{
 		model:       model,
 		staticTools: staticTools,
+		middlewares: []adk.ChatModelAgentMiddleware{},
 	}
+}
+
+// WithMiddlewares adds middlewares to the agent.
+func (a *RetrievalAgent) WithMiddlewares(middlewares ...adk.ChatModelAgentMiddleware) *RetrievalAgent {
+	a.middlewares = append(a.middlewares, middlewares...)
+	return a
 }
 
 func (a *RetrievalAgent) Invoke(ctx context.Context, extraTools ...tool.BaseTool) (adk.Agent, error) {
@@ -40,6 +48,7 @@ func (a *RetrievalAgent) Invoke(ctx context.Context, extraTools ...tool.BaseTool
 			},
 		},
 		MaxIterations: 20,
+		Handlers:      a.middlewares,
 	}
 
 	return adk.NewChatModelAgent(ctx, config)

@@ -13,6 +13,8 @@ type ResponseRequest struct {
 	ToolChoice         ToolChoiceParam     `json:"tool_choice,omitempty"`
 	Temperature        *float64            `json:"temperature,omitempty" validate:"omitempty,min=0,max=2"`
 	MaxOutputTokens    *int                `json:"max_output_tokens,omitempty" validate:"omitempty,min=1,max=8192"`
+	MaxToolCalls       *int                `json:"max_tool_calls,omitempty" validate:"omitempty,min=1"`
+	Instructions       *string             `json:"instructions,omitempty"`
 	Stream             bool                `json:"stream,omitempty"`
 	StreamOptions      *StreamOptionsParam `json:"stream_options,omitempty"`
 	Metadata           map[string]string   `json:"metadata,omitempty"`
@@ -101,6 +103,20 @@ type ResponseResource struct {
 	TopP              *float64          `json:"top_p,omitempty"`
 	Usage             *Usage            `json:"usage,omitempty"`
 	Metadata          map[string]string `json:"metadata,omitempty"`
+	// New spec fields
+	Background         bool               `json:"background"`
+	FrequencyPenalty   *float64           `json:"frequency_penalty,omitempty"`
+	PresencePenalty    *float64           `json:"presence_penalty,omitempty"`
+	Instructions       *string            `json:"instructions,omitempty"`
+	MaxOutputTokens    *int               `json:"max_output_tokens,omitempty"`
+	MaxToolCalls       *int               `json:"max_tool_calls,omitempty"`
+	Store              *bool              `json:"store,omitempty"`
+	ServiceTier        *string            `json:"service_tier,omitempty"`
+	TopLogprobs        *int               `json:"top_logprobs,omitempty"`
+	PreviousResponseID *string            `json:"previous_response_id,omitempty"`
+	PromptCacheKey     *string            `json:"prompt_cache_key,omitempty"`
+	Reasoning          *ReasoningResource `json:"reasoning,omitempty"`
+	SafetyIdentifier   *string            `json:"safety_identifier,omitempty"`
 }
 
 // ItemField represents output items (discriminated by "type" field)
@@ -120,11 +136,12 @@ func (m *Message) GetItemType() string { return "message" }
 
 // ReasoningItem represents a reasoning output item
 type ReasoningItem struct {
-	ID      string             `json:"id"`
-	Type    string             `json:"type"`   // "reasoning"
-	Status  string             `json:"status"` // "in_progress", "completed"
-	Summary []ReasoningSummary `json:"summary,omitempty"`
-	Content []ReasoningContent `json:"content,omitempty"`
+	ID                string             `json:"id"`
+	EncryptedContent  *string            `json:"encrypted_content,omitempty"`
+	Type              string             `json:"type"`   // "reasoning"
+	Status            string             `json:"status"` // "in_progress", "completed"
+	Summary           []ReasoningSummary `json:"summary,omitempty"`
+	Content           []ReasoningContent `json:"content,omitempty"`
 }
 
 func (r *ReasoningItem) GetItemType() string { return "reasoning" }
@@ -133,6 +150,16 @@ func (r *ReasoningItem) GetItemType() string { return "reasoning" }
 type ReasoningSummary struct {
 	Type string `json:"type"` // "summary_text"
 	Text string `json:"text"`
+}
+
+type SummaryTextContent struct {
+	Type string `json:"type"` // "summary_text"
+	Text string `json:"text"`
+}
+
+type ReasoningResource struct {
+	Effort  string             `json:"effort"`
+	Summary []ReasoningSummary `json:"summary"`
 }
 
 // ReasoningContent represents content in reasoning
@@ -146,6 +173,7 @@ func (r *ReasoningContent) GetContentType() string { return "output_text" }
 // FunctionCallItem represents a function call output item
 type FunctionCallItem struct {
 	ID        string `json:"id"`
+	CallID    string `json:"call_id"`
 	Type      string `json:"type"`   // "function_call"
 	Status    string `json:"status"` // "in_progress", "completed"
 	Name      string `json:"name"`
@@ -387,6 +415,58 @@ type TopLogProb struct {
 	Bytes   []int   `json:"bytes"`
 }
 
+type ReasoningSummaryPartAddedEvent struct {
+	Type           string           `json:"type"` // "response.reasoning_summary_part.added"
+	SequenceNumber int              `json:"sequence_number"`
+	ItemID         string           `json:"item_id"`
+	OutputIndex    int              `json:"output_index"`
+	SummaryIndex   int              `json:"summary_index"`
+	Part           ReasoningSummary `json:"part"`
+}
+
+func (r *ReasoningSummaryPartAddedEvent) GetEventType() string {
+	return "response.reasoning_summary_part.added"
+}
+
+type ReasoningSummaryPartDoneEvent struct {
+	Type           string           `json:"type"` // "response.reasoning_summary_part.done"
+	SequenceNumber int              `json:"sequence_number"`
+	ItemID         string           `json:"item_id"`
+	OutputIndex    int              `json:"output_index"`
+	SummaryIndex   int              `json:"summary_index"`
+	Part           ReasoningSummary `json:"part"`
+}
+
+func (r *ReasoningSummaryPartDoneEvent) GetEventType() string {
+	return "response.reasoning_summary_part.done"
+}
+
+type ReasoningSummaryTextDeltaEvent struct {
+	Type           string `json:"type"` // "response.reasoning_summary_text.delta"
+	SequenceNumber int    `json:"sequence_number"`
+	ItemID         string `json:"item_id"`
+	OutputIndex    int    `json:"output_index"`
+	SummaryIndex   int    `json:"summary_index"`
+	Delta          string `json:"delta"`
+}
+
+func (r *ReasoningSummaryTextDeltaEvent) GetEventType() string {
+	return "response.reasoning_summary_text.delta"
+}
+
+type ReasoningSummaryTextDoneEvent struct {
+	Type           string `json:"type"` // "response.reasoning_summary_text.done"
+	SequenceNumber int    `json:"sequence_number"`
+	ItemID         string `json:"item_id"`
+	OutputIndex    int    `json:"output_index"`
+	SummaryIndex   int    `json:"summary_index"`
+	Text           string `json:"text"`
+}
+
+func (r *ReasoningSummaryTextDoneEvent) GetEventType() string {
+	return "response.reasoning_summary_text.done"
+}
+
 type ResponseReasoningDeltaEvent struct {
 	Type           string `json:"type"` // "response.reasoning.delta"
 	SequenceNumber int    `json:"sequence_number"`
@@ -413,6 +493,7 @@ type ResponseFunctionCallArgumentsDeltaEvent struct {
 	Type           string `json:"type"` // "response.function_call_arguments.delta"
 	SequenceNumber int    `json:"sequence_number"`
 	ItemID         string `json:"item_id"`
+	CallID         string `json:"call_id"`
 	OutputIndex    int    `json:"output_index"`
 	ContentIndex   int    `json:"content_index"`
 	Delta          string `json:"delta"`
@@ -426,6 +507,7 @@ type ResponseFunctionCallArgumentsDoneEvent struct {
 	Type           string `json:"type"` // "response.function_call_arguments.done"
 	SequenceNumber int    `json:"sequence_number"`
 	ItemID         string `json:"item_id"`
+	CallID         string `json:"call_id"`
 	OutputIndex    int    `json:"output_index"`
 	ContentIndex   int    `json:"content_index"`
 	Arguments      string `json:"arguments"`

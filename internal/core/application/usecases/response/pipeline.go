@@ -16,7 +16,6 @@ type AgentStage interface {
 
 type HistoryStage interface {
 	Execute(ctx context.Context, input stages.HistoryInput) (stages.HistoryOutput, error)
-	Save(ctx context.Context, input stages.HistorySaveInput) error
 }
 
 type ResponsePipeline struct {

@@ -3,11 +3,9 @@ package stages
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/cloudwego/eino/schema"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/response/history"
-	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
 )
 
@@ -63,82 +61,4 @@ func (s *HistoryStage) applyTokenLimit(messages []*schema.Message, maxTokens int
 		totalTokens += msgTokens
 	}
 	return messages
-}
-
-func (s *HistoryStage) Save(ctx context.Context, input HistorySaveInput) error {
-	// Build the complete message history: previous history + current user input + assistant response
-	storedMessages := make([]*entities.StoredMessage, 0)
-
-	// 1. Add previous history - preserve full structure
-	for _, msg := range input.History {
-		storedMessages = append(storedMessages, &entities.StoredMessage{
-			Role:      string(msg.Role),
-			Content:   entities.MessageToStoredContent(msg),
-			Extra:     msg.Extra,
-			Timestamp: time.Now().Unix(),
-		})
-	}
-
-	// 2. Add current user input
-	storedMessages = append(storedMessages, &entities.StoredMessage{
-		Role:      string(schema.User),
-		Content:   input.UserInput,
-		Timestamp: time.Now().Unix(),
-	})
-
-	// 3. Add assistant response - preserve full structure (tool calls, multimodal, etc.)
-	storedMessages = append(storedMessages, &entities.StoredMessage{
-		Role:      string(input.ResponseMessage.Role),
-		Content:   entities.MessageToStoredContent(input.ResponseMessage),
-		Extra:     input.ResponseMessage.Extra,
-		Timestamp: time.Now().Unix(),
-	})
-
-	// Normalize request_input to always be an array of message items
-	normalizedInput := s.normalizeInputForStorage(input.RawInput)
-
-	// Create conversation entity
-	conversation := entities.NewConversation(
-		&input.NotebookID,
-		input.PreviousResponseID,
-		input.ResponseID,
-		storedMessages,
-		normalizedInput,
-		input.ResponseMessage.Content,
-		input.ResponseMessage,
-		input.Model,
-		input.Metadata,
-	)
-
-	return s.conversationRepo.Save(ctx, conversation)
-}
-
-func (s *HistoryStage) normalizeInputForStorage(input interface{}) interface{} {
-	switch v := input.(type) {
-	case string:
-		return []map[string]interface{}{
-			{
-				"role":    "user",
-				"content": v,
-			},
-		}
-	case []interface{}:
-		items := make([]map[string]interface{}, 0, len(v))
-		for _, item := range v {
-			itemMap, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			cleaned := make(map[string]interface{})
-			for key, val := range itemMap {
-				if key != "type" {
-					cleaned[key] = val
-				}
-			}
-			items = append(items, cleaned)
-		}
-		return items
-	default:
-		return input
-	}
 }

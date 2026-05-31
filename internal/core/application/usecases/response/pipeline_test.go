@@ -32,11 +32,6 @@ func (m *mockHistoryStage) Execute(ctx context.Context, input stages.HistoryInpu
 	return args.Get(0).(stages.HistoryOutput), args.Error(1)
 }
 
-func (m *mockHistoryStage) Save(ctx context.Context, input stages.HistorySaveInput) error {
-	args := m.Called(ctx, input)
-	return args.Error(0)
-}
-
 func TestResponsePipeline_Execute_Success(t *testing.T) {
 	mockAgent := new(mockAgentStage)
 	mockHistory := new(mockHistoryStage)
@@ -54,7 +49,6 @@ func TestResponsePipeline_Execute_Success(t *testing.T) {
 	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything).Return(stages.GenerationOutput{
 		Stream: nil,
 	}, nil)
-	mockHistory.On("Save", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	_, _, err := pipeline.Execute(ctx, req, "system", "model")
 

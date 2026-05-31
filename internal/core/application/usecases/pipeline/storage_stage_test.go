@@ -7,7 +7,6 @@ import (
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
-	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
@@ -225,17 +224,14 @@ func TestStorageStage_Execute(t *testing.T) {
 		},
 	}
 
-	stage := NewStorageStage(mockKnowledgeRepo, mockSentenceRepo, mockImageRepo, mockSourceRepo, logger.New(logger.LevelInfo, "text"))
+	stage := NewStorageStage(mockKnowledgeRepo, mockSentenceRepo, mockImageRepo, mockSourceRepo)
 
 	// Create test knowledge
 	knowledge, err := entities.NewKnowledge(
 		sourceID,
 		"Test content",
-		0,
-		map[string]any{"heading": "Introduction"},
-		1,
-		2,
 		map[string]any{
+			"heading":    "Introduction",
 			"title":      "Test Document",
 			"page_count": 10,
 			"first_page": 1, // chunk-level - should not propagate to source
@@ -346,7 +342,7 @@ func TestStorageStage_Execute_EmptyData(t *testing.T) {
 		},
 	}
 
-	stage := NewStorageStage(mockKnowledgeRepo, mockSentenceRepo, mockImageRepo, mockSourceRepo, logger.New(logger.LevelInfo, "text"))
+	stage := NewStorageStage(mockKnowledgeRepo, mockSentenceRepo, mockImageRepo, mockSourceRepo)
 
 	data := &PipelineData{
 		Knowledges: []*entities.Knowledge{},
@@ -391,7 +387,7 @@ func TestStorageStage_Execute_InvalidInput(t *testing.T) {
 		},
 	}
 
-	stage := NewStorageStage(mockKnowledgeRepo, mockSentenceRepo, mockImageRepo, mockSourceRepo, logger.New(logger.LevelInfo, "text"))
+	stage := NewStorageStage(mockKnowledgeRepo, mockSentenceRepo, mockImageRepo, mockSourceRepo)
 
 	input := StageInput{
 		SourceID: sourceID,

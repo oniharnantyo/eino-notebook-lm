@@ -70,7 +70,7 @@ func TestMetadataIntegration(t *testing.T) {
 		},
 	}
 
-	storageStage := NewStorageStage(mockKnowledgeRepo, mockSentenceRepo, mockImageRepo, mockSourceRepo, log)
+	storageStage := NewStorageStage(mockKnowledgeRepo, mockSentenceRepo, mockImageRepo, mockSourceRepo)
 	_, err = storageStage.Execute(ctx, StageInput{SourceID: sourceID, Data: mappedData})
 	assert.NoError(t, err)
 
@@ -116,7 +116,7 @@ func TestMetadataIntegration_EmptyMetadata(t *testing.T) {
 
 	storageStage := NewStorageStage(&mockKnowledgeRepository{}, &mockSentenceRepository{}, &mockImageRepository{}, &mockSourceRepository{
 		source: &entities.Source{ID: sourceID},
-	}, log)
+	})
 	
 	_, err = storageStage.Execute(ctx, StageInput{SourceID: sourceID, Data: mappingOutput.Data})
 	assert.NoError(t, err)

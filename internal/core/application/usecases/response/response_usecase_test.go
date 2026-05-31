@@ -40,7 +40,6 @@ func TestResponseUseCase_Stream_StreamingFlow(t *testing.T) {
 	ctx := context.Background()
 	nbRepo := &repositories.MockNotebookRepository{}
 	cvRepo := &repositories.MockConversationRepository{}
-	ret := &mockRetriever{}
 	emb := &mockEmbedder{}
 	cm := &models.MockToolCallingChatModel{}
 
@@ -67,7 +66,6 @@ func TestResponseUseCase_Stream_StreamingFlow(t *testing.T) {
 		notebookRepo:     nbRepo,
 		conversationRepo: cvRepo,
 		sourceRepo:       nil,
-		retriever:        ret,
 		embedder:         emb,
 		chatModel:        cm,
 		defaultModel:     "test-model",
@@ -122,7 +120,6 @@ func TestResponseUseCase_Stream_WithToolCalls(t *testing.T) {
 	ctx := context.Background()
 	nbRepo := &repositories.MockNotebookRepository{}
 	cvRepo := &repositories.MockConversationRepository{}
-	ret := &mockRetriever{}
 	emb := &mockEmbedder{}
 	cm := &models.MockToolCallingChatModel{}
 
@@ -148,7 +145,6 @@ func TestResponseUseCase_Stream_WithToolCalls(t *testing.T) {
 		notebookRepo:     nbRepo,
 		conversationRepo: cvRepo,
 		sourceRepo:       nil,
-		retriever:        ret,
 		embedder:         emb,
 		chatModel:        cm,
 		defaultModel:     "test-model",

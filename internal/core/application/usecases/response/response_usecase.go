@@ -64,49 +64,38 @@ func (uc *responseUseCase) Stream(ctx context.Context, req *dtos.ResponseRequest
 		return nil, nil, err
 	}
 
+	responseID := fmt.Sprintf("resp_%s", appuuid.New().String())
+
+	// Inject metadata for middleware
+	ctx = context.WithValue(ctx, "response_id", responseID)
+	ctx = context.WithValue(ctx, "model", uc.defaultModel)
+	if req.NotebookID != nil {
+		ctx = context.WithValue(ctx, "notebook_id", *req.NotebookID)
+	}
+	if req.PreviousResponseID != nil {
+		ctx = context.WithValue(ctx, "previous_response_id", *req.PreviousResponseID)
+	}
+
 	req.Stream = true
 	systemPrompt := "You are a helpful AI assistant."
-	out, hist, err := uc.pipeline.Execute(ctx, req, systemPrompt, uc.defaultModel)
+	out, _, err := uc.pipeline.Execute(ctx, req, systemPrompt, uc.defaultModel)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	responseID := fmt.Sprintf("resp_%s", appuuid.New().String())
 	meta := &sse.StreamMeta{
-		ResponseID: responseID,
-		ModelName:  uc.defaultModel,
-		CreatedAt:  time.Now().Unix(),
+		ResponseID:         responseID,
+		ModelName:          uc.defaultModel,
+		CreatedAt:          time.Now().Unix(),
+		Instructions:       req.Instructions,
+		PreviousResponseID: req.PreviousResponseID,
+		MaxOutputTokens:    req.MaxOutputTokens,
+		Temperature:        req.Temperature,
+		MaxToolCalls:       req.MaxToolCalls,
+		Metadata:           req.Metadata,
 	}
 
-	onSave := func(accumulated *AccumulatedMessage) {
-		respMsg := accumulated.GetFullMessage()
-
-		userInput := ""
-		if req.Input != nil {
-			if str, ok := req.Input.(string); ok {
-				userInput = str
-			} else {
-				userInput = fmt.Sprintf("%v", req.Input)
-			}
-		}
-
-		saveInput := stages.HistorySaveInput{
-			NotebookID:         *req.NotebookID,
-			PreviousResponseID: req.PreviousResponseID,
-			ResponseID:         responseID,
-			Model:              uc.defaultModel,
-			History:            hist,
-			UserInput:          userInput,
-			ResponseMessage:    respMsg,
-			RawInput:           req.Input,
-		}
-
-		_ = uc.pipeline.historyStage.Save(context.Background(), saveInput)
-	}
-
-	sr := NewHistorySavingReader(out.Stream, onSave).Pipe()
-
-	return sr, meta, nil
+	return out.Stream, meta, nil
 }
 
 func (uc *responseUseCase) validateNotebook(ctx context.Context, req *dtos.ResponseRequest) (*appuuid.UUID, error) {

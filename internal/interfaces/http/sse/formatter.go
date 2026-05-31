@@ -45,6 +45,13 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 
 	// 1. response.created
 
+	// Define defaults
+	falseVal := false
+	defaultServiceTier := "default"
+	zeroFloat := 0.0
+	zeroInt := 0
+	oneFloat := 1.0
+
 	// 1. response.created
 	err := f.sendEvent(w, &dtos.ResponseCreatedEvent{
 		Type:           "response.created",
@@ -61,6 +68,19 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 			Truncation:        "disabled",
 			ParallelToolCalls: true,
 			Text:              &dtos.TextField{Format: &dtos.TextFormatParam{Type: "text"}},
+			Metadata:          meta.Metadata,
+			Instructions:      meta.Instructions,
+			MaxOutputTokens:   meta.MaxOutputTokens,
+			Temperature:       meta.Temperature,
+			MaxToolCalls:      meta.MaxToolCalls,
+			PreviousResponseID: meta.PreviousResponseID,
+			Background:         falseVal,
+			Store:              &falseVal,
+			ServiceTier:        &defaultServiceTier,
+			FrequencyPenalty:   &zeroFloat,
+			PresencePenalty:    &zeroFloat,
+			TopLogprobs:        &zeroInt,
+			TopP:               &oneFloat,
 		},
 	})
 	if err != nil {
@@ -84,6 +104,19 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 			Truncation:        "disabled",
 			ParallelToolCalls: true,
 			Text:              &dtos.TextField{Format: &dtos.TextFormatParam{Type: "text"}},
+			Metadata:          meta.Metadata,
+			Instructions:      meta.Instructions,
+			MaxOutputTokens:   meta.MaxOutputTokens,
+			Temperature:       meta.Temperature,
+			MaxToolCalls:      meta.MaxToolCalls,
+			PreviousResponseID: meta.PreviousResponseID,
+			Background:         falseVal,
+			Store:              &falseVal,
+			ServiceTier:        &defaultServiceTier,
+			FrequencyPenalty:   &zeroFloat,
+			PresencePenalty:    &zeroFloat,
+			TopLogprobs:        &zeroInt,
+			TopP:               &oneFloat,
 		},
 	})
 	if err != nil {
@@ -138,16 +171,16 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 				reasoningItemAdded = true
 			}
 
-			// Add reasoning content part if not already added
+			// Add reasoning summary part if not already added
 			if !reasoningPartAdded {
-				err = f.sendEvent(w, &dtos.ResponseContentPartAddedEvent{
-					Type:           "response.content_part.added",
+				err = f.sendEvent(w, &dtos.ReasoningSummaryPartAddedEvent{
+					Type:           "response.reasoning_summary_part.added",
 					SequenceNumber: seqNum,
 					ItemID:         reasoningID,
 					OutputIndex:    outputIndex,
-					ContentIndex:   0,
-					Part: &dtos.ReasoningContent{
-						Type: "output_text",
+					SummaryIndex:   0,
+					Part: dtos.ReasoningSummary{
+						Type: "summary_text",
 						Text: "",
 					},
 				})
@@ -158,14 +191,14 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 				reasoningPartAdded = true
 			}
 
-			// Send reasoning delta
+			// Send reasoning summary text delta
 			accumulatedReasoning.WriteString(chunk.ReasoningContent)
-			err = f.sendEvent(w, &dtos.ResponseReasoningDeltaEvent{
-				Type:           "response.reasoning.delta",
+			err = f.sendEvent(w, &dtos.ReasoningSummaryTextDeltaEvent{
+				Type:           "response.reasoning_summary_text.delta",
 				SequenceNumber: seqNum,
 				ItemID:         reasoningID,
 				OutputIndex:    outputIndex,
-				ContentIndex:   0,
+				SummaryIndex:   0,
 				Delta:          chunk.ReasoningContent,
 			})
 			if err != nil {
@@ -209,12 +242,12 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 						OutputIndex:    outputIndex,
 						Item: &dtos.FunctionCallItem{
 							ID:        toolCallID,
+							CallID:    toolCallID,
 							Type:      "function_call",
 							Status:    "in_progress",
 							Name:      tc.Function.Name,
 							Arguments: "",
-						},
-					})
+						},					})
 					if err != nil {
 						return err
 					}
@@ -231,6 +264,7 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 						Type:           "response.function_call_arguments.delta",
 						SequenceNumber: seqNum,
 						ItemID:         toolCallID,
+						CallID:         toolCallID,
 						OutputIndex:    outputIndex,
 						ContentIndex:   0,
 						Delta:          tc.Function.Arguments,
@@ -352,6 +386,7 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 			Type:           "response.function_call_arguments.done",
 			SequenceNumber: seqNum,
 			ItemID:         toolCallID,
+			CallID:         toolCallID,
 			OutputIndex:    outputIndex,
 			ContentIndex:   0,
 			Arguments:      args,
@@ -367,6 +402,7 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 			OutputIndex:    outputIndex,
 			Item: &dtos.FunctionCallItem{
 				ID:        toolCallID,
+				CallID:    toolCallID,
 				Type:      "function_call",
 				Status:    "completed",
 				Name:      name,
@@ -438,18 +474,32 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 		Type:           "response.completed",
 		SequenceNumber: seqNum,
 		Response: &dtos.ResponseResource{
-			ID:          meta.ResponseID,
-			Object:      "response",
-			CreatedAt:   meta.CreatedAt,
-			CompletedAt: &completedAt,
-			Status:      "completed",
-			Model:       meta.ModelName,
-			Output:      buildOutputItems(messageID, textPartAdded, accumulatedText.String(), reasoningID, reasoningItemAdded, accumulatedReasoning.String(), toolCallIDs, accumulatedArguments),
-			Tools:       []dtos.Tool{},
-			ToolChoice:  dtos.ToolChoiceAuto,
-			Truncation:  "disabled",
-			Usage:       lastUsage,
-			Text:        &dtos.TextField{Format: &dtos.TextFormatParam{Type: "text"}},
+			ID:                meta.ResponseID,
+			Object:            "response",
+			CreatedAt:         meta.CreatedAt,
+			CompletedAt:       &completedAt,
+			Status:            "completed",
+			Model:             meta.ModelName,
+			Output:            buildOutputItems(messageID, textPartAdded, accumulatedText.String(), reasoningID, reasoningItemAdded, accumulatedReasoning.String(), toolCallIDs, accumulatedArguments),
+			Tools:             []dtos.Tool{},
+			ToolChoice:        dtos.ToolChoiceAuto,
+			Truncation:        "disabled",
+			ParallelToolCalls: true,
+			Usage:             lastUsage,
+			Text:              &dtos.TextField{Format: &dtos.TextFormatParam{Type: "text"}},
+			Metadata:          meta.Metadata,
+			Instructions:      meta.Instructions,
+			MaxOutputTokens:   meta.MaxOutputTokens,
+			Temperature:       meta.Temperature,
+			MaxToolCalls:      meta.MaxToolCalls,
+			PreviousResponseID: meta.PreviousResponseID,
+			Background:         falseVal,
+			Store:              &falseVal,
+			ServiceTier:        &defaultServiceTier,
+			FrequencyPenalty:   &zeroFloat,
+			PresencePenalty:    &zeroFloat,
+			TopLogprobs:        &zeroInt,
+			TopP:               &oneFloat,
 		},
 	})
 	if err != nil {
@@ -467,13 +517,13 @@ func (f *ResponsesAPIFormatter) WriteResponse(w io.Writer, stream *schema.Stream
 
 // finalizeReasoningItem sends the done events for a reasoning item
 func (f *ResponsesAPIFormatter) finalizeReasoningItem(w io.Writer, seqNum *int, reasoningID, reasoningText string, outputIndex int) error {
-	// Send reasoning text done event
-	err := f.sendEvent(w, &dtos.ResponseReasoningDoneEvent{
-		Type:           "response.reasoning.done",
+	// Send reasoning summary text done event
+	err := f.sendEvent(w, &dtos.ReasoningSummaryTextDoneEvent{
+		Type:           "response.reasoning_summary_text.done",
 		SequenceNumber: *seqNum,
 		ItemID:         reasoningID,
 		OutputIndex:    outputIndex,
-		ContentIndex:   0,
+		SummaryIndex:   0,
 		Text:           reasoningText,
 	})
 	if err != nil {
@@ -481,15 +531,15 @@ func (f *ResponsesAPIFormatter) finalizeReasoningItem(w io.Writer, seqNum *int, 
 	}
 	(*seqNum)++
 
-	// Send reasoning content part done event
-	err = f.sendEvent(w, &dtos.ResponseContentPartDoneEvent{
-		Type:           "response.content_part.done",
+	// Send reasoning summary part done event
+	err = f.sendEvent(w, &dtos.ReasoningSummaryPartDoneEvent{
+		Type:           "response.reasoning_summary_part.done",
 		SequenceNumber: *seqNum,
 		ItemID:         reasoningID,
 		OutputIndex:    outputIndex,
-		ContentIndex:   0,
-		Part: &dtos.ReasoningContent{
-			Type: "output_text",
+		SummaryIndex:   0,
+		Part: dtos.ReasoningSummary{
+			Type: "summary_text",
 			Text: reasoningText,
 		},
 	})
@@ -504,21 +554,17 @@ func (f *ResponsesAPIFormatter) finalizeReasoningItem(w io.Writer, seqNum *int, 
 		SequenceNumber: *seqNum,
 		OutputIndex:    outputIndex,
 		Item: &dtos.ReasoningItem{
-			ID:     reasoningID,
-			Type:   "reasoning",
-			Status: "completed",
+			ID:               reasoningID,
+			EncryptedContent: nil,
+			Type:             "reasoning",
+			Status:           "completed",
 			Summary: []dtos.ReasoningSummary{
 				{
 					Type: "summary_text",
-					Text: truncateForSummary(reasoningText, 200),
-				},
-			},
-			Content: []dtos.ReasoningContent{
-				{
-					Type: "output_text",
 					Text: reasoningText,
 				},
 			},
+			Content: []dtos.ReasoningContent{},
 		},
 	})
 	if err != nil {
@@ -535,7 +581,24 @@ func (f *ResponsesAPIFormatter) sendEvent(w io.Writer, event any) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "data: %s\n\n", string(data)); err != nil {
+
+	// Extract event type for SSE event: line (spec requires event field matching JSON type)
+	var eventType string
+	switch e := event.(type) {
+	case dtos.StreamingEvent:
+		eventType = e.GetEventType()
+	case map[string]any:
+		if t, ok := e["type"].(string); ok {
+			eventType = t
+		}
+	}
+
+	if eventType != "" {
+		_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, string(data))
+	} else {
+		_, err = fmt.Fprintf(w, "data: %s\n\n", string(data))
+	}
+	if err != nil {
 		return err
 	}
 	if fl, ok := w.(http.Flusher); ok {
@@ -589,7 +652,7 @@ func buildOutputItems(messageID string, hasText bool, text string, reasoningID s
 			Summary: []dtos.ReasoningSummary{
 				{
 					Type: "summary_text",
-					Text: truncateForSummary(reasoningText, 200),
+					Text: reasoningText,
 				},
 			},
 			Content: []dtos.ReasoningContent{

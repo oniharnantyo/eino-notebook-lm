@@ -45,10 +45,9 @@ func (s *AgentStage) Execute(ctx context.Context, input *schema.Message, sourceI
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{
 		Agent:           ag,
 		EnableStreaming: true,
-		CheckPointStore: ,
 	})
 
-	iter := runner.Run(ctx, input.Content, adk.WithSessionValues(map[string]any{"catalog": catalog}))
+	iter := runner.Run(ctx, []adk.Message{{Role: schema.User, Content: input.Content}}, adk.WithSessionValues(map[string]any{"catalog": catalog}))
 
 	pr, pw := schema.Pipe[*schema.Message](10)
 

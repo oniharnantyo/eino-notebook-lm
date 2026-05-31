@@ -8,17 +8,16 @@ import (
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/usecases/extractor"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
-	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 	"github.com/oniharnantyo/eino-notebook/pkg/uuid"
 )
 
 func TestSentenceSplittingStage_Execute(t *testing.T) {
 	ctx := context.Background()
-	stage := NewSentenceSplittingStage(logger.New(logger.LevelInfo, "text"))
+	stage := NewSentenceSplittingStage()
 	sourceID := uuid.New()
 
 	t.Run("success with abbreviations and short sentence filtering", func(t *testing.T) {
-		k1, _ := entities.NewKnowledge(sourceID, "Mr. Smith went home. He was tired. OK.", 0, nil, 1, 1, nil)
+		k1, _ := entities.NewKnowledge(sourceID, "Mr. Smith went home. He was tired. OK.", nil)
 
 		input := StageInput{
 			SourceID: sourceID,
@@ -51,7 +50,7 @@ func TestSentenceSplittingStage_Execute(t *testing.T) {
 	})
 
 	t.Run("language fallback to en", func(t *testing.T) {
-		k1, _ := entities.NewKnowledge(sourceID, "This is a sentence. This is another one.", 0, nil, 1, 1, nil)
+		k1, _ := entities.NewKnowledge(sourceID, "This is a sentence. This is another one.", nil)
 
 		input := StageInput{
 			SourceID: sourceID,
@@ -70,8 +69,8 @@ func TestSentenceSplittingStage_Execute(t *testing.T) {
 	})
 
 	t.Run("multiple knowledge chunks", func(t *testing.T) {
-		k1, _ := entities.NewKnowledge(sourceID, "Sentence one. Sentence two.", 0, nil, 1, 1, nil)
-		k2, _ := entities.NewKnowledge(sourceID, "Sentence three. Sentence four.", 1, nil, 1, 1, nil)
+		k1, _ := entities.NewKnowledge(sourceID, "Sentence one. Sentence two.", nil)
+		k2, _ := entities.NewKnowledge(sourceID, "Sentence three. Sentence four.", nil)
 
 		input := StageInput{
 			SourceID: sourceID,

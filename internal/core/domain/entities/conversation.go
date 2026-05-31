@@ -157,6 +157,10 @@ type Conversation struct {
 	ResponseMessage    interface{}       `json:"response_message"` // Full schema.Message as JSONB
 	Model              string            `json:"model"`
 	Metadata           map[string]string `json:"metadata,omitempty"`
+	FinishReason       string            `json:"finish_reason,omitempty"`
+	PromptTokens       int               `json:"prompt_tokens,omitempty"`
+	CompletionTokens   int               `json:"completion_tokens,omitempty"`
+	TotalTokens        int               `json:"total_tokens,omitempty"`
 	CreatedAt          int64             `json:"created_at"`
 }
 
@@ -171,6 +175,10 @@ func NewConversation(
 	responseMessage interface{},
 	model string,
 	metadata map[string]string,
+	finishReason string,
+	promptTokens int,
+	completionTokens int,
+	totalTokens int,
 ) *Conversation {
 	return &Conversation{
 		ID:                 appuuid.New().String(),
@@ -183,6 +191,10 @@ func NewConversation(
 		ResponseMessage:    responseMessage,
 		Model:              model,
 		Metadata:           metadata,
+		FinishReason:       finishReason,
+		PromptTokens:       promptTokens,
+		CompletionTokens:   completionTokens,
+		TotalTokens:        totalTokens,
 		CreatedAt:          time.Now().Unix(),
 	}
 }

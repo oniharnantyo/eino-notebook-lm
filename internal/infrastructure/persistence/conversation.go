@@ -28,8 +28,8 @@ func NewPostgresConversationRepository(pool *pgxpool.Pool) repositories.Conversa
 // Save saves a conversation (create or update)
 func (r *PostgresConversationRepository) Save(ctx context.Context, conversation *entities.Conversation) error {
 	query := `
-		INSERT INTO conversations (id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO conversations (id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at, finish_reason, prompt_tokens, completion_tokens, total_tokens)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		ON CONFLICT (response_id) DO UPDATE SET
 			notebook_id = EXCLUDED.notebook_id,
 			previous_response_id = EXCLUDED.previous_response_id,
@@ -38,7 +38,11 @@ func (r *PostgresConversationRepository) Save(ctx context.Context, conversation 
 			response_text = EXCLUDED.response_text,
 			response_message = EXCLUDED.response_message,
 			model = EXCLUDED.model,
-			metadata = EXCLUDED.metadata
+			metadata = EXCLUDED.metadata,
+			finish_reason = EXCLUDED.finish_reason,
+			prompt_tokens = EXCLUDED.prompt_tokens,
+			completion_tokens = EXCLUDED.completion_tokens,
+			total_tokens = EXCLUDED.total_tokens
 	`
 
 	messagesJSON, err := json.Marshal(conversation.Messages)
@@ -76,6 +80,10 @@ func (r *PostgresConversationRepository) Save(ctx context.Context, conversation 
 		conversation.Model,
 		metadataJSON,
 		createdAt,
+		conversation.FinishReason,
+		conversation.PromptTokens,
+		conversation.CompletionTokens,
+		conversation.TotalTokens,
 	)
 
 	if err != nil {
@@ -92,7 +100,7 @@ func (r *PostgresConversationRepository) FindByResponseID(ctx context.Context, r
 	}
 
 	query := `
-		SELECT id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at
+		SELECT id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at, finish_reason, prompt_tokens, completion_tokens, total_tokens
 		FROM conversations
 		WHERE response_id = $1
 	`
@@ -113,6 +121,10 @@ func (r *PostgresConversationRepository) FindByResponseID(ctx context.Context, r
 		&conversation.Model,
 		&metadataJSON,
 		&createdAt,
+		&conversation.FinishReason,
+		&conversation.PromptTokens,
+		&conversation.CompletionTokens,
+		&conversation.TotalTokens,
 	)
 
 	if err != nil {
@@ -243,7 +255,7 @@ func (r *PostgresConversationRepository) List(ctx context.Context, filter reposi
 
 	// Get conversations
 	query := `
-		SELECT id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at
+		SELECT id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at, finish_reason, prompt_tokens, completion_tokens, total_tokens
 		FROM conversations
 		` + whereClause + `
 		ORDER BY ` + orderBy + `
@@ -287,6 +299,10 @@ func (r *PostgresConversationRepository) scanConversation(rows pgx.Rows) (*entit
 		&conversation.Model,
 		&metadataJSON,
 		&createdAt,
+		&conversation.FinishReason,
+		&conversation.PromptTokens,
+		&conversation.CompletionTokens,
+		&conversation.TotalTokens,
 	)
 
 	if err != nil {

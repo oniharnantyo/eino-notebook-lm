@@ -19,15 +19,3 @@ type HistoryInput struct {
 type HistoryOutput struct {
 	Messages []*schema.Message
 }
-
-type HistorySaveInput struct {
-	NotebookID         string
-	PreviousResponseID *string
-	ResponseID         string
-	Model              string
-	History            []*schema.Message
-	UserInput          string
-	ResponseMessage    *schema.Message
-	RawInput           interface{}
-	Metadata           map[string]string
-}
