@@ -90,7 +90,6 @@ func TestKnowledgeMappingStage_Execute(t *testing.T) {
 		data := output.Data.(*PipelineData)
 		assert.Len(t, data.Knowledges, 1)
 		assert.Equal(t, "text", data.Knowledges[0].Metadata["chunk_type"])
-		assert.Len(t, data.Knowledges[0].Metadata, 1) // Only chunk_type
 	})
 
 	t.Run("metadata conflict - document wins", func(t *testing.T) {

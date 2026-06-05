@@ -76,6 +76,10 @@ func (uc *responseUseCase) Stream(ctx context.Context, req *dtos.ResponseRequest
 		ctx = context.WithValue(ctx, "previous_response_id", *req.PreviousResponseID)
 	}
 
+	// Resolve conversation_id for session tracking
+	conversationID := uc.resolveConversationID(ctx, req)
+	ctx = context.WithValue(ctx, "conversation_id", conversationID)
+
 	req.Stream = true
 	systemPrompt := "You are a helpful AI assistant."
 	out, _, err := uc.pipeline.Execute(ctx, req, systemPrompt, uc.defaultModel)
@@ -85,6 +89,7 @@ func (uc *responseUseCase) Stream(ctx context.Context, req *dtos.ResponseRequest
 
 	meta := &sse.StreamMeta{
 		ResponseID:         responseID,
+		ConversationID:     conversationID,
 		ModelName:          uc.defaultModel,
 		CreatedAt:          time.Now().Unix(),
 		Instructions:       req.Instructions,
@@ -117,4 +122,19 @@ func (uc *responseUseCase) validateNotebook(ctx context.Context, req *dtos.Respo
 	}
 
 	return &notebookID, nil
+}
+
+func (uc *responseUseCase) resolveConversationID(ctx context.Context, req *dtos.ResponseRequest) string {
+	if req.ConversationID != nil && *req.ConversationID != "" {
+		return *req.ConversationID
+	}
+
+	if req.PreviousResponseID != nil && *req.PreviousResponseID != "" {
+		conv, err := uc.conversationRepo.FindByResponseID(ctx, *req.PreviousResponseID)
+		if err == nil && conv != nil {
+			return conv.ID
+		}
+	}
+
+	return appuuid.New().String()
 }

@@ -89,7 +89,7 @@ func (s *StorageStage) Execute(ctx context.Context, input StageInput) (StageOutp
 		}
 	}
 
-	// Update source chunk count
+	// Update source chunk count and content
 	source, err := s.sourceRepo.GetByID(ctx, input.SourceID)
 	if err != nil {
 		return StageOutput{}, fmt.Errorf("failed to get source: %w", err)
@@ -99,6 +99,11 @@ func (s *StorageStage) Execute(ctx context.Context, input StageInput) (StageOutp
 	}
 
 	source.ChunkCount = len(data.Knowledges)
+	
+	if data.ExtractionResult != nil && data.ExtractionResult.Content != "" {
+		source.Content = data.ExtractionResult.Content
+		source.TotalSize = len(data.ExtractionResult.Content)
+	}
 
 	// Merge document-level metadata into source from first knowledge chunk
 	if len(data.Knowledges) > 0 {

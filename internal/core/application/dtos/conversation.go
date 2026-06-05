@@ -8,21 +8,18 @@ import (
 
 // ConversationResponse represents a conversation response
 type ConversationResponse struct {
-	ID                 string      `json:"id"`
-	PreviousResponseID *string     `json:"previous_response_id,omitempty"`
-	ResponseID         string      `json:"response_id"`
-	RequestInput       interface{} `json:"request_input,omitempty"`
-	ResponseMessage    interface{} `json:"response_message,omitempty"`
-	CreatedAt          time.Time   `json:"created_at"`
+	ID         string            `json:"id"`
+	NotebookID *string           `json:"notebook_id,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	CreatedAt  time.Time         `json:"created_at"`
 }
 
 // ListConversationsRequest represents a request to list conversations
 type ListConversationsRequest struct {
-	Page               int    `json:"page"`
-	Limit              int    `json:"limit"`
-	NotebookID         string `json:"notebook_id"`
-	Model              string `json:"model"`
-	PreviousResponseID string `json:"previous_response_id"`
+	Page       int    `json:"page"`
+	Limit      int    `json:"limit"`
+	NotebookID string `json:"notebook_id"`
+	Model      string `json:"model"`
 }
 
 // ListConversationsResponse represents a paginated list of conversations
@@ -41,12 +38,10 @@ func ToConversationResponse(conversation *entities.Conversation) *ConversationRe
 	}
 
 	return &ConversationResponse{
-		ID:                 conversation.ID,
-		PreviousResponseID: conversation.PreviousResponseID,
-		ResponseID:         conversation.ResponseID,
-		RequestInput:       conversation.RequestInput,
-		ResponseMessage:    conversation.ResponseMessage,
-		CreatedAt:          time.Unix(conversation.CreatedAt, 0),
+		ID:         conversation.ID,
+		NotebookID: conversation.NotebookID,
+		Metadata:   conversation.Metadata,
+		CreatedAt:  time.Unix(conversation.CreatedAt, 0),
 	}
 }
 
@@ -62,3 +57,4 @@ func ToConversationResponses(conversations []*entities.Conversation) []Conversat
 	}
 	return responses
 }
+

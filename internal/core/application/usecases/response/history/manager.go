@@ -159,7 +159,7 @@ func (hm *HistoryManager) applySummarization(history []*schema.Message) []*schem
 	// Build result: summary + recent messages
 	result := []*schema.Message{
 		{
-			Role:    schema.System,
+			Role:    schema.User,
 			Content: fmt.Sprintf("[Previous conversation summary: %s]", summaryText),
 		},
 	}

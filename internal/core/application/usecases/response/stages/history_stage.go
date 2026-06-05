@@ -34,8 +34,22 @@ func (s *HistoryStage) Load(ctx context.Context, input HistoryInput) (HistoryOut
 	if err != nil {
 		return HistoryOutput{}, fmt.Errorf("failed to find previous conversation: %w", err)
 	}
+	if conv == nil {
+		return HistoryOutput{Messages: []*schema.Message{}}, nil
+	}
 
-	fullHistory := conv.GetEinoMessages()
+	storedMessages, err := s.conversationRepo.GetMessages(ctx, conv.ID, 100, nil, nil)
+	if err != nil {
+		return HistoryOutput{}, fmt.Errorf("failed to get conversation messages: %w", err)
+	}
+
+	var fullHistory []*schema.Message
+	for i := len(storedMessages) - 1; i >= 0; i-- {
+		if storedMessages[i].Message != nil {
+			fullHistory = append(fullHistory, storedMessages[i].Message.ToEinoMessage())
+		}
+	}
+
 	trimmedHistory := s.historyManager.TrimHistory(fullHistory)
 
 	// Apply additional token limit if specified

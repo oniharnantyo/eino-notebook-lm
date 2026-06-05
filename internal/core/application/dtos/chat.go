@@ -19,8 +19,9 @@ type ResponseRequest struct {
 	StreamOptions      *StreamOptionsParam `json:"stream_options,omitempty"`
 	Metadata           map[string]string   `json:"metadata,omitempty"`
 	// Preserve RAG-specific fields
-	NotebookID    *string  `json:"notebook_id,omitempty" validate:"omitempty,uuid"`
-	SourceIDs     []string `json:"source_ids,omitempty"`
+	NotebookID     *string  `json:"notebook_id,omitempty" validate:"omitempty,uuid"`
+	ConversationID *string  `json:"conversation_id,omitempty"`
+	SourceIDs      []string `json:"source_ids,omitempty"`
 	SourceTypes   []string `json:"source_types,omitempty"`
 	RetrievalMode string   `json:"retrieval_mode,omitempty"`
 }
@@ -114,6 +115,7 @@ type ResponseResource struct {
 	ServiceTier        *string            `json:"service_tier,omitempty"`
 	TopLogprobs        *int               `json:"top_logprobs,omitempty"`
 	PreviousResponseID *string            `json:"previous_response_id,omitempty"`
+	ConversationID     string             `json:"conversation_id,omitempty"`
 	PromptCacheKey     *string            `json:"prompt_cache_key,omitempty"`
 	Reasoning          *ReasoningResource `json:"reasoning,omitempty"`
 	SafetyIdentifier   *string            `json:"safety_identifier,omitempty"`

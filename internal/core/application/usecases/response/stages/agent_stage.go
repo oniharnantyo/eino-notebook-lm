@@ -234,9 +234,22 @@ func (p *thinkingParser) Process(text string) (reasoning string, content string)
 
 	for len(fullText) > 0 {
 		if !p.inReasoning {
-			idx := findStartTag(fullText, "nungs")
+			// Handle <think> or <thinking> start tags
+			// Support both to be flexible since some models output <think>
+			tag := "<thinking>"
+			idx := findStartTag(fullText, tag)
 			if idx == -1 {
-				partialIdx := findPartialStartTag(fullText, "nungen")
+				tag = "<think>"
+				idx = findStartTag(fullText, tag)
+			}
+			
+			if idx == -1 {
+				// Check for partial start tag at the end
+				partialIdx := findPartialStartTag(fullText, "<thinking>")
+				if partialIdx == -1 {
+					partialIdx = findPartialStartTag(fullText, "<think>")
+				}
+				
 				if partialIdx != -1 {
 					content += fullText[:partialIdx]
 					p.buffer = fullText[partialIdx:]
@@ -248,11 +261,23 @@ func (p *thinkingParser) Process(text string) (reasoning string, content string)
 
 			content += fullText[:idx]
 			p.inReasoning = true
-			fullText = fullText[idx+len("nungen"):]
+			fullText = fullText[idx+len(tag):]
 		} else {
-			idx := findStartTag(fullText, "nungen")
+			// Handle </think> or </thinking> end tags
+			tag := "</thinking>"
+			idx := findStartTag(fullText, tag)
 			if idx == -1 {
-				partialIdx := findPartialStartTag(fullText, "nungen")
+				tag = "</think>"
+				idx = findStartTag(fullText, tag)
+			}
+			
+			if idx == -1 {
+				// Check for partial end tag at the end
+				partialIdx := findPartialStartTag(fullText, "</thinking>")
+				if partialIdx == -1 {
+					partialIdx = findPartialStartTag(fullText, "</think>")
+				}
+				
 				if partialIdx != -1 {
 					reasoning += fullText[:partialIdx]
 					p.buffer = fullText[partialIdx:]
@@ -264,7 +289,7 @@ func (p *thinkingParser) Process(text string) (reasoning string, content string)
 
 			reasoning += fullText[:idx]
 			p.inReasoning = false
-			fullText = fullText[idx+len("nungen"):]
+			fullText = fullText[idx+len(tag):]
 		}
 	}
 

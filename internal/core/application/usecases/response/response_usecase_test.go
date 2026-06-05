@@ -58,9 +58,9 @@ func TestResponseUseCase_Stream_StreamingFlow(t *testing.T) {
 	mockAgent := new(mockAgentStage)
 	mockHistory := new(mockHistoryStage)
 
-	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
+	mockHistory.On("Execute", mock.Anything, mock.Anything).Return(stages.HistoryOutput{}, nil)
 	mockHistory.On("Save", mock.Anything, mock.Anything).Return(nil).Maybe()
-	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything).Return(stages.GenerationOutput{Stream: pr}, nil)
+	mockAgent.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(stages.GenerationOutput{Stream: pr}, nil)
 
 	uc := &responseUseCase{
 		notebookRepo:     nbRepo,
@@ -137,9 +137,9 @@ func TestResponseUseCase_Stream_WithToolCalls(t *testing.T) {
 	mockAgent := new(mockAgentStage)
 	mockHistory := new(mockHistoryStage)
 
-	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
+	mockHistory.On("Execute", mock.Anything, mock.Anything).Return(stages.HistoryOutput{}, nil)
 	mockHistory.On("Save", mock.Anything, mock.Anything).Return(nil).Maybe()
-	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything).Return(stages.GenerationOutput{Stream: pr}, nil)
+	mockAgent.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(stages.GenerationOutput{Stream: pr}, nil)
 
 	uc := &responseUseCase{
 		notebookRepo:     nbRepo,

@@ -2,6 +2,7 @@ package sse
 
 type StreamMeta struct {
 	ResponseID         string
+	ConversationID     string
 	ModelName          string
 	CreatedAt          int64
 	Instructions       *string

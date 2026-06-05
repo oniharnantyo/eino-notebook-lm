@@ -10,7 +10,7 @@ import (
 )
 
 // Setup configures all application routes
-func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler, sourceHandler *handlers.SourceHandler, responseHandler *handlers.ResponseHandler, conversationHandler *handlers.ConversationHandler, artifactHandler *handlers.ArtifactHandler) {
+func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowledgeHandler *handlers.KnowledgeHandler, sourceHandler *handlers.SourceHandler, responseHandler *handlers.ResponseHandler, conversationHandler *handlers.ConversationHandler, artifactHandler *handlers.ArtifactHandler, chatCompletionsHandler *handlers.ChatCompletionsHandler) {
 	// Apply global middleware
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recovery)
@@ -38,6 +38,7 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 
 	// Conversation routes (nested under notebooks)
 	notebooks.HandleFunc("/{notebookId}/conversations", conversationHandler.ListByNotebook).Methods(http.MethodGet)
+	notebooks.HandleFunc("/{notebookId}/conversations/{conversationId}/messages", conversationHandler.GetMessages).Methods(http.MethodGet)
 
 	// Knowledge routes (nested under notebooks)
 	notebooks.HandleFunc("/{notebookId}/knowledges", knowledgeHandler.Create).Methods(http.MethodPost)
@@ -51,6 +52,11 @@ func Setup(router *mux.Router, notebookHandler *handlers.NotebookHandler, knowle
 	// OpenAI Responses API (only if responseHandler is provided)
 	if responseHandler != nil {
 		router.HandleFunc("/v1/responses", responseHandler.CreateResponse).Methods(http.MethodPost)
+	}
+
+	// OpenAI Chat Completions API (only if chatCompletionsHandler is provided)
+	if chatCompletionsHandler != nil {
+		api.HandleFunc("/chat/completions", chatCompletionsHandler.CreateCompletion).Methods(http.MethodPost)
 	}
 }
 

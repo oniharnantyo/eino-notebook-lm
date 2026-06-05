@@ -41,19 +41,50 @@ func (h *ConversationHandler) ListByNotebook(w http.ResponseWriter, r *http.Requ
 	page, _ := strconv.Atoi(query.Get("page"))
 	limit, _ := strconv.Atoi(query.Get("limit"))
 	model := query.Get("model")
-	previousResponseID := query.Get("previous_response_id")
 
 	req := &dtos.ListConversationsRequest{
-		Page:               page,
-		Limit:              limit,
-		NotebookID:         notebookID,
-		Model:              model,
-		PreviousResponseID: previousResponseID,
+		Page:       page,
+		Limit:      limit,
+		NotebookID: notebookID,
+		Model:      model,
 	}
 
 	result, err := h.useCase.List(r.Context(), req)
 	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to list conversations: %v", err))
+		return
+	}
+
+	h.respondWithJSON(w, http.StatusOK, result)
+}
+
+// GetMessages handles fetching paginated messages for a conversation
+// GET /api/v1/notebooks/{notebookId}/conversations/{conversationId}/messages
+func (h *ConversationHandler) GetMessages(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	notebookID := vars["notebookId"]
+	conversationID := vars["conversationId"]
+
+	query := r.URL.Query()
+	limit, _ := strconv.Atoi(query.Get("limit"))
+
+	var beforeSequence *int
+	if seqStr := query.Get("before_sequence"); seqStr != "" {
+		if seq, err := strconv.Atoi(seqStr); err == nil {
+			beforeSequence = &seq
+		}
+	}
+
+	req := &dtos.GetMessagesRequest{
+		NotebookID:     notebookID,
+		ConversationID: conversationID,
+		Limit:          limit,
+		BeforeSequence: beforeSequence,
+	}
+
+	result, err := h.useCase.GetMessages(r.Context(), req)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get messages: %v", err))
 		return
 	}
 

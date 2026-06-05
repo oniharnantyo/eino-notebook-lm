@@ -52,6 +52,13 @@ func (s *KnowledgeMappingStage) Execute(ctx context.Context, input StageInput) (
 			"chunk_index":     chunk.Metadata.ChunkIndex,
 		}
 
+		// Merge document-level metadata (document wins in case of conflict)
+		if data.ExtractionResult.Metadata != nil {
+			for k, v := range data.ExtractionResult.Metadata {
+				metadata[k] = v
+			}
+		}
+
 		k, err := entities.NewKnowledge(
 			input.SourceID,
 			chunk.Content,

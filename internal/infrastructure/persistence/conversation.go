@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/repositories"
 )
@@ -25,136 +25,217 @@ func NewPostgresConversationRepository(pool *pgxpool.Pool) repositories.Conversa
 	}
 }
 
-// Save saves a conversation (create or update)
-func (r *PostgresConversationRepository) Save(ctx context.Context, conversation *entities.Conversation) error {
-	query := `
-		INSERT INTO conversations (id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at, finish_reason, prompt_tokens, completion_tokens, total_tokens)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-		ON CONFLICT (response_id) DO UPDATE SET
+// Save saves a conversation (create or update) with its messages
+func (r *PostgresConversationRepository) Save(ctx context.Context, conversation *entities.Conversation, messages []*entities.Message) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Insert or update conversation
+	convQuery := `
+		INSERT INTO conversations (id, notebook_id, metadata, created_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (id) DO UPDATE SET
 			notebook_id = EXCLUDED.notebook_id,
-			previous_response_id = EXCLUDED.previous_response_id,
-			messages = EXCLUDED.messages,
-			request_input = EXCLUDED.request_input,
-			response_text = EXCLUDED.response_text,
-			response_message = EXCLUDED.response_message,
-			model = EXCLUDED.model,
-			metadata = EXCLUDED.metadata,
-			finish_reason = EXCLUDED.finish_reason,
-			prompt_tokens = EXCLUDED.prompt_tokens,
-			completion_tokens = EXCLUDED.completion_tokens,
-			total_tokens = EXCLUDED.total_tokens
+			metadata = EXCLUDED.metadata
 	`
-
-	messagesJSON, err := json.Marshal(conversation.Messages)
-	if err != nil {
-		return fmt.Errorf("failed to marshal messages: %w", err)
-	}
-
-	requestInputJSON, err := json.Marshal(conversation.RequestInput)
-	if err != nil {
-		return fmt.Errorf("failed to marshal request input: %w", err)
-	}
-
-	responseMessageJSON, err := json.Marshal(conversation.ResponseMessage)
-	if err != nil {
-		return fmt.Errorf("failed to marshal response message: %w", err)
-	}
-
-	metadataJSON, err := json.Marshal(conversation.Metadata)
-	if err != nil {
-		return fmt.Errorf("failed to marshal metadata: %w", err)
-	}
-
-	// Convert Unix timestamp to time.Time for PostgreSQL timestamptz
-	createdAt := time.Unix(conversation.CreatedAt, 0)
-
-	_, err = r.pool.Exec(ctx, query,
+	_, err = tx.Exec(ctx, convQuery,
 		conversation.ID,
 		conversation.NotebookID,
-		conversation.ResponseID,
-		conversation.PreviousResponseID,
-		messagesJSON,
-		requestInputJSON,
-		conversation.ResponseText,
-		responseMessageJSON,
-		conversation.Model,
-		metadataJSON,
-		createdAt,
-		conversation.FinishReason,
-		conversation.PromptTokens,
-		conversation.CompletionTokens,
-		conversation.TotalTokens,
+		conversation.Metadata,
+		time.Unix(conversation.CreatedAt, 0),
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to save conversation: %w", err)
 	}
 
-	return nil
+	// Insert messages
+	msgQuery := `
+		INSERT INTO messages (id, conversation_id, sequence_num, response_id, previous_response_id, message, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`
+	for _, msg := range messages {
+		msgContent, err := json.Marshal(msg.Message)
+		if err != nil {
+			return fmt.Errorf("failed to marshal message content: %w", err)
+		}
+
+		_, err = tx.Exec(ctx, msgQuery,
+			msg.ID,
+			msg.ConversationID,
+			msg.SequenceNum,
+			msg.ResponseID,
+			msg.PreviousResponseID,
+			msgContent,
+			msg.Model,
+			msg.FinishReason,
+			msg.PromptTokens,
+			msg.CompletionTokens,
+			msg.TotalTokens,
+			msg.CreatedAt,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to save message: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// GetMessages retrieves messages for a conversation with pagination and optional chronological order
+func (r *PostgresConversationRepository) GetMessages(ctx context.Context, conversationID string, limit int, beforeSequence *int, isConversationHistory *bool) ([]*entities.Message, error) {
+	innerQuery := `
+		SELECT id, conversation_id, sequence_num, response_id, previous_response_id, message, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at
+		FROM messages
+		WHERE conversation_id = $1
+	`
+	args := []interface{}{conversationID}
+
+	if beforeSequence != nil {
+		innerQuery += fmt.Sprintf(" AND sequence_num < $%d", len(args)+1)
+		args = append(args, *beforeSequence)
+	}
+
+	innerQuery += fmt.Sprintf(" ORDER BY sequence_num DESC LIMIT $%d", len(args)+1)
+	args = append(args, limit)
+
+	query := innerQuery
+	if isConversationHistory != nil && *isConversationHistory {
+		query = fmt.Sprintf(`
+			SELECT id, conversation_id, sequence_num, response_id, previous_response_id, message, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at
+			FROM (%s) sub
+			ORDER BY sequence_num ASC
+		`, innerQuery)
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query messages: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []*entities.Message
+	for rows.Next() {
+		var msg entities.Message
+		var msgContent []byte
+		err := rows.Scan(
+			&msg.ID,
+			&msg.ConversationID,
+			&msg.SequenceNum,
+			&msg.ResponseID,
+			&msg.PreviousResponseID,
+			&msgContent,
+			&msg.Model,
+			&msg.FinishReason,
+			&msg.PromptTokens,
+			&msg.CompletionTokens,
+			&msg.TotalTokens,
+			&msg.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan message: %w", err)
+		}
+		
+		if err := json.Unmarshal(msgContent, &msg.Message); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal message content: %w", err)
+		}
+		
+		messages = append(messages, &msg)
+	}
+
+	return messages, nil
+}
+
+// GetLatestConversationID retrieves the ID of the latest conversation for a notebook
+func (r *PostgresConversationRepository) GetLatestConversationID(ctx context.Context, notebookID string) (string, error) {
+	query := `
+		SELECT id
+		FROM conversations
+		WHERE notebook_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	var id string
+	err := r.pool.QueryRow(ctx, query, notebookID).Scan(&id)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to get latest conversation ID: %w", err)
+	}
+	return id, nil
+}
+
+// FindByID finds a conversation by its ID
+func (r *PostgresConversationRepository) FindByID(ctx context.Context, id string) (*entities.Conversation, error) {
+	query := `
+		SELECT id, notebook_id, metadata, created_at
+		FROM conversations
+		WHERE id = $1
+	`
+
+	var conversation entities.Conversation
+	var metadataJSON []byte
+	var createdAt time.Time
+
+	err := r.pool.QueryRow(ctx, query, id).Scan(
+		&conversation.ID,
+		&conversation.NotebookID,
+		&metadataJSON,
+		&createdAt,
+	)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find conversation by ID: %w", err)
+	}
+
+	conversation.CreatedAt = createdAt.Unix()
+
+	if err := json.Unmarshal(metadataJSON, &conversation.Metadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	}
+
+	return &conversation, nil
 }
 
 // FindByResponseID finds a conversation by its response ID
 func (r *PostgresConversationRepository) FindByResponseID(ctx context.Context, responseID string) (*entities.Conversation, error) {
-	if responseID == "" {
-		return nil, fmt.Errorf("response ID cannot be empty")
-	}
-
+	// Note: This method needs adjustment to search by message.response_id
 	query := `
-		SELECT id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at, finish_reason, prompt_tokens, completion_tokens, total_tokens
-		FROM conversations
-		WHERE response_id = $1
+		SELECT c.id, c.notebook_id, c.metadata, c.created_at
+		FROM conversations c
+		JOIN messages m ON c.id = m.conversation_id
+		WHERE m.response_id = $1
+		LIMIT 1
 	`
 
 	var conversation entities.Conversation
-	var messagesJSON, requestInputJSON, responseMessageJSON, metadataJSON []byte
+	var metadataJSON []byte
 	var createdAt time.Time
 
 	err := r.pool.QueryRow(ctx, query, responseID).Scan(
 		&conversation.ID,
 		&conversation.NotebookID,
-		&conversation.ResponseID,
-		&conversation.PreviousResponseID,
-		&messagesJSON,
-		&requestInputJSON,
-		&conversation.ResponseText,
-		&responseMessageJSON,
-		&conversation.Model,
 		&metadataJSON,
 		&createdAt,
-		&conversation.FinishReason,
-		&conversation.PromptTokens,
-		&conversation.CompletionTokens,
-		&conversation.TotalTokens,
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to find conversation: %w", err)
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find conversation by response ID: %w", err)
 	}
 
-	// Convert time.Time to Unix timestamp
 	conversation.CreatedAt = createdAt.Unix()
-
-	// Parse JSON fields
-	if err := json.Unmarshal(messagesJSON, &conversation.Messages); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
-	}
-
-	if requestInputJSON != nil {
-		if err := json.Unmarshal(requestInputJSON, &conversation.RequestInput); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal request input: %w", err)
-		}
-	}
-
-	if responseMessageJSON != nil {
-		if err := json.Unmarshal(responseMessageJSON, &conversation.ResponseMessage); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response message: %w", err)
-		}
-	}
-
-	if metadataJSON != nil {
-		if err := json.Unmarshal(metadataJSON, &conversation.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
+	
+	if err := json.Unmarshal(metadataJSON, &conversation.Metadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
 
 	return &conversation, nil
@@ -162,12 +243,11 @@ func (r *PostgresConversationRepository) FindByResponseID(ctx context.Context, r
 
 // Delete deletes a conversation by response ID
 func (r *PostgresConversationRepository) Delete(ctx context.Context, responseID string) error {
-	if responseID == "" {
-		return fmt.Errorf("response ID cannot be empty")
-	}
-
-	query := `DELETE FROM conversations WHERE response_id = $1`
-
+	// This should delete the conversation and cascaded messages
+	query := `
+		DELETE FROM conversations
+		WHERE id = (SELECT conversation_id FROM messages WHERE response_id = $1 LIMIT 1)
+	`
 	_, err := r.pool.Exec(ctx, query, responseID)
 	if err != nil {
 		return fmt.Errorf("failed to delete conversation: %w", err)
@@ -178,11 +258,7 @@ func (r *PostgresConversationRepository) Delete(ctx context.Context, responseID 
 
 // Exists checks if a conversation exists for a response ID
 func (r *PostgresConversationRepository) Exists(ctx context.Context, responseID string) (bool, error) {
-	if responseID == "" {
-		return false, fmt.Errorf("response ID cannot be empty")
-	}
-
-	query := `SELECT EXISTS(SELECT 1 FROM conversations WHERE response_id = $1)`
+	query := `SELECT EXISTS(SELECT 1 FROM messages WHERE response_id = $1)`
 
 	var exists bool
 	err := r.pool.QueryRow(ctx, query, responseID).Scan(&exists)
@@ -195,145 +271,81 @@ func (r *PostgresConversationRepository) Exists(ctx context.Context, responseID 
 
 // List retrieves conversations with pagination and optional filters
 func (r *PostgresConversationRepository) List(ctx context.Context, filter repositories.ConversationFilter) ([]*entities.Conversation, int, error) {
-	// Build WHERE clause dynamically
-	whereClause := ""
+	query := `SELECT c.id, c.notebook_id, c.metadata, c.created_at FROM conversations c WHERE 1=1`
 	args := []interface{}{}
-	argCount := 1
+	argIdx := 1
+
+	// If filtering by message attributes, we need a JOIN
+	if filter.Model != nil {
+		query = `SELECT DISTINCT c.id, c.notebook_id, c.metadata, c.created_at FROM conversations c JOIN messages m ON c.id = m.conversation_id WHERE 1=1`
+		if filter.Model != nil {
+			query += fmt.Sprintf(" AND m.model = $%d", argIdx)
+			args = append(args, *filter.Model)
+			argIdx++
+		}
+	}
 
 	if filter.NotebookID != nil {
-		whereClause += fmt.Sprintf(" WHERE notebook_id = $%d", argCount)
+		query += fmt.Sprintf(" AND c.notebook_id = $%d", argIdx)
 		args = append(args, *filter.NotebookID)
-		argCount++
+		argIdx++
 	}
 
-	if filter.Model != nil {
-		if whereClause == "" {
-			whereClause += " WHERE"
-		} else {
-			whereClause += " AND"
-		}
-		whereClause += fmt.Sprintf(" model = $%d", argCount)
-		args = append(args, *filter.Model)
-		argCount++
-	}
-
-	if filter.PreviousResponseID != nil {
-		if whereClause == "" {
-			whereClause += " WHERE"
-		} else {
-			whereClause += " AND"
-		}
-		whereClause += fmt.Sprintf(" previous_response_id = $%d", argCount)
-		args = append(args, *filter.PreviousResponseID)
-		argCount++
-	}
-
-	// Get total count
-	countQuery := "SELECT COUNT(*) FROM conversations" + whereClause
+	countQuery := "SELECT count(*) FROM (" + query + ") AS count_table"
 	var total int
-	err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total)
-	if err != nil {
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("failed to count conversations: %w", err)
 	}
 
-	// Build ORDER BY clause with validation
-	orderBy := "created_at DESC"
 	if filter.OrderBy != "" {
-		// Validate orderBy to prevent SQL injection
-		allowedOrders := map[string]bool{
-			"created_at DESC":  true,
-			"created_at ASC":   true,
-			"model DESC":       true,
-			"model ASC":        true,
-			"response_id DESC": true,
-			"response_id ASC":  true,
+		// Add table alias if not present to avoid ambiguity in JOIN
+		orderBy := filter.OrderBy
+		if !strings.Contains(orderBy, ".") {
+			orderBy = "c." + orderBy
 		}
-		if allowedOrders[filter.OrderBy] {
-			orderBy = filter.OrderBy
-		}
+		query += " ORDER BY " + orderBy
+	} else {
+		query += " ORDER BY c.created_at DESC"
 	}
 
-	// Get conversations
-	query := `
-		SELECT id, notebook_id, response_id, previous_response_id, messages, request_input, response_text, response_message, model, metadata, created_at, finish_reason, prompt_tokens, completion_tokens, total_tokens
-		FROM conversations
-		` + whereClause + `
-		ORDER BY ` + orderBy + `
-		LIMIT $` + fmt.Sprintf("%d", argCount) + ` OFFSET $` + fmt.Sprintf("%d", argCount+1)
+	if filter.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argIdx)
+		args = append(args, filter.Limit)
+		argIdx++
+	}
 
-	args = append(args, filter.Limit, filter.Offset)
+	if filter.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET $%d", argIdx)
+		args = append(args, filter.Offset)
+		argIdx++
+	}
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list conversations: %w", err)
+		return nil, 0, fmt.Errorf("failed to query conversations: %w", err)
 	}
 	defer rows.Close()
 
 	var conversations []*entities.Conversation
 	for rows.Next() {
-		conversation, err := r.scanConversation(rows)
-		if err != nil {
-			return nil, 0, err
+		var conv entities.Conversation
+		var metadataJSON []byte
+		var createdAt time.Time
+		if err := rows.Scan(&conv.ID, &conv.NotebookID, &metadataJSON, &createdAt); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan conversation: %w", err)
 		}
-		conversations = append(conversations, conversation)
-	}
-
-	return conversations, total, nil
-}
-
-// scanConversation scans a conversation from a database row
-func (r *PostgresConversationRepository) scanConversation(rows pgx.Rows) (*entities.Conversation, error) {
-	var conversation entities.Conversation
-	var messagesJSON, requestInputJSON, responseMessageJSON, metadataJSON []byte
-	var createdAt time.Time
-
-	err := rows.Scan(
-		&conversation.ID,
-		&conversation.NotebookID,
-		&conversation.ResponseID,
-		&conversation.PreviousResponseID,
-		&messagesJSON,
-		&requestInputJSON,
-		&conversation.ResponseText,
-		&responseMessageJSON,
-		&conversation.Model,
-		&metadataJSON,
-		&createdAt,
-		&conversation.FinishReason,
-		&conversation.PromptTokens,
-		&conversation.CompletionTokens,
-		&conversation.TotalTokens,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan conversation: %w", err)
-	}
-
-	// Convert time.Time to Unix timestamp
-	conversation.CreatedAt = createdAt.Unix()
-
-	// Parse JSON fields
-	if err := json.Unmarshal(messagesJSON, &conversation.Messages); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
-	}
-
-	if requestInputJSON != nil {
-		if err := json.Unmarshal(requestInputJSON, &conversation.RequestInput); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal request input: %w", err)
+		
+		if metadataJSON != nil {
+			if err := json.Unmarshal(metadataJSON, &conv.Metadata); err != nil {
+				return nil, 0, fmt.Errorf("failed to unmarshal metadata: %w", err)
+			}
+		} else {
+			conv.Metadata = make(map[string]string)
 		}
+		conv.CreatedAt = createdAt.Unix()
+
+		conversations = append(conversations, &conv)
 	}
 
-	if responseMessageJSON != nil {
-		if err := json.Unmarshal(responseMessageJSON, &conversation.ResponseMessage); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response message: %w", err)
-		}
-	}
-
-	if metadataJSON != nil {
-		if err := json.Unmarshal(metadataJSON, &conversation.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
-	}
-
-	return &conversation, nil
+	return conversations, total, rows.Err()
 }

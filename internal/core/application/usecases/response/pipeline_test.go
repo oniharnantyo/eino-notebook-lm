@@ -45,8 +45,8 @@ func TestResponsePipeline_Execute_Success(t *testing.T) {
 		Input:      "hello",
 	}
 
-	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
-	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything).Return(stages.GenerationOutput{
+	mockHistory.On("Execute", mock.Anything, mock.Anything).Return(stages.HistoryOutput{}, nil)
+	mockAgent.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(stages.GenerationOutput{
 		Stream: nil,
 	}, nil)
 
@@ -66,7 +66,7 @@ func TestResponsePipeline_Execute_HistoryFailure(t *testing.T) {
 	ctx := context.Background()
 	req := &dtos.ResponseRequest{Input: "hello"}
 
-	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, errors.New("history error"))
+	mockHistory.On("Execute", mock.Anything, mock.Anything).Return(stages.HistoryOutput{}, errors.New("history error"))
 
 	_, _, err := pipeline.Execute(ctx, req, "system", "model")
 
@@ -83,8 +83,8 @@ func TestResponsePipeline_Execute_GenerationFailure(t *testing.T) {
 	ctx := context.Background()
 	req := &dtos.ResponseRequest{Input: "hello"}
 
-	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
-	mockAgent.On("Execute", ctx, mock.Anything, mock.Anything).Return(stages.GenerationOutput{}, errors.New("agent error"))
+	mockHistory.On("Execute", mock.Anything, mock.Anything).Return(stages.HistoryOutput{}, nil)
+	mockAgent.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(stages.GenerationOutput{}, errors.New("agent error"))
 
 	_, _, err := pipeline.Execute(ctx, req, "system", "model")
 
@@ -106,7 +106,7 @@ func TestResponsePipeline_Execute_InvalidSourceID(t *testing.T) {
 		SourceIDs:  []string{"invalid-uuid"},
 	}
 
-	mockHistory.On("Execute", ctx, mock.Anything).Return(stages.HistoryOutput{}, nil)
+	mockHistory.On("Execute", mock.Anything, mock.Anything).Return(stages.HistoryOutput{}, nil)
 
 	_, _, err := pipeline.Execute(ctx, req, "system", "model")
 

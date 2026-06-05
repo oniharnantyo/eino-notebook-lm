@@ -23,7 +23,7 @@ import (
 // ConversationMemoryIntegrationTestSuite tests the conversation memory middleware flow
 type ConversationMemoryIntegrationTestSuite struct {
 	suite.Suite
-	middleware      *ConversationMemoryMiddleware
+	middleware      *conversationMemoryMiddleware
 	mockRepo        *integrationMockConversationRepository
 	logger          *logger.Logger
 	baseModel       *mockBaseChatModel
@@ -33,6 +33,7 @@ type ConversationMemoryIntegrationTestSuite struct {
 type integrationMockConversationRepository struct {
 	mu               sync.RWMutex
 	conversations    map[string]*entities.Conversation
+	messages         map[string][]*entities.Message
 	saveCallCount    atomic.Int32
 	findCallCount    atomic.Int32
 	saveDelay        time.Duration
@@ -44,10 +45,11 @@ type integrationMockConversationRepository struct {
 func newIntegrationMockConversationRepository() *integrationMockConversationRepository {
 	return &integrationMockConversationRepository{
 		conversations: make(map[string]*entities.Conversation),
+		messages:      make(map[string][]*entities.Message),
 	}
 }
 
-func (m *integrationMockConversationRepository) Save(ctx context.Context, conversation *entities.Conversation) error {
+func (m *integrationMockConversationRepository) Save(ctx context.Context, conversation *entities.Conversation, messages []*entities.Message) error {
 	m.saveCallCount.Add(1)
 
 	// Simulate slow database
@@ -69,8 +71,62 @@ func (m *integrationMockConversationRepository) Save(ctx context.Context, conver
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.conversations[conversation.ResponseID] = conversation
+	m.conversations[conversation.ID] = conversation
+	m.messages[conversation.ID] = append(m.messages[conversation.ID], messages...)
 	return nil
+}
+
+func (m *integrationMockConversationRepository) GetMessages(ctx context.Context, conversationID string, limit int, beforeSequence *int, isConversationHistory *bool) ([]*entities.Message, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	msgs := m.messages[conversationID]
+
+	// Create a reversed copy to mimic Postgres ORDER BY sequence_num DESC
+	reversedMsgs := make([]*entities.Message, len(msgs))
+	for i, msg := range msgs {
+		reversedMsgs[len(msgs)-1-i] = msg
+	}
+
+	// Basic pagination for mock
+	var filtered []*entities.Message
+	if beforeSequence != nil {
+		for _, msg := range reversedMsgs {
+			if msg.SequenceNum < *beforeSequence {
+				filtered = append(filtered, msg)
+			}
+		}
+	} else {
+		filtered = reversedMsgs
+	}
+
+	if limit > len(filtered) {
+		limit = len(filtered)
+	}
+	result := filtered[:limit]
+
+	if isConversationHistory != nil && *isConversationHistory {
+		ascResult := make([]*entities.Message, len(result))
+		for i, msg := range result {
+			ascResult[len(result)-1-i] = msg
+		}
+		result = ascResult
+	}
+
+	return result, nil
+}
+
+func (m *integrationMockConversationRepository) GetLatestConversationID(ctx context.Context, notebookID string) (string, error) {
+	return "", nil
+}
+
+func (m *integrationMockConversationRepository) FindByID(ctx context.Context, id string) (*entities.Conversation, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if conv, ok := m.conversations[id]; ok {
+		return conv, nil
+	}
+	return nil, nil
 }
 
 func (m *integrationMockConversationRepository) FindByResponseID(ctx context.Context, responseID string) (*entities.Conversation, error) {
@@ -83,8 +139,14 @@ func (m *integrationMockConversationRepository) FindByResponseID(ctx context.Con
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if conv, exists := m.conversations[responseID]; exists {
-		return conv, nil
+	// Find conversation by responseID (join equivalent)
+	for _, conv := range m.conversations {
+		msgs := m.messages[conv.ID]
+		for _, msg := range msgs {
+			if msg.ResponseID == responseID {
+				return conv, nil
+			}
+		}
 	}
 	return nil, nil
 }
@@ -92,15 +154,30 @@ func (m *integrationMockConversationRepository) FindByResponseID(ctx context.Con
 func (m *integrationMockConversationRepository) Delete(ctx context.Context, responseID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.conversations, responseID)
+	// Mock simplified delete
+	for id, conv := range m.conversations {
+		for _, msg := range m.messages[id] {
+			if msg.ResponseID == responseID {
+				delete(m.conversations, conv.ID)
+				delete(m.messages, conv.ID)
+				return nil
+			}
+		}
+	}
 	return nil
 }
 
 func (m *integrationMockConversationRepository) Exists(ctx context.Context, responseID string) (bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	_, exists := m.conversations[responseID]
-	return exists, nil
+	for _, msgs := range m.messages {
+		for _, msg := range msgs {
+			if msg.ResponseID == responseID {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func (m *integrationMockConversationRepository) List(ctx context.Context, filter repositories.ConversationFilter) ([]*entities.Conversation, int, error) {
@@ -110,8 +187,11 @@ func (m *integrationMockConversationRepository) List(ctx context.Context, filter
 func (s *ConversationMemoryIntegrationTestSuite) SetupTest() {
 	s.mockRepo = newIntegrationMockConversationRepository()
 	s.logger = logger.New(logger.LevelDebug, "text")
-	middleware := NewConversationMemory(s.mockRepo, s.logger)
-	s.middleware = middleware.(*ConversationMemoryMiddleware)
+	s.middleware = &conversationMemoryMiddleware{
+		conversationRepo: s.mockRepo,
+		logger:           s.logger,
+		saveTimeout:      10 * time.Second,
+	}
 	s.baseModel = &mockBaseChatModel{}
 }
 
@@ -131,26 +211,31 @@ func (s *ConversationMemoryIntegrationTestSuite) TestConversationLoadingWithThre
 
 	// 1. Create initial conversation
 	previousResponseID := "resp-prev-001"
-	previousConv := entities.NewConversation(
-		nil,
-		nil,
+	previousConv := entities.NewConversation(nil, map[string]string{"session": "test"})
+	
+	msg1 := entities.NewMessage(
+		previousConv.ID,
+		1,
 		previousResponseID,
-		[]*entities.StoredMessage{
-			{Role: "user", Content: "What is the capital of France?"},
-			{Role: "assistant", Content: "The capital of France is Paris."},
-		},
-		"What is the capital of France?",
-		"The capital of France is Paris.",
-		"The capital of France is Paris.",
+		nil,
+		&entities.StoredMessage{Role: "user", Content: "What is the capital of France?"},
 		"gemini-pro",
-		map[string]string{"session": "test"},
+		"",
+		0, 0, 0,
+	)
+	
+	msg2 := entities.NewMessage(
+		previousConv.ID,
+		2,
+		previousResponseID,
+		nil,
+		&entities.StoredMessage{Role: "assistant", Content: "The capital of France is Paris."},
+		"gemini-pro",
 		"stop",
-		10,
-		5,
-		15,
+		10, 5, 15,
 	)
 
-	err := s.mockRepo.Save(ctx, previousConv)
+	err := s.mockRepo.Save(ctx, previousConv, []*entities.Message{msg1, msg2})
 	s.Require().NoError(err)
 
 	// 2. Create state with previous_response_id
@@ -167,7 +252,12 @@ func (s *ConversationMemoryIntegrationTestSuite) TestConversationLoadingWithThre
 
 	// 4. Verify messages are loaded and injected
 	s.NoError(err)
-	s.Equal(ctx, newCtx)
+	// Check that original context values are preserved
+	s.Equal(previousResponseID, newCtx.Value("previous_response_id"))
+	// Check that history_message_count is set
+	historyCount, ok := newCtx.Value("history_message_count").(int)
+	s.True(ok, "history_message_count should be set in context")
+	s.Equal(2, historyCount, "Should have 2 history messages")
 	s.NotNil(newState)
 
 	// Should have loaded conversation + original message
@@ -209,7 +299,9 @@ func (s *ConversationMemoryIntegrationTestSuite) TestAsyncSaveWithTimeout() {
 	s.NoError(err)
 	s.NotNil(resp)
 
-	// 5. Wait for async save to attempt and complete (or timeout)
+	// 5. Wait for saveAsync goroutine to buffer, then flush
+	time.Sleep(100 * time.Millisecond)
+	s.middleware.AfterAgent(ctx, nil)
 	time.Sleep(400 * time.Millisecond)
 
 	// 6. Verify save was attempted
@@ -224,10 +316,6 @@ func (s *ConversationMemoryIntegrationTestSuite) TestAsyncSaveWithTimeout() {
 		savedConvs[k] = v
 	}
 	s.mockRepo.mu.RUnlock()
-
-	// The conversation may or may not be saved depending on timing
-	// What matters is that the response was returned immediately
-	// and the save was attempted asynchronously
 }
 
 // TestErrorLoggingOnSaveFailure tests error handling when save fails
@@ -254,7 +342,9 @@ func (s *ConversationMemoryIntegrationTestSuite) TestErrorLoggingOnSaveFailure()
 	s.NotNil(resp, "Response should not be nil")
 	s.NotEmpty(resp.Content, "Response should have content")
 
-	// 5. Wait for async save to attempt and fail
+	// 5. Wait for saveAsync goroutine to buffer, then flush
+	time.Sleep(100 * time.Millisecond)
+	s.middleware.AfterAgent(ctx, nil)
 	time.Sleep(100 * time.Millisecond)
 
 	// 6. Verify save was attempted
@@ -307,7 +397,9 @@ func (s *ConversationMemoryIntegrationTestSuite) TestMetadataExtraction() {
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 
-	// 4. Wait for async save
+	// 4. Wait for saveAsync goroutine to buffer, then flush
+	time.Sleep(100 * time.Millisecond)
+	s.middleware.AfterAgent(ctx, nil)
 	time.Sleep(200 * time.Millisecond)
 
 	// 5. Verify conversation was saved with correct metadata
@@ -323,25 +415,26 @@ func (s *ConversationMemoryIntegrationTestSuite) TestMetadataExtraction() {
 		break
 	}
 	s.Require().NotNil(savedConv)
+	
+	// Get associated messages
+	msgs := s.mockRepo.messages[savedConv.ID]
 
-	// Verify metadata - Note: model defaults to "unknown" if not in context
-	// The context values are extracted in buildConversation which uses the context passed to saveAsync
-	// Since saveAsync creates a new context with timeout, the values need to be passed separately
-	// For this test, we verify the metadata from ResponseMeta is preserved
-	s.Equal("stop", savedConv.FinishReason)
-	s.Equal(150, savedConv.PromptTokens)
-	s.Equal(75, savedConv.CompletionTokens)
-	s.Equal(225, savedConv.TotalTokens)
-	s.Equal("This is a detailed response about AI and machine learning.", savedConv.ResponseText)
-
-	// NotebookID and Model may not be preserved due to context.WithTimeout in saveAsync
-	// This is a known limitation - in production, these would be passed via request metadata
-
-	// Verify messages
-	s.Len(savedConv.Messages, 2, "Should have input + output messages")
-	s.Equal("user", savedConv.Messages[0].Role)
-	s.Equal("Tell me about AI", savedConv.Messages[0].Content)
-	s.Equal("assistant", savedConv.Messages[1].Role)
+	// Verify messages length
+	s.Len(msgs, 2, "Should have input + output messages")
+	
+	// Check the last message for metadata
+	lastMsg := msgs[1]
+	
+	s.Equal("stop", lastMsg.FinishReason)
+	s.Equal(150, lastMsg.PromptTokens)
+	s.Equal(75, lastMsg.CompletionTokens)
+	s.Equal(225, lastMsg.TotalTokens)
+	s.Equal("This is a detailed response about AI and machine learning.", lastMsg.Message.Content)
+	s.Equal("assistant", lastMsg.Message.Role)
+	
+	// Check first message
+	s.Equal("user", msgs[0].Message.Role)
+	s.Equal("Tell me about AI", msgs[0].Message.Content)
 }
 
 // TestStreamingResponseHandling tests handling streaming responses
@@ -405,7 +498,9 @@ func (s *ConversationMemoryIntegrationTestSuite) TestStreamingResponseHandling()
 	// 5. Verify chunks were received
 	s.GreaterOrEqual(len(receivedChunks), 4, "Should receive multiple chunks")
 
-	// 6. Wait for async save (merge and save)
+	// 6. Wait for saveAsync goroutine to buffer, then flush
+	time.Sleep(100 * time.Millisecond)
+	s.middleware.AfterAgent(ctx, nil)
 	time.Sleep(300 * time.Millisecond)
 
 	// 7. Verify merged conversation was saved
@@ -422,20 +517,24 @@ func (s *ConversationMemoryIntegrationTestSuite) TestStreamingResponseHandling()
 	}
 	s.Require().NotNil(savedConv)
 
+	msgs := s.mockRepo.messages[savedConv.ID]
+	s.Len(msgs, 2, "Should have input + merged output")
+
+	lastMsg := msgs[1]
+
 	// Verify merged content
-	s.Equal("Hello world from streaming!", savedConv.ResponseText, "Response text should be merged")
+	s.Equal("Hello world from streaming!", lastMsg.Message.Content, "Response text should be merged")
 
 	// Verify metadata from last chunk
-	s.Equal("stop", savedConv.FinishReason)
-	s.Equal(10, savedConv.PromptTokens)
-	s.Equal(20, savedConv.CompletionTokens)
-	s.Equal(30, savedConv.TotalTokens)
+	s.Equal("stop", lastMsg.FinishReason)
+	s.Equal(10, lastMsg.PromptTokens)
+	s.Equal(20, lastMsg.CompletionTokens)
+	s.Equal(30, lastMsg.TotalTokens)
 
 	// Verify messages
-	s.Len(savedConv.Messages, 2, "Should have input + merged output")
-	s.Equal("user", savedConv.Messages[0].Role)
-	s.Equal("Stream a response", savedConv.Messages[0].Content)
-	s.Equal("assistant", savedConv.Messages[1].Role)
+	s.Equal("user", msgs[0].Message.Role)
+	s.Equal("Stream a response", msgs[0].Message.Content)
+	s.Equal("assistant", lastMsg.Message.Role)
 }
 
 // TestFullConversationFlow tests complete conversation threading flow
@@ -472,18 +571,27 @@ func (s *ConversationMemoryIntegrationTestSuite) TestFullConversationFlow() {
 	s.Require().NoError(err)
 	s.NotNil(firstResp)
 
-	// Wait for save
+	// Wait for saveAsync goroutine to buffer, then flush
+	time.Sleep(100 * time.Millisecond)
+	s.middleware.AfterAgent(ctx, nil)
 	time.Sleep(200 * time.Millisecond)
 
 	// Get the first response ID
 	s.mockRepo.mu.RLock()
+	var firstConvID string
 	var firstResponseID string
-	for respID := range s.mockRepo.conversations {
-		firstResponseID = respID
+	for id, conv := range s.mockRepo.conversations {
+		firstConvID = id
+		// just grab the response_id of the generated message
+		msgs := s.mockRepo.messages[conv.ID]
+		if len(msgs) > 0 {
+			firstResponseID = msgs[0].ResponseID
+		}
 		break
 	}
 	s.mockRepo.mu.RUnlock()
-	s.NotEmpty(firstResponseID, "First response should have been saved")
+	s.NotEmpty(firstConvID, "First conversation should have been saved")
+	s.NotEmpty(firstResponseID, "First response ID should have been generated")
 
 	// 2. Second interaction - load first conversation
 	secondMessages := []*schema.Message{
@@ -511,10 +619,12 @@ func (s *ConversationMemoryIntegrationTestSuite) TestFullConversationFlow() {
 	s.Require().NoError(err)
 	s.NotNil(secondResp)
 
-	// Wait for save
+	// Wait for saveAsync goroutine to buffer, then flush
+	time.Sleep(100 * time.Millisecond)
+	s.middleware.AfterAgent(newCtx, nil)
 	time.Sleep(200 * time.Millisecond)
 
-	// 4. Verify both conversations are saved
+	// 4. Verify conversation is reused
 	s.mockRepo.mu.RLock()
 	savedConvs := make([]*entities.Conversation, 0, len(s.mockRepo.conversations))
 	for _, conv := range s.mockRepo.conversations {
@@ -522,23 +632,19 @@ func (s *ConversationMemoryIntegrationTestSuite) TestFullConversationFlow() {
 	}
 	s.mockRepo.mu.RUnlock()
 
-	s.Len(savedConvs, 2, "Should have two saved conversations")
+	s.Len(savedConvs, 1, "Should have one saved conversation (reused)")
 
-	// Verify second conversation references first
-	var secondConv *entities.Conversation
-	for _, conv := range savedConvs {
-		if conv.PreviousResponseID != nil && *conv.PreviousResponseID == firstResponseID {
-			secondConv = conv
-			break
-		}
-	}
-	s.Require().NotNil(secondConv, "Second conversation should reference first")
+	s.mockRepo.mu.RLock()
+	secondMsgs := s.mockRepo.messages[firstConvID]
+	s.mockRepo.mu.RUnlock()
 
-	// Verify second conversation has full history
-	s.Len(secondConv.Messages, 4, "Second conversation should have full history: 2 from first + user Q + assistant A")
-	s.Equal("My name is Alice", secondConv.Messages[0].Content)
-	s.Equal("Hello Alice! Nice to meet you.", secondConv.Messages[1].Content)
-	s.Equal("What's my name?", secondConv.Messages[2].Content)
+	// In the new logic, for existing conversations (sequenceNum > 1),
+	// input messages are skipped to prevent duplicates from agent iterations.
+	// Only the output message is appended.
+	s.Len(secondMsgs, 3, "Conversation should have: 2 from first + 1 output from second")
+	s.Equal("My name is Alice", secondMsgs[0].Message.Content)
+	s.Equal("Hello Alice! Nice to meet you.", secondMsgs[1].Message.Content)
+	s.Equal("assistant", secondMsgs[2].Message.Role) // The final response
 }
 
 // TestConcurrentSaves tests handling concurrent save operations
@@ -574,7 +680,9 @@ func (s *ConversationMemoryIntegrationTestSuite) TestConcurrentSaves() {
 	wg.Wait()
 	close(errors)
 
-	// 3. Wait for all async saves
+	// 3. Wait for saveAsync goroutines to buffer, then flush all
+	time.Sleep(100 * time.Millisecond)
+	s.middleware.AfterAgent(ctx, nil)
 	time.Sleep(500 * time.Millisecond)
 
 	// 4. Verify no errors occurred
@@ -626,8 +734,11 @@ func TestIntegrationAsyncSaveCancellation(t *testing.T) {
 	repo := newIntegrationMockConversationRepository()
 	repo.saveDelay = 5 * time.Second
 	log := logger.New(logger.LevelDebug, "text")
-	middleware := NewConversationMemory(repo, log)
-	middleware.(*ConversationMemoryMiddleware).SetSaveTimeout(100 * time.Millisecond)
+	middleware := &conversationMemoryMiddleware{
+		conversationRepo: repo,
+		logger:           log,
+		saveTimeout:      100 * time.Millisecond,
+	}
 
 	baseModel := &mockBaseChatModel{
 		generateFunc: func(ctx context.Context, messages []*schema.Message, opts ...model.Option) (*schema.Message, error) {

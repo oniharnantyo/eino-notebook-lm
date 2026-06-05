@@ -10,6 +10,7 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
@@ -24,16 +25,19 @@ const runIDKey contextKey = "conversation_run_id"
 
 // pendingConversation holds buffered conversation data for a request.
 type pendingConversation struct {
-	inputMessages  []*schema.Message
-	outputMessages []*schema.Message
-	lastUpdate     time.Time
-	responseID     string
+	inputMessages    []*schema.Message
+	outputMessages   []*schema.Message
+	toolResults      []*schema.Message
+	savedToolResults int
+	lastUpdate       time.Time
+	responseID       string
+	ctx              context.Context
 }
 
-// ConversationMemoryMiddleware handles conversation persistence for Eino ADK agents.
+// conversationMemoryMiddleware handles conversation persistence for Eino ADK agents.
 // It loads conversation history before model invocation and saves responses asynchronously.
 // Uses buffering to prevent multiple saves for the same request.
-type ConversationMemoryMiddleware struct {
+type conversationMemoryMiddleware struct {
 	conversationRepo repositories.ConversationRepository
 	logger           *logger.Logger
 	saveTimeout      time.Duration
@@ -44,7 +48,7 @@ type ConversationMemoryMiddleware struct {
 // NewConversationMemory creates a new conversation memory middleware.
 // Default save timeout is 10 seconds.
 func NewConversationMemory(conversationRepo repositories.ConversationRepository, log *logger.Logger) adk.ChatModelAgentMiddleware {
-	return &ConversationMemoryMiddleware{
+	return &conversationMemoryMiddleware{
 		conversationRepo: conversationRepo,
 		logger:           log,
 		saveTimeout:      10 * time.Second,
@@ -52,13 +56,13 @@ func NewConversationMemory(conversationRepo repositories.ConversationRepository,
 }
 
 // SetSaveTimeout sets the timeout for saving conversations.
-func (m *ConversationMemoryMiddleware) SetSaveTimeout(timeout time.Duration) {
+func (m *conversationMemoryMiddleware) SetSaveTimeout(timeout time.Duration) {
 	m.saveTimeout = timeout
 }
 
 // BeforeAgent is called before each agent run.
 // Injects a stable run ID for grouping model calls.
-func (m *ConversationMemoryMiddleware) BeforeAgent(ctx context.Context, runCtx *adk.ChatModelAgentContext) (context.Context, *adk.ChatModelAgentContext, error) {
+func (m *conversationMemoryMiddleware) BeforeAgent(ctx context.Context, runCtx *adk.ChatModelAgentContext) (context.Context, *adk.ChatModelAgentContext, error) {
 	runID := appuuid.New().String()
 	ctx = context.WithValue(ctx, runIDKey, runID)
 	return ctx, runCtx, nil
@@ -66,7 +70,7 @@ func (m *ConversationMemoryMiddleware) BeforeAgent(ctx context.Context, runCtx *
 
 // BeforeModelRewriteState is called before each model invocation.
 // Loads conversation history and injects it into the model input.
-func (m *ConversationMemoryMiddleware) BeforeModelRewriteState(ctx context.Context, state *adk.ChatModelAgentState, mc *adk.ModelContext) (context.Context, *adk.ChatModelAgentState, error) {
+func (m *conversationMemoryMiddleware) BeforeModelRewriteState(ctx context.Context, state *adk.ChatModelAgentState, mc *adk.ModelContext) (context.Context, *adk.ChatModelAgentState, error) {
 	// Extract previous_response_id from context
 	previousResponseID, ok := ctx.Value("previous_response_id").(string)
 	if !ok || previousResponseID == "" {
@@ -90,9 +94,32 @@ func (m *ConversationMemoryMiddleware) BeforeModelRewriteState(ctx context.Conte
 		return ctx, state, nil
 	}
 
+	// Load messages for the conversation
+	storedMessages, err := m.conversationRepo.GetMessages(ctx, conversation.ID, 100, nil, nil)
+	if err != nil {
+		m.logger.Warn("Failed to load messages for conversation",
+			"conversation_id", conversation.ID,
+			"error", err)
+		return ctx, state, nil
+	}
+
 	// Inject messages into state (prepend loaded messages for proper conversation threading)
-	messages := conversation.GetEinoMessages()
+	var messages []*schema.Message
+	for i := len(storedMessages) - 1; i >= 0; i-- { // Reverse if returned desc, but GetMessages has ORDER BY sequence_num DESC
+		if storedMessages[i].Message != nil {
+			msg := storedMessages[i].Message.ToEinoMessage()
+			if msg.Extra == nil {
+				msg.Extra = make(map[string]any)
+			}
+			msg.Extra["_is_history"] = true
+			messages = append(messages, msg)
+		}
+	}
 	state.Messages = append(messages, state.Messages...)
+
+	// Store history message count for position-based filtering during save
+	// This is more reliable than relying on Extra field which gets lost during message cloning
+	ctx = context.WithValue(ctx, "history_message_count", len(messages))
 
 	m.logger.Debug("Loaded conversation history",
 		"previous_response_id", previousResponseID,
@@ -103,36 +130,51 @@ func (m *ConversationMemoryMiddleware) BeforeModelRewriteState(ctx context.Conte
 
 // AfterModelRewriteState is called after each model invocation.
 // No-op for conversation memory (we save after agent completion).
-func (m *ConversationMemoryMiddleware) AfterModelRewriteState(ctx context.Context, state *adk.ChatModelAgentState, mc *adk.ModelContext) (context.Context, *adk.ChatModelAgentState, error) {
+func (m *conversationMemoryMiddleware) AfterModelRewriteState(ctx context.Context, state *adk.ChatModelAgentState, mc *adk.ModelContext) (context.Context, *adk.ChatModelAgentState, error) {
 	return ctx, state, nil
 }
 
-// WrapInvokableToolCall wraps tool calls.
-// No-op for conversation memory.
-func (m *ConversationMemoryMiddleware) WrapInvokableToolCall(ctx context.Context, endpoint adk.InvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.InvokableToolCallEndpoint, error) {
-	return endpoint, nil
+// WrapInvokableToolCall wraps tool calls to capture tool results for conversation persistence.
+func (m *conversationMemoryMiddleware) WrapInvokableToolCall(ctx context.Context, endpoint adk.InvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.InvokableToolCallEndpoint, error) {
+	return func(ctx context.Context, argumentsInJSON string, opts ...tool.Option) (string, error) {
+		result, err := endpoint(ctx, argumentsInJSON, opts...)
+		if err != nil {
+			return "", err
+		}
+
+		toolMsg := schema.ToolMessage(result, tCtx.CallID, schema.WithToolName(tCtx.Name))
+
+		reqID := m.getRequestID(ctx, nil)
+		m.mu.Lock()
+		if pending, exists := m.pendingSaves[reqID]; exists {
+			pending.toolResults = append(pending.toolResults, toolMsg)
+		}
+		m.mu.Unlock()
+
+		return result, nil
+	}, nil
 }
 
 // WrapStreamableToolCall wraps streaming tool calls.
 // No-op for conversation memory.
-func (m *ConversationMemoryMiddleware) WrapStreamableToolCall(ctx context.Context, endpoint adk.StreamableToolCallEndpoint, tCtx *adk.ToolContext) (adk.StreamableToolCallEndpoint, error) {
+func (m *conversationMemoryMiddleware) WrapStreamableToolCall(ctx context.Context, endpoint adk.StreamableToolCallEndpoint, tCtx *adk.ToolContext) (adk.StreamableToolCallEndpoint, error) {
 	return endpoint, nil
 }
 
 // WrapEnhancedInvokableToolCall wraps enhanced tool calls.
 // No-op for conversation memory.
-func (m *ConversationMemoryMiddleware) WrapEnhancedInvokableToolCall(ctx context.Context, endpoint adk.EnhancedInvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.EnhancedInvokableToolCallEndpoint, error) {
+func (m *conversationMemoryMiddleware) WrapEnhancedInvokableToolCall(ctx context.Context, endpoint adk.EnhancedInvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.EnhancedInvokableToolCallEndpoint, error) {
 	return endpoint, nil
 }
 
 // WrapEnhancedStreamableToolCall wraps enhanced streaming tool calls.
 // No-op for conversation memory.
-func (m *ConversationMemoryMiddleware) WrapEnhancedStreamableToolCall(ctx context.Context, endpoint adk.EnhancedStreamableToolCallEndpoint, tCtx *adk.ToolContext) (adk.EnhancedStreamableToolCallEndpoint, error) {
+func (m *conversationMemoryMiddleware) WrapEnhancedStreamableToolCall(ctx context.Context, endpoint adk.EnhancedStreamableToolCallEndpoint, tCtx *adk.ToolContext) (adk.EnhancedStreamableToolCallEndpoint, error) {
 	return endpoint, nil
 }
 
 // WrapModel wraps model calls with a custom model that saves conversations.
-func (m *ConversationMemoryMiddleware) WrapModel(ctx context.Context, baseModel model.BaseChatModel, mc *adk.ModelContext) (model.BaseChatModel, error) {
+func (m *conversationMemoryMiddleware) WrapModel(ctx context.Context, baseModel model.BaseChatModel, mc *adk.ModelContext) (model.BaseChatModel, error) {
 	return &conversationSavingModel{
 		base:         baseModel,
 		middleware:   m,
@@ -143,7 +185,7 @@ func (m *ConversationMemoryMiddleware) WrapModel(ctx context.Context, baseModel 
 // conversationSavingModel wraps a BaseChatModel to save conversations after generation.
 type conversationSavingModel struct {
 	base         model.BaseChatModel
-	middleware   *ConversationMemoryMiddleware
+	middleware   *conversationMemoryMiddleware
 	modelContext *adk.ModelContext
 }
 
@@ -154,10 +196,29 @@ func (w *conversationSavingModel) Generate(ctx context.Context, messages []*sche
 		return resp, err
 	}
 
+
+	// Extract reasoning content from extra field before saving
+	extractReasoningContent(resp)
+
 	// Save conversation asynchronously
 	go w.middleware.saveAsync(ctx, messages, []*schema.Message{resp})
 
 	return resp, nil
+}
+
+// extractReasoningContent copies reasoning-content from Extra to ReasoningContent
+// if ReasoningContent is not already set. Some models put reasoning in Extra.
+func extractReasoningContent(msg *schema.Message) {
+	if msg == nil || msg.ReasoningContent != "" {
+		return
+	}
+	if msg.Extra != nil {
+		if rc, ok := msg.Extra["reasoning-content"]; ok {
+			if s, ok := rc.(string); ok && s != "" {
+				msg.ReasoningContent = s
+			}
+		}
+	}
 }
 
 // Stream delegates to the base model and returns a wrapped stream that saves on close.
@@ -185,6 +246,7 @@ func (w *conversationSavingModel) Stream(ctx context.Context, messages []*schema
 				// Stream ended - save collected chunks
 				if len(collectedChunks) > 0 {
 					merged := mergeStreamChunks(collectedChunks)
+					extractReasoningContent(merged)
 					if merged != nil {
 						w.middleware.saveAsync(ctx, messages, []*schema.Message{merged})
 					}
@@ -204,6 +266,8 @@ func (w *conversationSavingModel) Stream(ctx context.Context, messages []*schema
 }
 
 // mergeStreamChunks merges streaming response chunks into a single message.
+// Uses schema.ConcatMessages which properly merges ToolCalls (grouped by Index,
+// with Arguments concatenated), Content, ReasoningContent, and ResponseMeta.
 func mergeStreamChunks(chunks []*schema.Message) *schema.Message {
 	if len(chunks) == 0 {
 		return nil
@@ -213,48 +277,16 @@ func mergeStreamChunks(chunks []*schema.Message) *schema.Message {
 		return chunks[0]
 	}
 
-	// Merge content from all chunks
-	merged := &schema.Message{
-		Role:      chunks[0].Role,
-		Extra:     chunks[0].Extra,
-		ToolCalls: chunks[0].ToolCalls,
+	merged, err := schema.ConcatMessages(chunks)
+	if err != nil {
+		return chunks[len(chunks)-1]
 	}
-
-	var textParts []string
-	var reasoningParts []string
-	var multimodalParts []schema.MessageOutputPart
-
-	for _, chunk := range chunks {
-		// Merge text content
-		if chunk.Content != "" {
-			textParts = append(textParts, chunk.Content)
-		}
-
-		// Merge reasoning content
-		if chunk.ReasoningContent != "" {
-			reasoningParts = append(reasoningParts, chunk.ReasoningContent)
-		}
-
-		// Merge multimodal content
-		if len(chunk.AssistantGenMultiContent) > 0 {
-			multimodalParts = append(multimodalParts, chunk.AssistantGenMultiContent...)
-		}
-
-		// Take the last ResponseMeta (most complete)
-		if chunk.ResponseMeta != nil {
-			merged.ResponseMeta = chunk.ResponseMeta
-		}
-	}
-
-	merged.Content = strings.Join(textParts, "")
-	merged.ReasoningContent = strings.Join(reasoningParts, "")
-	merged.AssistantGenMultiContent = multimodalParts
 
 	return merged
 }
 
 // getRequestID creates a unique identifier for a request based on context or input messages.
-func (m *ConversationMemoryMiddleware) getRequestID(ctx context.Context, messages []*schema.Message) string {
+func (m *conversationMemoryMiddleware) getRequestID(ctx context.Context, messages []*schema.Message) string {
 	if runID, ok := ctx.Value(runIDKey).(string); ok && runID != "" {
 		return runID
 	}
@@ -266,7 +298,7 @@ func (m *ConversationMemoryMiddleware) getRequestID(ctx context.Context, message
 }
 
 // isFinalResponse checks if the output represents a final response (not intermediate tool calls).
-func (m *ConversationMemoryMiddleware) isFinalResponse(messages []*schema.Message) bool {
+func (m *conversationMemoryMiddleware) isFinalResponse(messages []*schema.Message) bool {
 	if len(messages) == 0 {
 		return false
 	}
@@ -274,16 +306,15 @@ func (m *ConversationMemoryMiddleware) isFinalResponse(messages []*schema.Messag
 	lastMsg := messages[len(messages)-1]
 
 	// Final response should have actual content (not just tool calls)
-	if lastMsg.Content == "" {
+	if lastMsg.Content == "" && lastMsg.ReasoningContent == "" && len(lastMsg.AssistantGenMultiContent) == 0 {
 		return false
 	}
 
-	// Check if it has substantial content (not just thinking)
-	return len(lastMsg.Content) > 50 // Has meaningful content
+	return true
 }
 
 // saveAsync buffers the conversation and saves only for final responses or debounces rapid saves.
-func (m *ConversationMemoryMiddleware) saveAsync(ctx context.Context, inputMessages []*schema.Message, outputMessages []*schema.Message) {
+func (m *conversationMemoryMiddleware) saveAsync(ctx context.Context, inputMessages []*schema.Message, outputMessages []*schema.Message) {
 	reqID := m.getRequestID(ctx, inputMessages)
 
 	m.mu.Lock()
@@ -304,30 +335,30 @@ func (m *ConversationMemoryMiddleware) saveAsync(ctx context.Context, inputMessa
 			outputMessages: outputMessages,
 			lastUpdate:     time.Now(),
 			responseID:     respID,
+			ctx:            Detach(ctx),
 		}
 		m.pendingSaves[reqID] = pending
 		m.mu.Unlock()
 
-		m.doSave(ctx, pending)
 		return
 	}
 
 	// Update existing pending conversation
-	pending.outputMessages = outputMessages
+	pending.outputMessages = append(pending.outputMessages, outputMessages...)
 	pending.lastUpdate = time.Now()
 	m.mu.Unlock()
 
 	// If this looks like a final response, save immediately
 	if m.isFinalResponse(outputMessages) {
-		m.flushSave(ctx, reqID)
+		m.flushSave(reqID)
 	} else {
 		// Schedule delayed save with debounce
-		go m.delayedFlush(ctx, reqID)
+		go m.delayedFlush(reqID)
 	}
 }
 
 // flushSave immediately saves a buffered conversation.
-func (m *ConversationMemoryMiddleware) flushSave(ctx context.Context, reqID string) {
+func (m *conversationMemoryMiddleware) flushSave(reqID string) {
 	m.mu.Lock()
 	pending, exists := m.pendingSaves[reqID]
 	if !exists {
@@ -337,11 +368,11 @@ func (m *ConversationMemoryMiddleware) flushSave(ctx context.Context, reqID stri
 	delete(m.pendingSaves, reqID)
 	m.mu.Unlock()
 
-	m.doSave(ctx, pending)
+	m.doSave(pending.ctx, pending)
 }
 
 // delayedFlush waits before saving to debounce rapid updates.
-func (m *ConversationMemoryMiddleware) delayedFlush(ctx context.Context, reqID string) {
+func (m *conversationMemoryMiddleware) delayedFlush(reqID string) {
 	time.Sleep(2 * time.Second) // Wait for potential final response
 
 	m.mu.Lock()
@@ -359,37 +390,54 @@ func (m *ConversationMemoryMiddleware) delayedFlush(ctx context.Context, reqID s
 	delete(m.pendingSaves, reqID)
 	m.mu.Unlock()
 
-	m.doSave(ctx, pending)
+	m.doSave(pending.ctx, pending)
+}
+
+// detachedContext is a context that is never cancelled but carries values from a parent.
+type detachedContext struct {
+	parent context.Context
+}
+
+func (d *detachedContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (d *detachedContext) Done() <-chan struct{}       { return nil }
+func (d *detachedContext) Err() error                  { return nil }
+func (d *detachedContext) Value(key any) any           { return d.parent.Value(key) }
+
+// Detach returns a context that carries the values of the parent but is not cancelled when the parent is.
+func Detach(ctx context.Context) context.Context {
+	return &detachedContext{parent: ctx}
 }
 
 // doSave performs the actual save operation.
-func (m *ConversationMemoryMiddleware) doSave(ctx context.Context, pending *pendingConversation) {
-	// Create context with timeout, preserving original context values
-	saveCtx, cancel := context.WithTimeout(ctx, m.saveTimeout)
+func (m *conversationMemoryMiddleware) doSave(ctx context.Context, pending *pendingConversation) {
+	// Use a detached context so the save survives request completion
+	// while still carrying necessary metadata values (notebook_id, etc.)
+	detached := Detach(ctx)
+	saveCtx, cancel := context.WithTimeout(detached, m.saveTimeout)
 	defer cancel()
 
-	// Build conversation entity
-	conversation, err := m.buildConversation(saveCtx, pending)
+	// Build conversation and messages
+	conversation, messages, err := m.buildConversation(saveCtx, pending)
 	if err != nil {
-		m.logger.Error("Failed to build conversation", "error", err)
+		m.logger.Error("Failed to build conversation and messages", "error", err)
 		return
 	}
 
 	// Save to repository
-	if err := m.conversationRepo.Save(saveCtx, conversation); err != nil {
-		m.logger.Error("Failed to save conversation",
-			"response_id", conversation.ResponseID,
+	if err := m.conversationRepo.Save(saveCtx, conversation, messages); err != nil {
+		m.logger.Error("Failed to save conversation and messages",
+			"conversation_id", conversation.ID,
 			"error", err)
 		return
 	}
 
-	m.logger.Debug("Saved conversation",
-		"response_id", conversation.ResponseID,
-		"message_count", len(conversation.Messages))
+	m.logger.Debug("Saved conversation and messages",
+		"conversation_id", conversation.ID,
+		"message_count", len(messages))
 }
 
-// buildConversation constructs a conversation entity from input and output messages.
-func (m *ConversationMemoryMiddleware) buildConversation(ctx context.Context, pending *pendingConversation) (*entities.Conversation, error) {
+// buildConversation constructs conversation and message entities from pending data.
+func (m *conversationMemoryMiddleware) buildConversation(ctx context.Context, pending *pendingConversation) (*entities.Conversation, []*entities.Message, error) {
 	// Extract metadata from context
 	var notebookID *string
 	if nbID, ok := ctx.Value("notebook_id").(string); ok && nbID != "" {
@@ -401,87 +449,127 @@ func (m *ConversationMemoryMiddleware) buildConversation(ctx context.Context, pe
 		previousResponseID = &prevID
 	}
 
-	// Use stable response ID
-	responseID := pending.responseID
+	modelName := ""
+	if mdl, ok := ctx.Value("model").(string); ok && mdl != "" {
+		modelName = mdl
+	}
+
+	var conversation *entities.Conversation
+	sequenceNum := 1
+
+	// Try conversation_id first (explicit session tracking)
+	if conversationID, ok := ctx.Value("conversation_id").(string); ok && conversationID != "" {
+		existingConv, err := m.conversationRepo.FindByID(ctx, conversationID)
+		if err != nil {
+			m.logger.Warn("Failed to find conversation by ID, creating new one", "error", err, "conversation_id", conversationID)
+		} else if existingConv != nil {
+			conversation = existingConv
+			existingMsgs, err := m.conversationRepo.GetMessages(ctx, conversation.ID, 1, nil, nil)
+			if err == nil && len(existingMsgs) > 0 {
+				sequenceNum = existingMsgs[0].SequenceNum + 1
+			}
+		}
+	}
+
+	// Fallback to previous_response_id (backward compat)
+	if conversation == nil && previousResponseID != nil {
+		var err error
+		conversation, err = m.conversationRepo.FindByResponseID(ctx, *previousResponseID)
+		if err != nil {
+			m.logger.Warn("Failed to find previous conversation, creating new one", "error", err, "previous_response_id", *previousResponseID)
+			conversation = nil
+		} else if conversation != nil {
+			existingMsgs, err := m.conversationRepo.GetMessages(ctx, conversation.ID, 1, nil, nil)
+			if err == nil && len(existingMsgs) > 0 {
+				sequenceNum = existingMsgs[0].SequenceNum + 1
+			}
+		}
+	}
+
+	// Create conversation entity if not found
+	if conversation == nil {
+		conversation = entities.NewConversation(
+			notebookID,
+			make(map[string]string),
+		)
+		// Use the conversation_id from context if available (matches what was sent to client)
+		if convID, ok := ctx.Value("conversation_id").(string); ok && convID != "" {
+			conversation.ID = convID
+		}
+	}
 
 	// Build stored messages
-	storedMessages := make([]*entities.StoredMessage, 0, len(pending.inputMessages)+len(pending.outputMessages))
+	messages := make([]*entities.Message, 0, len(pending.inputMessages)+len(pending.outputMessages))
 
-	// Add input messages
-	for _, msg := range pending.inputMessages {
-		storedMsg := &entities.StoredMessage{
-			Role:      string(msg.Role),
-			Content:   entities.MessageToStoredContent(msg),
-			Extra:     msg.Extra,
-			Timestamp: time.Now().Unix(),
+	// Only save input messages for new conversations (sequenceNum == 1).
+	// For existing conversations, input messages are already saved from previous flushes.
+	// The retrieval agent makes multiple model calls per turn, and each creates a new pending
+	// with accumulated input messages. Saving them again would create duplicates.
+	if sequenceNum == 1 {
+		for _, msg := range pending.inputMessages {
+			if msg.Role == schema.System {
+				continue
+			}
+			messages = append(messages, entities.NewMessage(
+				conversation.ID,
+				sequenceNum,
+				pending.responseID,
+				previousResponseID,
+				entities.MessageToStoredContent(msg),
+				"",
+				"",
+				0, 0, 0,
+			))
+			sequenceNum++
 		}
-		storedMessages = append(storedMessages, storedMsg)
 	}
 
 	// Add output messages
 	for _, msg := range pending.outputMessages {
-		storedMsg := &entities.StoredMessage{
-			Role:      string(msg.Role),
-			Content:   entities.MessageToStoredContent(msg),
-			Extra:     msg.Extra,
-			Timestamp: time.Now().Unix(),
+		if msg.Role == schema.System {
+			continue // skip system role messages
 		}
-		storedMessages = append(storedMessages, storedMsg)
+
+		// Extract reasoning from extra field as safety net for any messages that slipped through
+		extractReasoningContent(msg)
+
+		messages = append(messages, entities.NewMessage(
+			conversation.ID,
+			sequenceNum,
+			pending.responseID,
+			previousResponseID,
+			entities.MessageToStoredContent(msg),
+			modelName,
+			m.ExtractFinishReason(msg),
+			m.ExtractPromptTokens(msg),
+			m.ExtractCompletionTokens(msg),
+			m.ExtractTotalTokens(msg),
+		))
+		sequenceNum++
 	}
 
-	// Extract metadata from the last output message
-	metadata := make(map[string]string)
-	var responseText string
-	var responseMessage interface{}
-	finishReason := ""
-	promptTokens := 0
-	completionTokens := 0
-	totalTokens := 0
-
-	if len(pending.outputMessages) > 0 {
-		lastMsg := pending.outputMessages[len(pending.outputMessages)-1]
-
-		// Extract response text
-		responseText = m.extractResponseText(lastMsg)
-
-		// Store full response message
-		responseMessage = entities.MessageToStoredContent(lastMsg)
-
-		// Extract metadata from ResponseMeta
-		finishReason = m.extractFinishReason(lastMsg)
-		promptTokens = m.extractPromptTokens(lastMsg)
-		completionTokens = m.extractCompletionTokens(lastMsg)
-		totalTokens = m.extractTotalTokens(lastMsg)
+	// Add tool results captured from tool execution (only unsaved ones)
+	for i := pending.savedToolResults; i < len(pending.toolResults); i++ {
+		msg := pending.toolResults[i]
+		messages = append(messages, entities.NewMessage(
+			conversation.ID,
+			sequenceNum,
+			pending.responseID,
+			previousResponseID,
+			entities.MessageToStoredContent(msg),
+			"",
+			"",
+			0, 0, 0,
+		))
+		sequenceNum++
 	}
+	pending.savedToolResults = len(pending.toolResults)
 
-	// Get model from context
-	model := "unknown"
-	if mdl, ok := ctx.Value("model").(string); ok && mdl != "" {
-		model = mdl
-	}
-
-	// Create conversation entity with metadata fields
-	conversation := entities.NewConversation(
-		notebookID,
-		previousResponseID,
-		responseID,
-		storedMessages,
-		pending.inputMessages, // request_input
-		responseText,
-		responseMessage,
-		model,
-		metadata,
-		finishReason,
-		promptTokens,
-		completionTokens,
-		totalTokens,
-	)
-
-	return conversation, nil
+	return conversation, messages, nil
 }
 
-// extractResponseText extracts the text content from a message.
-func (m *ConversationMemoryMiddleware) extractResponseText(msg *schema.Message) string {
+// ExtractResponseText extracts the text content from a message.
+func (m *conversationMemoryMiddleware) ExtractResponseText(msg *schema.Message) string {
 	if msg == nil {
 		return ""
 	}
@@ -510,32 +598,32 @@ func (m *ConversationMemoryMiddleware) extractResponseText(msg *schema.Message) 
 	return ""
 }
 
-// extractFinishReason extracts the finish reason from a message's ResponseMeta.
-func (m *ConversationMemoryMiddleware) extractFinishReason(msg *schema.Message) string {
+// ExtractFinishReason extracts the finish reason from a message's ResponseMeta.
+func (m *conversationMemoryMiddleware) ExtractFinishReason(msg *schema.Message) string {
 	if msg == nil || msg.ResponseMeta == nil {
 		return ""
 	}
 	return msg.ResponseMeta.FinishReason
 }
 
-// extractPromptTokens extracts the prompt token count from a message's ResponseMeta.
-func (m *ConversationMemoryMiddleware) extractPromptTokens(msg *schema.Message) int {
+// ExtractPromptTokens extracts the prompt token count from a message's ResponseMeta.
+func (m *conversationMemoryMiddleware) ExtractPromptTokens(msg *schema.Message) int {
 	if msg == nil || msg.ResponseMeta == nil || msg.ResponseMeta.Usage == nil {
 		return 0
 	}
 	return msg.ResponseMeta.Usage.PromptTokens
 }
 
-// extractCompletionTokens extracts the completion token count from a message's ResponseMeta.
-func (m *ConversationMemoryMiddleware) extractCompletionTokens(msg *schema.Message) int {
+// ExtractCompletionTokens extracts the completion token count from a message's ResponseMeta.
+func (m *conversationMemoryMiddleware) ExtractCompletionTokens(msg *schema.Message) int {
 	if msg == nil || msg.ResponseMeta == nil || msg.ResponseMeta.Usage == nil {
 		return 0
 	}
 	return msg.ResponseMeta.Usage.CompletionTokens
 }
 
-// extractTotalTokens extracts the total token count from a message's ResponseMeta.
-func (m *ConversationMemoryMiddleware) extractTotalTokens(msg *schema.Message) int {
+// ExtractTotalTokens extracts the total token count from a message's ResponseMeta.
+func (m *conversationMemoryMiddleware) ExtractTotalTokens(msg *schema.Message) int {
 	if msg == nil || msg.ResponseMeta == nil || msg.ResponseMeta.Usage == nil {
 		return 0
 	}
@@ -544,7 +632,7 @@ func (m *ConversationMemoryMiddleware) extractTotalTokens(msg *schema.Message) i
 
 // AfterAgent is called after the agent run completes successfully.
 // Flushes any pending conversation saves to ensure all conversations are persisted.
-func (m *ConversationMemoryMiddleware) AfterAgent(ctx context.Context, state *adk.TypedChatModelAgentState[*schema.Message]) (context.Context, error) {
+func (m *conversationMemoryMiddleware) AfterAgent(ctx context.Context, state *adk.TypedChatModelAgentState[*schema.Message]) (context.Context, error) {
 	m.mu.Lock()
 
 	// Collect all pending request IDs to flush
@@ -554,14 +642,10 @@ func (m *ConversationMemoryMiddleware) AfterAgent(ctx context.Context, state *ad
 	}
 	m.mu.Unlock()
 
-	// Create a detached context for final saves to avoid context cancellation issues
-	// The agent context may already be canceled when AfterAgent runs
-	saveCtx := context.Background()
-
 	// Flush all pending saves asynchronously
-	// We don't block the agent pipeline on these final saves
+	// Each pending carries its own detached context with necessary values
 	for _, reqID := range reqIDs {
-		go m.flushSave(saveCtx, reqID)
+		go m.flushSave(reqID)
 	}
 
 	return ctx, nil

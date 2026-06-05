@@ -485,9 +485,16 @@ The server can be configured with custom host and port settings.`,
 		artifactHandler := handlers.NewArtifactHandler(artifactUseCase, mindmapUseCase, log)
 		log.Info("initialized", "handler", "ArtifactHandler")
 
+		// Create chat completions handler
+		var chatCompletionsHandler *handlers.ChatCompletionsHandler
+		if responseUseCase != nil {
+			chatCompletionsHandler = handlers.NewChatCompletionsHandler(responseUseCase, log)
+			log.Info("initialized", "handler", "ChatCompletionsHandler")
+		}
+
 		// Setup routes
 		router := mux.NewRouter()
-		httproutes.Setup(router, notebookHandler, knowledgeHandler, sourceHandler, responseHandler, conversationHandler, artifactHandler)
+		httproutes.Setup(router, notebookHandler, knowledgeHandler, sourceHandler, responseHandler, conversationHandler, artifactHandler, chatCompletionsHandler)
 		log.Info("initialized", "router", "gorilla/mux")
 
 		// Create HTTP server

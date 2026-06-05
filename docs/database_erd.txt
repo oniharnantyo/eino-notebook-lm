@@ -1,0 +1,182 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    ENTITY RELATIONSHIP DIAGRAM (FULL)                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              notebooks                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Column              │ Type          │ Constraints                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ id                  │ UUID          │ PK DEFAULT gen_random_uuid()          │
+│ user_id             │ UUID          │ FK → users(id) ON DELETE CASCADE      │
+│ title               │ VARCHAR(200)  │ NOT NULL                              │
+│ description         │ TEXT          │ NULL                                  │
+│ content             │ TEXT          │ NULL                                  │
+│ status              │ VARCHAR(50)   │ DEFAULT 'active'                       │
+│ tags                │ TEXT[]        │ NULL                                  │
+│ metadata            │ JSONB         │ NULL                                  │
+│ created_at          │ TIMESTAMPTZ   │ NOT NULL DEFAULT NOW()                 │
+│ updated_at          │ TIMESTAMPTZ   │ NOT NULL DEFAULT NOW()                 │
+│ deleted_at          │ TIMESTAMPTZ   │ NULL (soft delete)                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ 1:N
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            conversations                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Column              │ Type          │ Constraints                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ id                  │ UUID          │ PK DEFAULT gen_random_uuid()          │
+│ notebook_id         │ UUID          │ FK → notebooks(id) ON DELETE CASCADE  │
+│ metadata            │ JSONB         │ NULL                                  │
+│ created_at          │ TIMESTAMPTZ   │ NOT NULL DEFAULT NOW()                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ 1:N
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              messages                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Column              │ Type          │ Constraints                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ id                  │ UUID          │ PK DEFAULT gen_random_uuid()          │
+│ conversation_id     │ UUID          │ FK → conversations(id) ON DELETE CASC  │
+│ sequence_num        │ INTEGER       │ NOT NULL                              │
+│ response_id         │ TEXT          │ NOT NULL (identifies this turn)       │
+│ previous_response_id│ TEXT         │ NULL (links to previous turn)          │
+│ message             │ JSONB         │ NOT NULL (full StoredMessage object)   │
+│ model               │ VARCHAR(100)  │ NOT NULL                              │
+│ finish_reason       │ VARCHAR(50)   │ NULL                                  │
+│ prompt_tokens       │ INTEGER       │ NULL                                  │
+│ completion_tokens   │ INTEGER       │ NULL                                  │
+│ total_tokens        │ INTEGER       │ NULL                                  │
+│ created_at          │ TIMESTAMPTZ   │ NOT NULL DEFAULT NOW()                 │
+│
+│ UNIQUE (conversation_id, sequence_num)                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+MESSAGE JSONB STRUCTURE:
+{
+  "role": "user" | "assistant" | "tool" | "system",
+  "content": "string" | {structured content object},
+  "extra": {},
+  "timestamp": 1234567890
+}
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         FOREIGN KEY RELATIONSHIPS                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+notebooks.id ◀──────────────┐
+                             │
+                             │ FK: conversations.notebook_id
+                             │ ON DELETE CASCADE
+                             ▼
+                      conversations.id ◀──────────────┐
+                                                  │
+                                                  │ FK: messages.conversation_id
+                                                  │ ON DELETE CASCADE
+                                                  ▼
+                                                messages
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           COLUMN DESCRIPTIONS                               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+notebooks:
+  • id              : Unique identifier for the notebook
+  • user_id         : Owner of the notebook
+  • title           : Notebook title
+  • description     : Optional description
+  • content         : Optional content
+  • status          : 'active', 'archived', 'deleted'
+  • tags            : Array of tags for categorization
+  • metadata        : Additional metadata as JSONB
+  • created_at      : Timestamp when notebook was created
+  • updated_at      : Timestamp when notebook was last updated
+  • deleted_at      : Soft delete timestamp
+
+conversations:
+  • id              : Unique identifier for the conversation session
+  • notebook_id     : Which notebook this conversation belongs to
+  • metadata        : Additional session-level metadata
+  • created_at      : When this conversation session was created
+
+messages:
+  • id                  : Unique identifier for the message
+  • conversation_id     : Which conversation this message belongs to
+  • sequence_num        : Order within conversation (1, 2, 3, ...)
+  • response_id         : Identifies which turn this message belongs to
+  • previous_response_id : Links to previous turn for threading
+  • message             : Full message as JSONB (StoredMessage structure)
+                         • Contains: role, content, extra, timestamp
+                         • Content can be string or structured object
+  • model               : AI model used for this turn
+  • finish_reason       : Why the response ended (stop, length, etc)
+  • prompt_tokens       : Input token count for this turn
+  • completion_tokens   : Output token count for this turn
+  • total_tokens        : Total token count for this turn
+  • created_at          : When this message was created
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           INDEXES                                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+notebooks:
+  • idx_notebooks_user_id (user_id)
+  • idx_notebooks_title (title)
+  • idx_notebooks_status (status)
+  • idx_notebooks_tags (tags) USING GIN
+  • idx_notebooks_metadata (metadata) USING GIN
+  • idx_notebooks_deleted_at (deleted_at)
+
+conversations:
+  • idx_conversations_id (id)
+  • idx_conversations_notebook_id (notebook_id)
+  • idx_conversations_created_at (created_at DESC)
+
+messages:
+  • idx_messages_conversation_seq (conversation_id, sequence_num DESC)
+    ↑ PRIMARY PAGINATION INDEX
+
+  • idx_messages_response_id (response_id)
+    ↑ FOR FETCHING MESSAGES BY TURN
+
+  • idx_messages_created_at (created_at DESC)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                      CASCADE BEHAVIOR                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+DELETE FROM notebooks WHERE id = 'xxx'
+  → Deletes all conversations where notebook_id = 'xxx'
+  → Deletes all messages where conversation_id IN (deleted conversation ids)
+
+DELETE FROM conversations WHERE id = 'yyy'
+  → Deletes all messages where conversation_id = 'yyy'
+
+DELETE FROM messages WHERE id = 'zzz'
+  → Deletes only that message
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                        API ENDPOINTS                                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+POST /api/v1/responses
+  → Create/continue conversation
+
+GET /api/v1/notebooks/{notebookId}/conversations/messages
+  ?responseId={optional}   → Specific or latest conversation
+  &limit=10                → Messages per page (default: 10)
+  &beforeSequence={optional} → Cursor for next page (older messages)
+
+  Returns latest 10 messages (if no beforeSequence)
+  Returns next 10 older messages (if beforeSequence provided)
