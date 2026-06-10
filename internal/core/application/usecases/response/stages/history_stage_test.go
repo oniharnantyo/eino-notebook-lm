@@ -30,10 +30,10 @@ func TestHistoryStage_Load(t *testing.T) {
 
 	messages := []*entities.Message{
 		{
-			Message: &entities.StoredMessage{Role: "assistant", Content: "Hello world"},
+			Messages: []*entities.StoredMessage{{Role: "assistant", Content: "Hello world"}},
 		},
 		{
-			Message: &entities.StoredMessage{Role: "user", Content: "Hi"},
+			Messages: []*entities.StoredMessage{{Role: "user", Content: "Hi"}},
 		},
 	}
 	repo.On("GetMessages", ctx, conv.ID, 100, mock.AnythingOfType("*int"), mock.Anything).Return(messages, nil)

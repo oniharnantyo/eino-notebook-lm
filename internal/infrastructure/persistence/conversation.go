@@ -53,11 +53,11 @@ func (r *PostgresConversationRepository) Save(ctx context.Context, conversation 
 
 	// Insert messages
 	msgQuery := `
-		INSERT INTO messages (id, conversation_id, sequence_num, response_id, previous_response_id, message, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at)
+		INSERT INTO messages (id, conversation_id, sequence_num, response_id, previous_response_id, messages, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 	for _, msg := range messages {
-		msgContent, err := json.Marshal(msg.Message)
+		msgContent, err := json.Marshal(msg.Messages)
 		if err != nil {
 			return fmt.Errorf("failed to marshal message content: %w", err)
 		}
@@ -87,7 +87,7 @@ func (r *PostgresConversationRepository) Save(ctx context.Context, conversation 
 // GetMessages retrieves messages for a conversation with pagination and optional chronological order
 func (r *PostgresConversationRepository) GetMessages(ctx context.Context, conversationID string, limit int, beforeSequence *int, isConversationHistory *bool) ([]*entities.Message, error) {
 	innerQuery := `
-		SELECT id, conversation_id, sequence_num, response_id, previous_response_id, message, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at
+		SELECT id, conversation_id, sequence_num, response_id, previous_response_id, messages, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at
 		FROM messages
 		WHERE conversation_id = $1
 	`
@@ -104,7 +104,7 @@ func (r *PostgresConversationRepository) GetMessages(ctx context.Context, conver
 	query := innerQuery
 	if isConversationHistory != nil && *isConversationHistory {
 		query = fmt.Sprintf(`
-			SELECT id, conversation_id, sequence_num, response_id, previous_response_id, message, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at
+			SELECT id, conversation_id, sequence_num, response_id, previous_response_id, messages, model, finish_reason, prompt_tokens, completion_tokens, total_tokens, created_at
 			FROM (%s) sub
 			ORDER BY sequence_num ASC
 		`, innerQuery)
@@ -138,7 +138,7 @@ func (r *PostgresConversationRepository) GetMessages(ctx context.Context, conver
 			return nil, fmt.Errorf("failed to scan message: %w", err)
 		}
 		
-		if err := json.Unmarshal(msgContent, &msg.Message); err != nil {
+		if err := json.Unmarshal(msgContent, &msg.Messages); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal message content: %w", err)
 		}
 		

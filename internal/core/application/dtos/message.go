@@ -8,18 +8,18 @@ import (
 
 // MessageResponse represents a message response
 type MessageResponse struct {
-	ID                 string         `json:"id"`
-	ConversationID     string         `json:"conversation_id"`
-	SequenceNum        int            `json:"sequence_num"`
-	ResponseID         string         `json:"response_id"`
-	PreviousResponseID *string        `json:"previous_response_id,omitempty"`
-	Message            map[string]any `json:"message"`
-	Model              string         `json:"model,omitempty"`
-	FinishReason       string         `json:"finish_reason,omitempty"`
-	PromptTokens       int            `json:"prompt_tokens,omitempty"`
-	CompletionTokens   int            `json:"completion_tokens,omitempty"`
-	TotalTokens        int            `json:"total_tokens,omitempty"`
-	CreatedAt          time.Time      `json:"created_at"`
+	ID                 string                    `json:"id"`
+	ConversationID     string                    `json:"conversation_id"`
+	SequenceNum        int                       `json:"sequence_num"`
+	ResponseID         string                    `json:"response_id"`
+	PreviousResponseID *string                   `json:"previous_response_id,omitempty"`
+	Messages           []*entities.StoredMessage `json:"messages"`
+	Model              string                    `json:"model,omitempty"`
+	FinishReason       string                    `json:"finish_reason,omitempty"`
+	PromptTokens       int                       `json:"prompt_tokens,omitempty"`
+	CompletionTokens   int                       `json:"completion_tokens,omitempty"`
+	TotalTokens        int                       `json:"total_tokens,omitempty"`
+	CreatedAt          time.Time                 `json:"created_at"`
 }
 
 // GetMessagesRequest represents a request to get messages for a conversation
@@ -44,21 +44,13 @@ func ToMessageResponse(message *entities.Message) *MessageResponse {
 		return nil
 	}
 
-	var msgData map[string]any
-	if message.Message != nil {
-		msgData = map[string]any{
-			"role":    message.Message.Role,
-			"content": message.Message.Content,
-		}
-	}
-
 	return &MessageResponse{
 		ID:                 message.ID,
 		ConversationID:     message.ConversationID,
 		SequenceNum:        message.SequenceNum,
 		ResponseID:         message.ResponseID,
 		PreviousResponseID: message.PreviousResponseID,
-		Message:            msgData,
+		Messages:           message.Messages,
 		Model:              message.Model,
 		FinishReason:       message.FinishReason,
 		PromptTokens:       message.PromptTokens,

@@ -136,10 +136,10 @@ func TestBeforeModelRewriteState(t *testing.T) {
 			},
 			mockMessages: []*entities.Message{
 				{
-					Message: &entities.StoredMessage{Role: "assistant", Content: "Hi there"},
+					Messages: []*entities.StoredMessage{{Role: "assistant", Content: "Hi there"}},
 				},
 				{
-					Message: &entities.StoredMessage{Role: "user", Content: "Hello"},
+					Messages: []*entities.StoredMessage{{Role: "user", Content: "Hello"}},
 				},
 			},
 			mockError:     nil,
@@ -284,11 +284,11 @@ func TestWrapInvokableToolCall(t *testing.T) {
 
 		// Verify tool result was captured in pending
 		pending := middleware.pendingSaves[runID]
-		assert.Len(t, pending.toolResults, 1)
-		assert.Equal(t, schema.Tool, pending.toolResults[0].Role)
-		assert.Equal(t, `{"results": ["chunk1", "chunk2"]}`, pending.toolResults[0].Content)
-		assert.Equal(t, "call-abc", pending.toolResults[0].ToolCallID)
-		assert.Equal(t, "semantic_search", pending.toolResults[0].ToolName)
+		assert.Len(t, pending.cycleMessages, 1)
+		assert.Equal(t, schema.Tool, pending.cycleMessages[0].Role)
+		assert.Equal(t, `{"results": ["chunk1", "chunk2"]}`, pending.cycleMessages[0].Content)
+		assert.Equal(t, "call-abc", pending.cycleMessages[0].ToolCallID)
+		assert.Equal(t, "semantic_search", pending.cycleMessages[0].ToolName)
 	})
 
 	t.Run("tool execution error does not capture result", func(t *testing.T) {
@@ -315,7 +315,7 @@ func TestWrapInvokableToolCall(t *testing.T) {
 
 		// No tool result should be captured on error
 		pending := middleware.pendingSaves[runID]
-		assert.Len(t, pending.toolResults, 0)
+		assert.Len(t, pending.cycleMessages, 0)
 	})
 
 	t.Run("no pending does not panic", func(t *testing.T) {
@@ -450,7 +450,7 @@ func (m *mockBaseChatModel) Generate(ctx context.Context, messages []*schema.Mes
 	if m.generateFunc != nil {
 		return m.generateFunc(ctx, messages, opts...)
 	}
-	return &schema.Message{Role: schema.Assistant, Content: "test response"}, nil
+	return &schema.Message{Role: schema.Assistant, Content: "test response", ResponseMeta: &schema.ResponseMeta{FinishReason: "stop"}}, nil
 }
 
 func (m *mockBaseChatModel) Stream(ctx context.Context, messages []*schema.Message, opts ...model.Option) (*schema.StreamReader[*schema.Message], error) {
@@ -1013,7 +1013,7 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middleware.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
@@ -1021,10 +1021,11 @@ func TestBuildConversation(t *testing.T) {
 		assert.NotNil(t, conversation)
 		assert.NotEmpty(t, conversation.ID)
 		assert.Equal(t, "nb-123", *conversation.NotebookID)
-		assert.Len(t, messages, 2) // One input + one output
+		assert.Len(t, messages, 1, "Should have 1 turn message")
+		require.Len(t, messages[0].Messages, 2)
 		assert.Equal(t, "test-response-id", messages[0].ResponseID)
-		assert.Equal(t, "stop", messages[1].FinishReason)
-		assert.Equal(t, 10, messages[1].PromptTokens)
+		assert.Equal(t, "stop", messages[0].FinishReason)
+		assert.Equal(t, 10, messages[0].PromptTokens)
 	})
 
 	t.Run("Build conversation with previous response ID", func(t *testing.T) {
@@ -1041,13 +1042,14 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middleware.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
-		assert.Len(t, messages, 2)
+		assert.Len(t, messages, 1)
+		require.Len(t, messages[0].Messages, 2)
 	})
 
 	t.Run("Build conversation without context values", func(t *testing.T) {
@@ -1063,14 +1065,15 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middleware.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
 		assert.Nil(t, conversation.NotebookID)
-		assert.Len(t, messages, 2)
+		assert.Len(t, messages, 1)
+		require.Len(t, messages[0].Messages, 2)
 	})
 
 	t.Run("System role messages are filtered out", func(t *testing.T) {
@@ -1089,18 +1092,19 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middleware.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
-		assert.Len(t, messages, 2) // Only user + assistant, system filtered out
+		assert.Len(t, messages, 1)
+		require.Len(t, messages[0].Messages, 2) // Only user + assistant, system filtered out
 
 		// Verify message roles
-		roles := make([]string, len(messages))
-		for i, msg := range messages {
-			roles[i] = msg.Message.Role
+		roles := make([]string, len(messages[0].Messages))
+		for i, msg := range messages[0].Messages {
+			roles[i] = msg.Role
 		}
 		assert.NotContains(t, roles, "system", "System messages should be filtered out")
 		assert.Contains(t, roles, "user", "User messages should be preserved")
@@ -1122,18 +1126,19 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middleware.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
-		assert.Len(t, messages, 2) // Only user + assistant, system filtered out
+		assert.Len(t, messages, 1)
+		require.Len(t, messages[0].Messages, 2) // Only user + assistant, system filtered out
 
 		// Verify message roles
-		roles := make([]string, len(messages))
-		for i, msg := range messages {
-			roles[i] = msg.Message.Role
+		roles := make([]string, len(messages[0].Messages))
+		for i, msg := range messages[0].Messages {
+			roles[i] = msg.Role
 		}
 		assert.NotContains(t, roles, "system", "System messages should be filtered out from output")
 	})
@@ -1152,7 +1157,7 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middleware.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
@@ -1179,14 +1184,16 @@ func TestBuildConversation(t *testing.T) {
 				getMessagesFunc: func(ctx context.Context, conversationID string, limit int, beforeSequence *int, isConversationHistory *bool) ([]*entities.Message, error) {
 					// Return 2 existing messages → sequenceNum will be 3
 					return []*entities.Message{
-						{SequenceNum: 2, Message: &entities.StoredMessage{Role: "assistant"}},
-						{SequenceNum: 1, Message: &entities.StoredMessage{Role: "user"}},
+						{SequenceNum: 2, Messages: []*entities.StoredMessage{{Role: "assistant"}}},
+						{SequenceNum: 1, Messages: []*entities.StoredMessage{{Role: "user"}}},
 					}, nil
 				},
 			},
 			logger:      logger.New(logger.LevelInfo, "text"),
 			saveTimeout: 10 * time.Second,
 		}
+
+		ctx = context.WithValue(ctx, "history_message_count", 3)
 
 		inputMessages := []*schema.Message{
 			{Role: schema.User, Content: "Already saved user message"},
@@ -1200,14 +1207,15 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middlewareExisting.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
 		assert.Len(t, messages, 1, "Only output message should be saved for existing conversation")
-		assert.Equal(t, "New response", messages[0].Message.Content)
+		require.Len(t, messages[0].Messages, 1)
+		assert.Equal(t, "New response", messages[0].Messages[0].Content)
 		_ = repoOrig
 	})
 
@@ -1226,15 +1234,16 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middleware.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
-		assert.Len(t, messages, 2, "Both input and output should be saved for new conversation")
-		assert.Equal(t, "Hello", messages[0].Message.Content)
-		assert.Equal(t, "Hi there!", messages[1].Message.Content)
+		assert.Len(t, messages, 1, "Both input and output should be saved for new conversation in a single turn")
+		require.Len(t, messages[0].Messages, 2)
+		assert.Equal(t, "Hello", messages[0].Messages[0].Content)
+		assert.Equal(t, "Hi there!", messages[0].Messages[1].Content)
 	})
 
 	t.Run("Multiple agent iterations only save output", func(t *testing.T) {
@@ -1251,8 +1260,8 @@ func TestBuildConversation(t *testing.T) {
 				},
 				getMessagesFunc: func(ctx context.Context, conversationID string, limit int, beforeSequence *int, isConversationHistory *bool) ([]*entities.Message, error) {
 					return []*entities.Message{
-						{SequenceNum: 2, Message: &entities.StoredMessage{Role: "assistant"}},
-						{SequenceNum: 1, Message: &entities.StoredMessage{Role: "user"}},
+						{SequenceNum: 2, Messages: []*entities.StoredMessage{{Role: "assistant"}}},
+						{SequenceNum: 1, Messages: []*entities.StoredMessage{{Role: "user"}}},
 					}, nil
 				},
 			},
@@ -1273,14 +1282,15 @@ func TestBuildConversation(t *testing.T) {
 
 		conversation, messages, err := middlewareExisting.buildConversation(ctx, &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages: outputMessages,
 			responseID:     "test-response-id",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
-		assert.Len(t, messages, 1, "Only output should be saved for subsequent iterations")
-		assert.Equal(t, "Final answer about agentic RAG", messages[0].Message.Content)
+		assert.Len(t, messages, 1, "Should save 1 turn message containing input and outputs")
+		require.Len(t, messages[0].Messages, 4)
+		assert.Equal(t, "Final answer about agentic RAG", messages[0].Messages[3].Content)
 		// Verify sequence number continues from existing
 		assert.Equal(t, 3, messages[0].SequenceNum)
 	})
@@ -1364,16 +1374,11 @@ func TestBuildConversationWithToolResults(t *testing.T) {
 			saveTimeout:      10 * time.Second,
 		}
 
-		toolResults := []*schema.Message{
-			schema.ToolMessage(`{"chunks": ["result1"]}`, "call-1", schema.WithToolName("semantic_search")),
-			schema.ToolMessage("full text content", "call-2", schema.WithToolName("chunk_read")),
-		}
-
 		conversation, messages, err := mw.buildConversation(ctx, &pendingConversation{
 			inputMessages: []*schema.Message{
 				{Role: schema.User, Content: "what is agentic rag?"},
 			},
-			outputMessages: []*schema.Message{
+			cycleMessages: []*schema.Message{
 				{
 					Role:    schema.Assistant,
 					Content: "Let me search for that.",
@@ -1382,23 +1387,24 @@ func TestBuildConversationWithToolResults(t *testing.T) {
 						{ID: "call-2", Type: "function", Function: schema.FunctionCall{Name: "chunk_read"}},
 					},
 				},
+				schema.ToolMessage(`{"chunks": ["result1"]}`, "call-1", schema.WithToolName("semantic_search")),
+				schema.ToolMessage("full text content", "call-2", schema.WithToolName("chunk_read")),
 			},
-			toolResults:      toolResults,
-			savedToolResults: 0,
-			responseID:       "resp-123",
+			responseID: "resp-123",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
-		require.Len(t, messages, 4) // user + assistant_with_TC + 2 tool results
+		require.Len(t, messages, 1) // 1 turn message
+		require.Len(t, messages[0].Messages, 4) // user + assistant_with_TC + 2 tool results
 
-		assert.Equal(t, "user", messages[0].Message.Role)
-		assert.Equal(t, "assistant", messages[1].Message.Role)
-		assert.Equal(t, "tool", messages[2].Message.Role)
-		assert.Equal(t, "tool", messages[3].Message.Role)
+		assert.Equal(t, "user", messages[0].Messages[0].Role)
+		assert.Equal(t, "assistant", messages[0].Messages[1].Role)
+		assert.Equal(t, "tool", messages[0].Messages[2].Role)
+		assert.Equal(t, "tool", messages[0].Messages[3].Role)
 	})
 
-	t.Run("only unsaved tool results are saved", func(t *testing.T) {
+	t.Run("tool results interleaved in cycle messages", func(t *testing.T) {
 		ctx := context.Background()
 		ctx = context.WithValue(ctx, "notebook_id", "nb-123")
 
@@ -1408,40 +1414,34 @@ func TestBuildConversationWithToolResults(t *testing.T) {
 			saveTimeout:      10 * time.Second,
 		}
 
-		toolResults := []*schema.Message{
-			schema.ToolMessage("result1", "call-1", schema.WithToolName("search")),
-			schema.ToolMessage("result2", "call-2", schema.WithToolName("read")),
-			schema.ToolMessage("result3", "call-3", schema.WithToolName("search2")),
-		}
-
 		pending := &pendingConversation{
 			inputMessages: []*schema.Message{
 				{Role: schema.User, Content: "test"},
 			},
-			outputMessages: []*schema.Message{
+			cycleMessages: []*schema.Message{
 				{Role: schema.Assistant, Content: "response"},
+				schema.ToolMessage("result1", "call-1", schema.WithToolName("search")),
+				{Role: schema.Assistant, Content: "final answer", ResponseMeta: &schema.ResponseMeta{FinishReason: "stop"}},
 			},
-			toolResults:      toolResults,
-			savedToolResults: 1, // First tool result already saved
-			responseID:       "resp-123",
+			responseID: "resp-123",
 		}
 
 		conversation, messages, err := mw.buildConversation(ctx, pending)
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
-		// user + assistant + 2 unsaved tool results (indices 1 and 2)
-		require.Len(t, messages, 4)
-		assert.Equal(t, "tool", messages[2].Message.Role)
-		assert.Equal(t, "tool", messages[3].Message.Role)
-
-		// Verify savedToolResults was updated
-		assert.Equal(t, 3, pending.savedToolResults)
+		// user + assistant + tool + assistant(final) = 4 messages
+		require.Len(t, messages, 1)
+		require.Len(t, messages[0].Messages, 4)
+		assert.Equal(t, "assistant", messages[0].Messages[1].Role)
+		assert.Equal(t, "tool", messages[0].Messages[2].Role)
+		assert.Equal(t, "assistant", messages[0].Messages[3].Role)
 	})
 
 	t.Run("existing conversation with tool results", func(t *testing.T) {
 		ctx := context.Background()
 		ctx = context.WithValue(ctx, "notebook_id", "nb-123")
 		ctx = context.WithValue(ctx, "conversation_id", "existing-conv")
+		ctx = context.WithValue(ctx, "history_message_count", 1)
 
 		mw := &conversationMemoryMiddleware{
 			conversationRepo: &mockConversationRepository{
@@ -1449,37 +1449,32 @@ func TestBuildConversationWithToolResults(t *testing.T) {
 					return &entities.Conversation{ID: "existing-conv"}, nil
 				},
 				getMessagesFunc: func(ctx context.Context, conversationID string, limit int, beforeSequence *int, isConversationHistory *bool) ([]*entities.Message, error) {
-					return []*entities.Message{{SequenceNum: 2, Message: &entities.StoredMessage{Role: "assistant"}}}, nil
+					return []*entities.Message{{SequenceNum: 2, Messages: []*entities.StoredMessage{{Role: "assistant"}}}}, nil
 				},
 			},
 			logger:      logger.New(logger.LevelInfo, "text"),
 			saveTimeout: 10 * time.Second,
 		}
 
-		toolResults := []*schema.Message{
-			schema.ToolMessage("search results", "call-1", schema.WithToolName("semantic_search")),
-		}
-
 		conversation, messages, err := mw.buildConversation(ctx, &pendingConversation{
 			inputMessages: []*schema.Message{
 				{Role: schema.User, Content: "already saved"},
 			},
-			outputMessages: []*schema.Message{
+			cycleMessages: []*schema.Message{
 				{Role: schema.Assistant, Content: "Let me search.", ToolCalls: []schema.ToolCall{{ID: "call-1"}}},
+				schema.ToolMessage("search results", "call-1", schema.WithToolName("semantic_search")),
 			},
-			toolResults:      toolResults,
-			savedToolResults: 0,
-			responseID:       "resp-123",
+			responseID: "resp-123",
 		})
 
 		require.NoError(t, err)
 		assert.NotNil(t, conversation)
 		// Input skipped (existing conv) + 1 output + 1 tool result
-		require.Len(t, messages, 2)
-		assert.Equal(t, "assistant", messages[0].Message.Role)
-		assert.Equal(t, "tool", messages[1].Message.Role)
+		require.Len(t, messages, 1)
+		require.Len(t, messages[0].Messages, 2)
+		assert.Equal(t, "assistant", messages[0].Messages[0].Role)
+		assert.Equal(t, "tool", messages[0].Messages[1].Role)
 		assert.Equal(t, 3, messages[0].SequenceNum)
-		assert.Equal(t, 4, messages[1].SequenceNum)
 	})
 }
 

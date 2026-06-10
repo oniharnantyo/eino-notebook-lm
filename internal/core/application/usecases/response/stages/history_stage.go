@@ -45,8 +45,10 @@ func (s *HistoryStage) Load(ctx context.Context, input HistoryInput) (HistoryOut
 
 	var fullHistory []*schema.Message
 	for i := len(storedMessages) - 1; i >= 0; i-- {
-		if storedMessages[i].Message != nil {
-			fullHistory = append(fullHistory, storedMessages[i].Message.ToEinoMessage())
+		for _, m := range storedMessages[i].Messages {
+			if m != nil {
+				fullHistory = append(fullHistory, m.ToEinoMessage())
+			}
 		}
 	}
 

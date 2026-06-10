@@ -25,13 +25,11 @@ const runIDKey contextKey = "conversation_run_id"
 
 // pendingConversation holds buffered conversation data for a request.
 type pendingConversation struct {
-	inputMessages    []*schema.Message
-	outputMessages   []*schema.Message
-	toolResults      []*schema.Message
-	savedToolResults int
-	lastUpdate       time.Time
-	responseID       string
-	ctx              context.Context
+	inputMessages  []*schema.Message
+	cycleMessages  []*schema.Message // all output + tool messages in execution order
+	lastUpdate     time.Time
+	responseID     string
+	ctx            context.Context
 }
 
 // conversationMemoryMiddleware handles conversation persistence for Eino ADK agents.
@@ -106,13 +104,15 @@ func (m *conversationMemoryMiddleware) BeforeModelRewriteState(ctx context.Conte
 	// Inject messages into state (prepend loaded messages for proper conversation threading)
 	var messages []*schema.Message
 	for i := len(storedMessages) - 1; i >= 0; i-- { // Reverse if returned desc, but GetMessages has ORDER BY sequence_num DESC
-		if storedMessages[i].Message != nil {
-			msg := storedMessages[i].Message.ToEinoMessage()
-			if msg.Extra == nil {
-				msg.Extra = make(map[string]any)
+		for _, sm := range storedMessages[i].Messages {
+			if sm != nil {
+				msg := sm.ToEinoMessage()
+				if msg.Extra == nil {
+					msg.Extra = make(map[string]any)
+				}
+				msg.Extra["_is_history"] = true
+				messages = append(messages, msg)
 			}
-			msg.Extra["_is_history"] = true
-			messages = append(messages, msg)
 		}
 	}
 	state.Messages = append(messages, state.Messages...)
@@ -147,7 +147,7 @@ func (m *conversationMemoryMiddleware) WrapInvokableToolCall(ctx context.Context
 		reqID := m.getRequestID(ctx, nil)
 		m.mu.Lock()
 		if pending, exists := m.pendingSaves[reqID]; exists {
-			pending.toolResults = append(pending.toolResults, toolMsg)
+			pending.cycleMessages = append(pending.cycleMessages, toolMsg)
 		}
 		m.mu.Unlock()
 
@@ -285,8 +285,14 @@ func mergeStreamChunks(chunks []*schema.Message) *schema.Message {
 	return merged
 }
 
-// getRequestID creates a unique identifier for a request based on context or input messages.
+// getRequestID creates a unique identifier for a request based on response_id.
+// The Eino ADK framework calls BeforeAgent/AfterAgent per model-call cycle within
+// a multi-step agent run, so runID changes each cycle. response_id is stable across
+// all cycles in one user request, making it the correct grouping key.
 func (m *conversationMemoryMiddleware) getRequestID(ctx context.Context, messages []*schema.Message) string {
+	if respID, ok := ctx.Value("response_id").(string); ok && respID != "" {
+		return "resp-" + respID
+	}
 	if runID, ok := ctx.Value(runIDKey).(string); ok && runID != "" {
 		return runID
 	}
@@ -297,20 +303,20 @@ func (m *conversationMemoryMiddleware) getRequestID(ctx context.Context, message
 	return fmt.Sprintf("req-%x", h.Sum32())
 }
 
-// isFinalResponse checks if the output represents a final response (not intermediate tool calls).
+// isFinalResponse checks if the output represents a final response (finish_reason != "tool_calls").
+// Intermediate tool-calling responses are NOT final — the agent will make more calls.
+// Only flush when the turn is truly complete (stop, length, content_filter, etc.).
 func (m *conversationMemoryMiddleware) isFinalResponse(messages []*schema.Message) bool {
 	if len(messages) == 0 {
 		return false
 	}
 
 	lastMsg := messages[len(messages)-1]
-
-	// Final response should have actual content (not just tool calls)
-	if lastMsg.Content == "" && lastMsg.ReasoningContent == "" && len(lastMsg.AssistantGenMultiContent) == 0 {
+	if lastMsg.ResponseMeta == nil || lastMsg.ResponseMeta.FinishReason == "" {
 		return false
 	}
 
-	return true
+	return lastMsg.ResponseMeta.FinishReason != "tool_calls"
 }
 
 // saveAsync buffers the conversation and saves only for final responses or debounces rapid saves.
@@ -332,7 +338,7 @@ func (m *conversationMemoryMiddleware) saveAsync(ctx context.Context, inputMessa
 
 		pending = &pendingConversation{
 			inputMessages:  inputMessages,
-			outputMessages: outputMessages,
+			cycleMessages:  outputMessages,
 			lastUpdate:     time.Now(),
 			responseID:     respID,
 			ctx:            Detach(ctx),
@@ -343,17 +349,16 @@ func (m *conversationMemoryMiddleware) saveAsync(ctx context.Context, inputMessa
 		return
 	}
 
-	// Update existing pending conversation
-	pending.outputMessages = append(pending.outputMessages, outputMessages...)
+	// Update existing pending conversation — append in execution order
+	pending.cycleMessages = append(pending.cycleMessages, outputMessages...)
 	pending.lastUpdate = time.Now()
 	m.mu.Unlock()
 
-	// If this looks like a final response, save immediately
+	// If this is a final response (finish_reason != "tool_calls"), save immediately.
+	// For intermediate tool-calling responses, just accumulate — AfterAgent will
+	// flush the complete turn when the agent run finishes.
 	if m.isFinalResponse(outputMessages) {
 		m.flushSave(reqID)
-	} else {
-		// Schedule delayed save with debounce
-		go m.delayedFlush(reqID)
 	}
 }
 
@@ -498,74 +503,66 @@ func (m *conversationMemoryMiddleware) buildConversation(ctx context.Context, pe
 		}
 	}
 
-	// Build stored messages
-	messages := make([]*entities.Message, 0, len(pending.inputMessages)+len(pending.outputMessages))
+	// Get history message count to filter out already saved historical messages from inputMessages
+	historyCount := 0
+	if hc, ok := ctx.Value("history_message_count").(int); ok {
+		historyCount = hc
+	}
 
-	// Only save input messages for new conversations (sequenceNum == 1).
-	// For existing conversations, input messages are already saved from previous flushes.
-	// The retrieval agent makes multiple model calls per turn, and each creates a new pending
-	// with accumulated input messages. Saving them again would create duplicates.
-	if sequenceNum == 1 {
-		for _, msg := range pending.inputMessages {
-			if msg.Role == schema.System {
-				continue
-			}
-			messages = append(messages, entities.NewMessage(
-				conversation.ID,
-				sequenceNum,
-				pending.responseID,
-				previousResponseID,
-				entities.MessageToStoredContent(msg),
-				"",
-				"",
-				0, 0, 0,
-			))
-			sequenceNum++
+	var turnMessages []*schema.Message
+
+	// 1. Add new input messages (skipping loaded history)
+	if historyCount < len(pending.inputMessages) {
+		turnMessages = appendUnique(turnMessages, pending.inputMessages[historyCount:])
+	}
+
+	// 2. Add all cycle messages (assistant + tool interleaved in execution order)
+	turnMessages = appendUnique(turnMessages, pending.cycleMessages)
+
+	// Convert Eino messages to StoredMessage structs, skipping system messages
+	storedMessages := make([]*entities.StoredMessage, 0, len(turnMessages))
+	for _, msg := range turnMessages {
+		if msg == nil || msg.Role == schema.System {
+			continue
 		}
+		storedMessages = append(storedMessages, entities.MessageToStoredContent(msg))
 	}
 
-	// Add output messages
-	for _, msg := range pending.outputMessages {
-		if msg.Role == schema.System {
-			continue // skip system role messages
-		}
-
-		// Extract reasoning from extra field as safety net for any messages that slipped through
-		extractReasoningContent(msg)
-
-		messages = append(messages, entities.NewMessage(
-			conversation.ID,
-			sequenceNum,
-			pending.responseID,
-			previousResponseID,
-			entities.MessageToStoredContent(msg),
-			modelName,
-			m.ExtractFinishReason(msg),
-			m.ExtractPromptTokens(msg),
-			m.ExtractCompletionTokens(msg),
-			m.ExtractTotalTokens(msg),
-		))
-		sequenceNum++
+	// If there are no messages, return empty slice
+	if len(storedMessages) == 0 {
+		return conversation, nil, nil
 	}
 
-	// Add tool results captured from tool execution (only unsaved ones)
-	for i := pending.savedToolResults; i < len(pending.toolResults); i++ {
-		msg := pending.toolResults[i]
-		messages = append(messages, entities.NewMessage(
-			conversation.ID,
-			sequenceNum,
-			pending.responseID,
-			previousResponseID,
-			entities.MessageToStoredContent(msg),
-			"",
-			"",
-			0, 0, 0,
-		))
-		sequenceNum++
+	// Extract token usage and finish reason from the last cycle message
+	var lastOutputMsg *schema.Message
+	if len(pending.cycleMessages) > 0 {
+		lastOutputMsg = pending.cycleMessages[len(pending.cycleMessages)-1]
 	}
-	pending.savedToolResults = len(pending.toolResults)
 
-	return conversation, messages, nil
+	var finishReason string
+	var promptTokens, completionTokens, totalTokens int
+	if lastOutputMsg != nil {
+		finishReason = m.ExtractFinishReason(lastOutputMsg)
+		promptTokens = m.ExtractPromptTokens(lastOutputMsg)
+		completionTokens = m.ExtractCompletionTokens(lastOutputMsg)
+		totalTokens = m.ExtractTotalTokens(lastOutputMsg)
+	}
+
+	// Group all turn messages into a single entities.Message
+	message := entities.NewMessage(
+		conversation.ID,
+		sequenceNum,
+		pending.responseID,
+		previousResponseID,
+		storedMessages,
+		modelName,
+		finishReason,
+		promptTokens,
+		completionTokens,
+		totalTokens,
+	)
+
+	return conversation, []*entities.Message{message}, nil
 }
 
 // ExtractResponseText extracts the text content from a message.
@@ -630,23 +627,62 @@ func (m *conversationMemoryMiddleware) ExtractTotalTokens(msg *schema.Message) i
 	return msg.ResponseMeta.Usage.TotalTokens
 }
 
-// AfterAgent is called after the agent run completes successfully.
-// Flushes any pending conversation saves to ensure all conversations are persisted.
+// AfterAgent is called after each model-call cycle within an agent run.
+// Only flushes pending saves when the turn is complete (finish_reason != "tool_calls").
+// Intermediate cycles just accumulate — the final cycle with "stop" will trigger the flush.
 func (m *conversationMemoryMiddleware) AfterAgent(ctx context.Context, state *adk.TypedChatModelAgentState[*schema.Message]) (context.Context, error) {
 	m.mu.Lock()
 
-	// Collect all pending request IDs to flush
-	reqIDs := make([]string, 0, len(m.pendingSaves))
-	for reqID := range m.pendingSaves {
-		reqIDs = append(reqIDs, reqID)
+	var toFlush []string
+	for reqID, pending := range m.pendingSaves {
+		if m.isFinalResponse(pending.cycleMessages) {
+			toFlush = append(toFlush, reqID)
+		}
 	}
 	m.mu.Unlock()
 
-	// Flush all pending saves asynchronously
-	// Each pending carries its own detached context with necessary values
-	for _, reqID := range reqIDs {
+	for _, reqID := range toFlush {
 		go m.flushSave(reqID)
 	}
 
 	return ctx, nil
+}
+
+func appendUnique(target []*schema.Message, source []*schema.Message) []*schema.Message {
+	for _, srcMsg := range source {
+		if srcMsg == nil {
+			continue
+		}
+		duplicate := false
+		for _, tgtMsg := range target {
+			if messagesAreEqual(tgtMsg, srcMsg) {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			target = append(target, srcMsg)
+		}
+	}
+	return target
+}
+
+func messagesAreEqual(a, b *schema.Message) bool {
+	if a.Role != b.Role {
+		return false
+	}
+	if a.Content != b.Content {
+		return false
+	}
+	if len(a.ToolCalls) != len(b.ToolCalls) {
+		return false
+	}
+	for i := range a.ToolCalls {
+		if a.ToolCalls[i].ID != b.ToolCalls[i].ID ||
+			a.ToolCalls[i].Function.Name != b.ToolCalls[i].Function.Name ||
+			a.ToolCalls[i].Function.Arguments != b.ToolCalls[i].Function.Arguments {
+			return false
+		}
+	}
+	return true
 }

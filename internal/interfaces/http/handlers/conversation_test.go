@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/oniharnantyo/eino-notebook/internal/core/application/dtos"
+	"github.com/oniharnantyo/eino-notebook/internal/core/domain/entities"
 	"github.com/oniharnantyo/eino-notebook/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -55,7 +56,7 @@ func TestConversationHandler_GetMessages(t *testing.T) {
 		ConversationID: "conv-456",
 		HasMore:        false,
 		Messages: []dtos.MessageResponse{
-			{ID: "msg-1", Message: map[string]any{"content": "Hello"}},
+			{ID: "msg-1", Messages: []*entities.StoredMessage{{Content: "Hello"}}},
 		},
 	}
 

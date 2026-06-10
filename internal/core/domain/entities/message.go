@@ -13,7 +13,7 @@ type Message struct {
 	SequenceNum        int                    `json:"sequence_num"`
 	ResponseID         string                 `json:"response_id"`
 	PreviousResponseID *string                `json:"previous_response_id,omitempty"`
-	Message            *StoredMessage         `json:"message"` // JSONB content representing StoredMessage
+	Messages           []*StoredMessage       `json:"messages"` // JSONB content representing StoredMessage array
 	Model              string                 `json:"model"`
 	FinishReason       string                 `json:"finish_reason,omitempty"`
 	PromptTokens       int                    `json:"prompt_tokens,omitempty"`
@@ -28,7 +28,7 @@ func NewMessage(
 	sequenceNum int,
 	responseID string,
 	previousResponseID *string,
-	message *StoredMessage,
+	messages []*StoredMessage,
 	model string,
 	finishReason string,
 	promptTokens int,
@@ -41,7 +41,7 @@ func NewMessage(
 		SequenceNum:        sequenceNum,
 		ResponseID:         responseID,
 		PreviousResponseID: previousResponseID,
-		Message:            message,
+		Messages:           messages,
 		Model:              model,
 		FinishReason:       finishReason,
 		PromptTokens:       promptTokens,

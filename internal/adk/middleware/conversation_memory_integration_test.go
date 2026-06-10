@@ -52,21 +52,28 @@ func newIntegrationMockConversationRepository() *integrationMockConversationRepo
 func (m *integrationMockConversationRepository) Save(ctx context.Context, conversation *entities.Conversation, messages []*entities.Message) error {
 	m.saveCallCount.Add(1)
 
+	m.mu.Lock()
+	delay := m.saveDelay
+	errVal := m.saveError
+	errOnCount := m.saveErrorOnCount
+	callCount := m.saveCallCount.Load()
+	m.mu.Unlock()
+
 	// Simulate slow database
-	if m.saveDelay > 0 {
-		time.Sleep(m.saveDelay)
+	if delay > 0 {
+		time.Sleep(delay)
 	}
 
 	// Simulate error on specific call
-	if m.saveErrorOnCount > 0 && int(m.saveCallCount.Load()) == m.saveErrorOnCount {
-		if m.saveError != nil {
-			return m.saveError
+	if errOnCount > 0 && int(callCount) == errOnCount {
+		if errVal != nil {
+			return errVal
 		}
 	}
 
 	// Simulate database error
-	if m.saveError != nil && m.saveErrorOnCount == 0 {
-		return m.saveError
+	if errVal != nil && errOnCount == 0 {
+		return errVal
 	}
 
 	m.mu.Lock()
@@ -197,6 +204,8 @@ func (s *ConversationMemoryIntegrationTestSuite) SetupTest() {
 
 func (s *ConversationMemoryIntegrationTestSuite) TearDownTest() {
 	// Reset mock state
+	s.mockRepo.mu.Lock()
+	defer s.mockRepo.mu.Unlock()
 	s.mockRepo.saveDelay = 0
 	s.mockRepo.saveError = nil
 	s.mockRepo.findError = nil
@@ -218,7 +227,7 @@ func (s *ConversationMemoryIntegrationTestSuite) TestConversationLoadingWithThre
 		1,
 		previousResponseID,
 		nil,
-		&entities.StoredMessage{Role: "user", Content: "What is the capital of France?"},
+		[]*entities.StoredMessage{{Role: "user", Content: "What is the capital of France?"}},
 		"gemini-pro",
 		"",
 		0, 0, 0,
@@ -229,7 +238,7 @@ func (s *ConversationMemoryIntegrationTestSuite) TestConversationLoadingWithThre
 		2,
 		previousResponseID,
 		nil,
-		&entities.StoredMessage{Role: "assistant", Content: "The capital of France is Paris."},
+		[]*entities.StoredMessage{{Role: "assistant", Content: "The capital of France is Paris."}},
 		"gemini-pro",
 		"stop",
 		10, 5, 15,
@@ -345,7 +354,7 @@ func (s *ConversationMemoryIntegrationTestSuite) TestErrorLoggingOnSaveFailure()
 	// 5. Wait for saveAsync goroutine to buffer, then flush
 	time.Sleep(100 * time.Millisecond)
 	s.middleware.AfterAgent(ctx, nil)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
 	// 6. Verify save was attempted
 	s.Equal(int32(1), s.mockRepo.saveCallCount.Load(), "Save should have been attempted")
@@ -419,22 +428,23 @@ func (s *ConversationMemoryIntegrationTestSuite) TestMetadataExtraction() {
 	// Get associated messages
 	msgs := s.mockRepo.messages[savedConv.ID]
 
-	// Verify messages length
-	s.Len(msgs, 2, "Should have input + output messages")
+	// Verify messages length (should be 1 turn)
+	s.Len(msgs, 1, "Should have 1 turn message")
+	s.Len(msgs[0].Messages, 2, "Should have 2 messages in the turn")
 	
 	// Check the last message for metadata
-	lastMsg := msgs[1]
+	lastMsg := msgs[0]
 	
 	s.Equal("stop", lastMsg.FinishReason)
 	s.Equal(150, lastMsg.PromptTokens)
 	s.Equal(75, lastMsg.CompletionTokens)
 	s.Equal(225, lastMsg.TotalTokens)
-	s.Equal("This is a detailed response about AI and machine learning.", lastMsg.Message.Content)
-	s.Equal("assistant", lastMsg.Message.Role)
+	s.Equal("This is a detailed response about AI and machine learning.", lastMsg.Messages[1].Content)
+	s.Equal("assistant", lastMsg.Messages[1].Role)
 	
 	// Check first message
-	s.Equal("user", msgs[0].Message.Role)
-	s.Equal("Tell me about AI", msgs[0].Message.Content)
+	s.Equal("user", lastMsg.Messages[0].Role)
+	s.Equal("Tell me about AI", lastMsg.Messages[0].Content)
 }
 
 // TestStreamingResponseHandling tests handling streaming responses
@@ -518,12 +528,13 @@ func (s *ConversationMemoryIntegrationTestSuite) TestStreamingResponseHandling()
 	s.Require().NotNil(savedConv)
 
 	msgs := s.mockRepo.messages[savedConv.ID]
-	s.Len(msgs, 2, "Should have input + merged output")
+	s.Len(msgs, 1, "Should have 1 turn message")
+	s.Len(msgs[0].Messages, 2, "Should have 2 messages in the turn")
 
-	lastMsg := msgs[1]
+	lastMsg := msgs[0]
 
 	// Verify merged content
-	s.Equal("Hello world from streaming!", lastMsg.Message.Content, "Response text should be merged")
+	s.Equal("Hello world from streaming!", lastMsg.Messages[1].Content, "Response text should be merged")
 
 	// Verify metadata from last chunk
 	s.Equal("stop", lastMsg.FinishReason)
@@ -532,9 +543,9 @@ func (s *ConversationMemoryIntegrationTestSuite) TestStreamingResponseHandling()
 	s.Equal(30, lastMsg.TotalTokens)
 
 	// Verify messages
-	s.Equal("user", msgs[0].Message.Role)
-	s.Equal("Stream a response", msgs[0].Message.Content)
-	s.Equal("assistant", lastMsg.Message.Role)
+	s.Equal("user", lastMsg.Messages[0].Role)
+	s.Equal("Stream a response", lastMsg.Messages[0].Content)
+	s.Equal("assistant", lastMsg.Messages[1].Role)
 }
 
 // TestFullConversationFlow tests complete conversation threading flow
@@ -638,13 +649,16 @@ func (s *ConversationMemoryIntegrationTestSuite) TestFullConversationFlow() {
 	secondMsgs := s.mockRepo.messages[firstConvID]
 	s.mockRepo.mu.RUnlock()
 
-	// In the new logic, for existing conversations (sequenceNum > 1),
-	// input messages are skipped to prevent duplicates from agent iterations.
-	// Only the output message is appended.
-	s.Len(secondMsgs, 3, "Conversation should have: 2 from first + 1 output from second")
-	s.Equal("My name is Alice", secondMsgs[0].Message.Content)
-	s.Equal("Hello Alice! Nice to meet you.", secondMsgs[1].Message.Content)
-	s.Equal("assistant", secondMsgs[2].Message.Role) // The final response
+	// In the new turn-based logic, we have two turns:
+	// Turn 1 (seq 1): User: My name is Alice, Assistant: Hello Alice!
+	// Turn 2 (seq 2): User: What's my name?, Assistant: (response)
+	s.Len(secondMsgs, 2, "Conversation should have 2 turns")
+	s.Len(secondMsgs[0].Messages, 2, "First turn should have 2 messages")
+	s.Len(secondMsgs[1].Messages, 2, "Second turn should have 2 messages")
+	s.Equal("My name is Alice", secondMsgs[0].Messages[0].Content)
+	s.Equal("Hello Alice! Nice to meet you.", secondMsgs[0].Messages[1].Content)
+	s.Equal("What's my name?", secondMsgs[1].Messages[0].Content)
+	s.Equal("assistant", secondMsgs[1].Messages[1].Role) // The final response
 }
 
 // TestConcurrentSaves tests handling concurrent save operations
